@@ -1,25 +1,21 @@
-import { useState, type FormEvent } from 'react';
-import { Field } from '../../components/Field';
+import { useState } from 'react';
 import { Modal } from '../../components/Modal';
-import { resetMemberPin } from '../../lib/auth';
+import { useAuth } from '../../hooks/useAuth';
+import { issueResetCode } from '../../lib/auth';
 import { displayName } from '../../lib/format';
 import type { Member } from '../../lib/types';
 
-const randomPin = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
-
 export function ResetPinModal({ member, onClose }: { member: Member; onClose: () => void }) {
-  const [pin, setPin] = useState(randomPin);
+  const { me } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
+  const [issued, setIssued] = useState<{ code: string; expiresAt: Date } | null>(null);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function issue() {
     setBusy(true);
     setError('');
     try {
-      await resetMemberPin(member.id, pin);
-      setDone(true);
+      setIssued(await issueResetCode(member.id, me!.id));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -29,50 +25,39 @@ export function ResetPinModal({ member, onClose }: { member: Member; onClose: ()
 
   return (
     <Modal title={`Reset PIN — ${displayName(member)}`} onClose={onClose}>
-      {done ? (
+      {issued ? (
         <div className="space-y-4 text-center">
           <p className="text-sm text-smoke">
-            Done. Tell <span className="text-gold-200">@{member.username}</span> their new PIN in private:
+            Give <span className="text-gold-200">@{member.username}</span> this code in private:
           </p>
-          <div className="font-display text-4xl font-bold tracking-[0.4em] text-gold-200" data-testid="new-pin">
-            {pin}
+          <div className="select-all font-display text-4xl font-bold tracking-[0.25em] text-gold-200" data-testid="reset-code">
+            {issued.code}
           </div>
-          <p className="text-xs text-smoke">They've been signed out everywhere and must use this PIN from now on.</p>
+          <p className="text-xs text-smoke">
+            They go to the sign-in page → <span className="text-bone">“Forgot your PIN? … enter it here”</span>, type the code and choose a
+            new PIN. Works once, until {issued.expiresAt.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.
+            Their old PIN stops working as soon as they use it.
+          </p>
           <button className="btn-gold" onClick={onClose}>
-            Close
+            Done
           </button>
         </div>
       ) : (
-        <form onSubmit={submit} className="space-y-4">
+        <div className="space-y-4">
           <p className="text-sm text-smoke">
-            Set a new PIN for <span className="text-gold-200">@{member.username}</span>. Their old PIN will stop working immediately.
+            This creates a one-time reset code for <span className="text-gold-200">@{member.username}</span>, valid for 24 hours. Their current
+            PIN keeps working until they use it. Making a new code cancels any earlier one.
           </p>
-          <Field label="New PIN (4–8 digits)">
-            <div className="flex gap-2">
-              <input
-                className="input text-center font-display text-xl tracking-[0.4em]"
-                inputMode="numeric"
-                maxLength={8}
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                required
-                autoFocus
-              />
-              <button type="button" className="btn-ghost" onClick={() => setPin(randomPin())} title="Generate a random PIN">
-                ⟳
-              </button>
-            </div>
-          </Field>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="flex justify-end gap-2">
-            <button type="button" className="btn-ghost" onClick={onClose}>
+            <button className="btn-ghost" onClick={onClose}>
               Cancel
             </button>
-            <button className="btn-gold" disabled={busy || pin.length < 4}>
-              {busy ? 'Resetting…' : 'Reset PIN'}
+            <button className="btn-gold" disabled={busy} onClick={issue}>
+              {busy ? 'Creating…' : 'Create reset code'}
             </button>
           </div>
-        </form>
+        </div>
       )}
     </Modal>
   );

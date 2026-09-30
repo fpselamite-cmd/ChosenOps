@@ -6,7 +6,8 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, addDoc, collection } from 'firebase/firestore';
+import { createHash } from 'node:crypto';
+import { doc, getDoc, setDoc, updateDoc, writeBatch, deleteDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { DEFAULT_RANKS } from '../src/lib/types';
 
 let env: RulesTestEnvironment;
@@ -161,5 +162,82 @@ describe('budget & inventory', () => {
     await assertFails(updateDoc(doc(as('lt'), 'settings/family'), { inventoryCategories: ['x'] }));
     await assertFails(updateDoc(doc(as('lt'), 'settings/branding'), { name: 'x' }));
     await assertSucceeds(updateDoc(doc(as('boss'), 'settings/branding'), { name: 'The Chosen Few' }));
+  });
+});
+
+describe('PIN reset codes', () => {
+  beforeEach(seed);
+  const hash = (code: string) => createHash('sha256').update(code).digest('hex');
+  const inHours = (h: number) => Timestamp.fromMillis(Date.now() + h * 3600_000);
+  const issue = (by: string, target: string, code = 'ABCD2345', expiresAt = inHours(24)) =>
+    setDoc(doc(as(by), 'pinResets', target), { codeHash: hash(code), by, expiresAt });
+
+  async function redeem(newAuth: string, memberId: string, code: string, v = 1) {
+    const db = as(newAuth);
+    const b = writeBatch(db);
+    b.set(doc(db, 'authLinks', newAuth), { memberId, code });
+    b.update(doc(db, 'users', memberId), { authUid: newAuth });
+    b.update(doc(db, 'usernames', memberId), { v });
+    b.delete(doc(db, 'pinResets', memberId));
+    return b.commit();
+  }
+  beforeEach(() =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      for (const u of ['boss', 'consig', 'lt', 'assoc', 'prospect']) await setDoc(doc(ctx.firestore(), 'usernames', u), { uid: u });
+    }),
+  );
+
+  it('only officers with resetPins can issue codes, for members below them', async () => {
+    await assertSucceeds(issue('consig', 'assoc'));
+    await assertSucceeds(issue('boss', 'consig'));
+    await assertFails(issue('consig', 'boss'));
+    await assertFails(issue('lt', 'prospect'));
+    await assertFails(issue('assoc', 'assoc'));
+    await assertFails(issue('consig', 'assoc', 'X', inHours(24 * 30)));
+    await assertFails(getDoc(doc(as('assoc'), 'pinResets/assoc')));
+  });
+
+  it('a valid code moves the member to a new sign-in account', async () => {
+    await issue('consig', 'assoc');
+    await assertSucceeds(redeem('assoc2', 'assoc', 'ABCD2345'));
+    // New account acts as the member
+    await assertSucceeds(getDoc(doc(as('assoc2'), 'users/boss')));
+    await assertSucceeds(updateDoc(doc(as('assoc2'), 'users/assoc'), { character: { characterName: 'New Me' } }));
+    await assertSucceeds(getDoc(doc(as('assoc2'), 'transactions/x')));
+    // Old account (old PIN) is locked out
+    await assertFails(getDoc(doc(as('assoc'), 'users/boss')));
+    await assertFails(updateDoc(doc(as('assoc'), 'users/assoc'), { character: {} }));
+    // Code is single use
+    await assertFails(redeem('assoc3', 'assoc', 'ABCD2345', 2));
+  });
+
+  it('second reset works from a linked account too', async () => {
+    await issue('consig', 'assoc');
+    await redeem('assoc2', 'assoc', 'ABCD2345');
+    await issue('consig', 'assoc', 'ZZZZ9999');
+    await assertSucceeds(redeem('assoc3', 'assoc', 'ZZZZ9999', 2));
+    await assertFails(getDoc(doc(as('assoc2'), 'users/boss')));
+    await assertSucceeds(getDoc(doc(as('assoc3'), 'users/boss')));
+  });
+
+  it('linked officers keep their powers', async () => {
+    await issue('boss', 'consig');
+    await redeem('consig2', 'consig', 'ABCD2345');
+    await assertSucceeds(addDoc(collection(as('consig2'), 'transactions'), { type: 'clean', amount: 1, reason: 'x', createdBy: 'consig' }));
+    await assertFails(addDoc(collection(as('consig2'), 'transactions'), { type: 'clean', amount: 1, reason: 'x', createdBy: 'consig2' }));
+    await assertSucceeds(updateDoc(doc(as('consig2'), 'users/prospect'), { rankId: 'associate' }));
+  });
+
+  it('rejects wrong, expired, or missing codes and hijacking attempts', async () => {
+    await assertFails(redeem('evil', 'assoc', 'ABCD2345')); // no code issued
+    await issue('consig', 'assoc');
+    await assertFails(redeem('evil', 'assoc', 'WRONG000'));
+    await assertFails(redeem('evil', 'boss', 'ABCD2345')); // code is for someone else
+    // Can't take over without the link
+    await assertFails(updateDoc(doc(as('evil'), 'users/assoc'), { authUid: 'evil' }));
+    await env.withSecurityRulesDisabled((ctx) =>
+      setDoc(doc(ctx.firestore(), 'pinResets/prospect'), { codeHash: hash('OLDCODE1'), by: 'boss', expiresAt: inHours(-1) }),
+    );
+    await assertFails(redeem('evil', 'prospect', 'OLDCODE1'));
   });
 });

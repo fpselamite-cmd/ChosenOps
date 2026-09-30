@@ -4,7 +4,7 @@ A black-and-gold hub for **The Chosen**: member login (username + PIN), approval
 and permissions, character profiles with portraits, a Chain-of-Command member wall, a treasury (Clean Money,
 Dirty Money, Gang Rep) and a gang inventory.
 
-Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth, Firestore, and one Cloud Function for PIN resets).
+Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth + Firestore). Runs entirely on the free Spark plan — no card needed.
 
 ## Pages
 
@@ -37,48 +37,63 @@ Ranks are fully editable in **Admin → Ranks & Permissions**. Defaults:
 Officers can only act on members and ranks **below** their own rank. These rules are enforced on the server in
 `firestore.rules`, not just hidden in the UI.
 
-## Setting up Firebase (one time)
+## Going live (one-time setup)
 
-1. Go to <https://console.firebase.google.com>, click **Add project**, and name it (e.g. `the-chosen-hub`).
-2. **Build → Authentication → Get started → Sign-in method** and enable **Email/Password**.
-3. **Build → Firestore Database → Create database** (production mode, pick a region near you).
-3a. Upgrade the project to the **Blaze (pay-as-you-go)** plan (bottom-left of the console). PIN resets run as a
-    small Cloud Function, and Firebase requires Blaze for those. A hub this size stays inside the free allowance,
-    but it's worth setting a budget alert (e.g. $1) under Google Cloud Billing → Budgets & alerts.
-4. **Project settings → Your apps → Web (`</>`)**: register an app and copy the config values.
-5. In this folder:
-   ```bash
-   npm install
-   cp .env.example .env              # paste the config values into .env
-   cp .firebaserc.example .firebaserc # put your project id in it
-   npx firebase login
-   npm --prefix functions install
-   npx firebase deploy --only firestore:rules,functions   # upload the security rules + PIN reset function
-   ```
-6. `npm run dev` and open the link. **Register first.** The first account becomes Head of the Family.
+The hub is already wired to the **chosenops** Firebase project and deploys itself from GitHub.
+You only need to do these steps once, all in the browser:
 
-## Deploying
+**In the Firebase console** (<https://console.firebase.google.com/project/chosenops>):
+
+1. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable → Save.**
+   (Members never see email. The hub uses it behind the scenes for username + PIN.)
+2. **Build → Firestore Database → Create database.** Choose **Start in production mode** and a location near your
+   players (e.g. `nam5 (United States)`). The location can't be changed later.
+3. **Build → Hosting → Get started.** Click *Next* through every step; you don't need to run the commands it shows.
+
+**Create a deploy key** so GitHub can publish the site:
+
+4. Open <https://console.cloud.google.com/iam-admin/serviceaccounts?project=chosenops> → **Create service account**.
+   Name it `github-deploy` → *Create and continue* → add the roles **Firebase Admin** and **Service Usage Consumer**
+   → *Done*.
+5. Click the new account → **Keys → Add key → Create new key → JSON**. A file downloads.
+6. In GitHub, open the repo → **Settings → Secrets and variables → Actions → New repository secret**.
+   Name: `FIREBASE_SERVICE_ACCOUNT`. Value: open the downloaded file in Notepad, copy **everything**, and paste.
+   Save, then **delete the downloaded file**. It's a password for your Firebase project.
+
+**Deploy:**
+
+7. Merge the hub's pull request into `main`. That starts the first deploy (watch it under GitHub → **Actions**).
+   From then on every merge into `main` deploys automatically, and you can redeploy any time from
+   **Actions → Deploy → Run workflow**. If the first run failed because a step above wasn't finished, just re-run it.
+8. Open **<https://chosenops.web.app>** and **register first**. The first account becomes Head of the Family.
+
+Every deploy runs the security-rule tests first. If they fail, nothing is published.
+
+## Local development
 
 ```bash
-npm run deploy     # builds and deploys hosting, rules and functions
+npm install
+npm run dev        # runs the hub locally against the LIVE chosenops data
+npm run deploy     # manual deploy (needs `npx firebase login` first)
 ```
 
-Your hub will be at `https://<project-id>.web.app`.
-
-## Local development without a Firebase project
+### Offline sandbox (fake data, no Firebase account needed)
 
 ```bash
-npm run emulators   # terminal 1: local Auth + Firestore + Functions (needs Java)
+npm run emulators   # terminal 1: local Auth + Firestore (needs Java)
 npm run dev:emu     # terminal 2: app pointed at the emulators
 npm run test:rules  # security-rule tests
-npm run test:functions  # PIN reset permission tests
 ```
 
 ## Notes
 
 - **Logo:** upload it in **Admin → Family Settings**. It shows on the sign-in page, sidebar and dashboard. Until then a placeholder crest is used.
 - **Images** (portraits, logo) are resized in the browser and stored in Firestore, so no paid Storage bucket is needed.
-- **Forgotten PIN:** an officer with the *Reset member PINs* permission opens **Admin → Members → Reset PIN**, sets
-  (or generates) a new PIN and passes it on privately. It only works on members ranked below them, and it signs the
-  member out everywhere. Ranks created before this feature existed need the permission ticked in **Ranks & Permissions**
+- **Forgotten PIN:** an officer with the *Reset member PINs* permission opens **Admin → Members → Reset PIN** and
+  creates a one-time code (valid 24 hours) for a member ranked below them. The member goes to the sign-in page →
+  *"Forgot your PIN? … enter it here"*, enters the code and picks a new PIN. The old PIN stops working the moment the
+  code is used. Ranks created before this feature existed need the permission ticked in **Ranks & Permissions**
   (the top rank always has it).
+  - How it works without a server: each reset moves the member onto a fresh Firebase sign-in account that's linked back to
+    their member file (`authLinks`). The security rules check the code (only its SHA-256 hash is stored) and retire the old
+    account. You'll see extra entries like `name+1@members.chosen.hub` under Authentication. That's expected.

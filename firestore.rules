@@ -4,18 +4,30 @@ rules_version = '2';
 // permission map (see src/lib/types.ts); rank order 0 is the top of the family
 // and implicitly holds every permission. Officers can only act on members and
 // ranks that sit strictly below their own rank.
+//
+// Member ids vs sign-in accounts: a member's id is the uid of the account they
+// registered with. After a PIN reset they sign in with a fresh Firebase Auth
+// account, linked back to their member id through authLinks/{authUid}. The
+// member doc's `authUid` names the one account currently allowed to act for
+// them (absent = the original account), so old accounts/PINs stop working.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
     function rankPath(id) { return /databases/$(database)/documents/ranks/$(id); }
     function bootstrapPath() { return /databases/$(database)/documents/meta/bootstrap; }
+    function linkPath() { return /databases/$(database)/documents/authLinks/$(request.auth.uid); }
+    function resetPath(memberId) { return /databases/$(database)/documents/pinResets/$(memberId); }
 
     function signedIn() { return request.auth != null; }
-    function me() { return get(userPath(request.auth.uid)).data; }
-    function isActive() {
-      return signedIn() && exists(userPath(request.auth.uid)) && me().status == 'active';
+    function myId() { return exists(linkPath()) ? get(linkPath()).data.memberId : request.auth.uid; }
+    function me() { return get(userPath(myId())).data; }
+    // Signed in with the account currently bound to this member (see header).
+    function isMe(uid) {
+      return signedIn() && myId() == uid && exists(userPath(uid))
+        && get(userPath(uid)).data.get('authUid', request.auth.uid) == request.auth.uid;
     }
+    function isActive() { return isMe(myId()) && me().status == 'active'; }
     function myRank() { return get(rankPath(me().rankId)).data; }
     function can(p) {
       return isActive() && (myRank().order == 0 || myRank().permissions.get(p, false) == true);
@@ -51,10 +63,45 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.uid == request.auth.uid
         && getAfter(userPath(request.auth.uid)).data.usernameLower == name;
+      // PIN reset bumps the sign-in version so logins use the new account.
+      allow update: if signedIn() && !exists(linkPath())
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.v == resource.data.get('v', 0) + 1
+        && changed().hasOnly(['v'])
+        && getAfter(linkPath()).data.memberId == resource.data.uid;
+    }
+
+    // One-time PIN reset codes, issued by officers for members below them.
+    // Only a SHA-256 hash of the code is stored; nobody can read these docs.
+    match /pinResets/{memberId} {
+      allow create, update: if can('resetPins') && myId() != memberId
+        && exists(userPath(memberId))
+        && (get(userPath(memberId)).data.rankId == null || outranks(get(userPath(memberId)).data.rankId))
+        && request.resource.data.codeHash is string
+        && request.resource.data.by == myId()
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt < request.time + duration.value(25, 'h');
+      allow delete: if can('resetPins')
+        || (signedIn() && getAfter(linkPath()).data.memberId == memberId);
+    }
+
+    // Links a post-reset sign-in account to its member. Creating one requires a
+    // valid, unexpired reset code for that member, and consumes it.
+    match /authLinks/{authUid} {
+      allow get: if signedIn() && request.auth.uid == authUid;
+      allow create: if signedIn() && request.auth.uid == authUid
+        && request.resource.data.keys().hasOnly(['memberId', 'code'])
+        && request.resource.data.code is string
+        && exists(resetPath(request.resource.data.memberId))
+        && hashing.sha256(request.resource.data.code).toHexString().lower()
+             == get(resetPath(request.resource.data.memberId)).data.codeHash
+        && request.time < get(resetPath(request.resource.data.memberId)).data.expiresAt
+        && !existsAfter(resetPath(request.resource.data.memberId))
+        && getAfter(userPath(request.resource.data.memberId)).data.authUid == authUid;
     }
 
     match /users/{uid} {
-      allow read: if isActive() || (signedIn() && request.auth.uid == uid);
+      allow read: if isActive() || isMe(uid);
 
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.usernameLower == request.resource.data.username.lower()
@@ -65,12 +112,19 @@ service cloud.firestore {
         );
 
       // Members edit their own character sheet.
-      allow update: if signedIn() && request.auth.uid == uid
+      allow update: if isMe(uid)
         && changed().hasOnly(['character', 'avatar', 'updatedAt'])
         && smallImage('avatar');
 
+      // PIN reset: a new sign-in account takes over this member. The authLinks
+      // create in the same batch is what checks the reset code.
+      allow update: if signedIn() && !exists(linkPath())
+        && changed().hasOnly(['authUid'])
+        && request.resource.data.authUid == request.auth.uid
+        && getAfter(linkPath()).data.memberId == uid;
+
       // Officers approve / promote / demote / suspend members below them.
-      allow update: if isActive() && request.auth.uid != uid
+      allow update: if isActive() && myId() != uid
         && changed().hasOnly(['status', 'rankId', 'reportsTo'])
         && request.resource.data.status in ['pending', 'active', 'suspended']
         && (request.resource.data.rankId == null || outranks(request.resource.data.rankId))
@@ -110,7 +164,7 @@ service cloud.firestore {
     match /transactions/{id} {
       allow read: if can('viewBudget');
       allow create: if can('editBudget')
-        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == myId()
         && request.resource.data.type in ['clean', 'dirty', 'rep']
         && request.resource.data.amount is number;
       allow update: if can('editBudget') && request.resource.data.type in ['clean', 'dirty', 'rep']
@@ -121,7 +175,7 @@ service cloud.firestore {
     match /inventory/{id} {
       allow read: if isActive();
       allow create: if can('editInventory')
-        && request.resource.data.addedBy == request.auth.uid
+        && request.resource.data.addedBy == myId()
         && request.resource.data.quantity is number
         && request.resource.data.costType in ['clean', 'dirty'];
       allow update: if can('editInventory')
