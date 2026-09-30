@@ -1,0 +1,133 @@
+rules_version = '2';
+
+// The Chosen — access is decided by the caller's rank. Each rank carries a
+// permission map (see src/lib/types.ts); rank order 0 is the top of the family
+// and implicitly holds every permission. Officers can only act on members and
+// ranks that sit strictly below their own rank.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function rankPath(id) { return /databases/$(database)/documents/ranks/$(id); }
+    function bootstrapPath() { return /databases/$(database)/documents/meta/bootstrap; }
+
+    function signedIn() { return request.auth != null; }
+    function me() { return get(userPath(request.auth.uid)).data; }
+    function isActive() {
+      return signedIn() && exists(userPath(request.auth.uid)) && me().status == 'active';
+    }
+    function myRank() { return get(rankPath(me().rankId)).data; }
+    function can(p) {
+      return isActive() && (myRank().order == 0 || myRank().permissions.get(p, false) == true);
+    }
+    function rankOrder(rankId) { return get(rankPath(rankId)).data.order; }
+    // True when rankId sits strictly below the caller in the chain of command.
+    function outranks(rankId) {
+      return rankId is string && exists(rankPath(rankId)) && myRank().order < rankOrder(rankId);
+    }
+
+    // The very first registration seeds ranks + settings in the same batch that
+    // creates meta/bootstrap. Only possible while the family has no founder.
+    function bootstrapping() {
+      return signedIn()
+        && !exists(bootstrapPath())
+        && getAfter(bootstrapPath()).data.uid == request.auth.uid;
+    }
+
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function smallImage(field) {
+      return !(field in request.resource.data)
+        || request.resource.data[field] == null
+        || (request.resource.data[field] is string && request.resource.data[field].size() < 300000);
+    }
+
+    match /meta/bootstrap {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(userPath(request.auth.uid)).data.usernameLower == name;
+    }
+
+    match /users/{uid} {
+      allow read: if isActive() || (signedIn() && request.auth.uid == uid);
+
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.usernameLower == request.resource.data.username.lower()
+        && smallImage('avatar')
+        && (
+          (request.resource.data.status == 'pending' && request.resource.data.rankId == null)
+          || (bootstrapping() && request.resource.data.status == 'active')
+        );
+
+      // Members edit their own character sheet.
+      allow update: if signedIn() && request.auth.uid == uid
+        && changed().hasOnly(['character', 'avatar', 'updatedAt'])
+        && smallImage('avatar');
+
+      // Officers approve / promote / demote / suspend members below them.
+      allow update: if isActive() && request.auth.uid != uid
+        && changed().hasOnly(['status', 'rankId', 'reportsTo'])
+        && request.resource.data.status in ['pending', 'active', 'suspended']
+        && (request.resource.data.rankId == null || outranks(request.resource.data.rankId))
+        && (
+          (resource.data.status == 'pending' && can('approveMembers'))
+          || (can('manageMembers') && (resource.data.rankId == null || outranks(resource.data.rankId)))
+        )
+        && (request.resource.data.status != 'active' || request.resource.data.rankId != null);
+    }
+
+    match /ranks/{rankId} {
+      allow read: if isActive();
+      allow create: if bootstrapping()
+        || (can('manageRanks') && request.resource.data.order > myRank().order);
+      allow update: if can('manageRanks') && (
+        (resource.data.order > myRank().order && request.resource.data.order > myRank().order)
+        // Anyone may rename/recolour their own rank title if they can manage ranks,
+        // but never change its order or permissions (prevents self-promotion/lockout).
+        || (rankId == me().rankId && changed().hasOnly(['name', 'color']))
+      );
+      allow delete: if can('manageRanks') && resource.data.order > myRank().order;
+    }
+
+    match /settings/branding {
+      allow read: if true;
+      allow create: if bootstrapping();
+      allow update: if can('manageSettings') && smallImage('logo');
+    }
+
+    match /settings/family {
+      allow read: if isActive();
+      allow create: if bootstrapping();
+      allow update: if can('manageSettings')
+        || (can('postAnnouncements') && changed().hasOnly(['announcement', 'announcementBy', 'announcementAt']));
+    }
+
+    match /transactions/{id} {
+      allow read: if can('viewBudget');
+      allow create: if can('editBudget')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.type in ['clean', 'dirty', 'rep']
+        && request.resource.data.amount is number;
+      allow update: if can('editBudget') && request.resource.data.type in ['clean', 'dirty', 'rep']
+        && request.resource.data.amount is number;
+      allow delete: if can('editBudget');
+    }
+
+    match /inventory/{id} {
+      allow read: if isActive();
+      allow create: if can('editInventory')
+        && request.resource.data.addedBy == request.auth.uid
+        && request.resource.data.quantity is number
+        && request.resource.data.costType in ['clean', 'dirty'];
+      allow update: if can('editInventory')
+        && request.resource.data.quantity is number
+        && request.resource.data.costType in ['clean', 'dirty'];
+      allow delete: if can('editInventory');
+    }
+  }
+}
