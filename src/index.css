@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --color-ink: #070707;
+  --color-coal: #0f0f0f;
+  --color-panel: #151515;
+  --color-edge: #2a2618;
+  --color-smoke: #9a9486;
+  --color-bone: #ece6d6;
+
+  --color-gold-50: #fbf4dc;
+  --color-gold-200: #f3d27a;
+  --color-gold-300: #e6c35c;
+  --color-gold-400: #d4af37;
+  --color-gold-500: #b8932a;
+  --color-gold-700: #7a5f16;
+
+  --color-clean: #7fc8a0;
+  --color-dirty: #d98b5f;
+  --color-rep: #b69cf0;
+}
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-ink text-bone font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(212, 175, 55, 0.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(212, 175, 55, 0.05), transparent 60%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  h1, h2, h3 { @apply font-display tracking-wide; }
+  ::selection { background: rgba(212, 175, 55, 0.35); }
+}
+
+@utility gold-text {
+  background: linear-gradient(180deg, #f7e1a0 0%, #d4af37 55%, #9a7a22 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility panel {
+  @apply rounded-xl border border-edge bg-panel/90 shadow-[0_0_0_1px_rgba(0,0,0,.4),0_10px_30px_-10px_rgba(0,0,0,.8)];
+}
+@utility panel-title {
+  @apply font-display text-sm uppercase tracking-[0.2em] text-gold-400;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition
+    disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-gold {
+  @apply btn bg-gradient-to-b from-gold-300 to-gold-500 text-ink shadow-[0_0_20px_-6px_rgba(212,175,55,.7)]
+    hover:from-gold-200 hover:to-gold-400;
+}
+@utility btn-ghost {
+  @apply btn border border-edge text-bone hover:border-gold-500 hover:text-gold-200;
+}
+@utility btn-danger {
+  @apply btn border border-red-900/70 text-red-300 hover:bg-red-950/50;
+}
+@utility input {
+  @apply w-full rounded-lg border border-edge bg-coal px-3 py-2 text-sm text-bone placeholder:text-smoke/60
+    outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500/40;
+}
+@utility label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wider text-smoke;
+}
+@utility divider-gold {
+  @apply h-px w-full bg-gradient-to-r from-transparent via-gold-500/60 to-transparent;
+}
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
