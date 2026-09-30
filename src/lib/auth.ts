@@ -5,7 +5,8 @@ import {
   signOut,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './firebase';
 import { DEFAULT_INVENTORY_CATEGORIES, DEFAULT_RANKS, DEFAULT_TRANSACTION_CATEGORIES } from './types';
 
 // Members only ever see a username and PIN. Under the hood Firebase Auth needs an
@@ -38,6 +39,19 @@ export async function login(username: string, pin: string) {
 }
 
 export const logout = () => signOut(auth);
+
+/** Officer-only: sets a new PIN for a member ranked below the caller (see functions/src/index.ts). */
+export async function resetMemberPin(uid: string, pin: string) {
+  if (!PIN_RE.test(pin)) throw new AuthError('PIN must be 4–8 digits.');
+  try {
+    await httpsCallable(functions, 'resetPin')({ uid, pin });
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? '';
+    if (code === 'functions/not-found' || code === 'functions/internal')
+      throw new AuthError('PIN reset is not set up on the server yet (deploy the resetPin function).');
+    throw new AuthError((err as Error).message);
+  }
+}
 
 /**
  * Creates the account. The very first member to register founds the family:

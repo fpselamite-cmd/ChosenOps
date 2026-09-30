@@ -9,8 +9,9 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-chosen",
+    "emulators": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions --project demo-chosen",
     "test:rules": "firebase emulators:exec --only firestore --project demo-chosen \"vitest run\"",
+    "test:functions": "npm --prefix functions test",
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {

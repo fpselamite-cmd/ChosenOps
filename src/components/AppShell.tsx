@@ -13,7 +13,7 @@ export function AppShell() {
   const { myRank, can, members } = useHub();
   const [open, setOpen] = useState(false);
   const pending = members.filter((m) => m.status === 'pending').length;
-  const isOfficer = can('approveMembers') || can('manageMembers') || can('manageRanks') || can('manageSettings');
+  const isOfficer = can('approveMembers') || can('manageMembers') || can('manageRanks') || can('manageSettings') || can('resetPins');
 
   const nav = [
     { to: '/', label: 'Dashboard', icon: '♛', end: true },

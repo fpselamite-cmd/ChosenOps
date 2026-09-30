@@ -11,7 +11,7 @@ export default function Admin() {
   const pending = members.filter((m) => m.status === 'pending').length;
   const tabs = [
     { id: 'pending', label: `Pending${pending ? ` (${pending})` : ''}`, show: can('approveMembers'), el: <PendingTab /> },
-    { id: 'members', label: 'Members', show: can('manageMembers'), el: <MembersTab /> },
+    { id: 'members', label: 'Members', show: can('manageMembers') || can('resetPins'), el: <MembersTab /> },
     { id: 'ranks', label: 'Ranks & Permissions', show: can('manageRanks'), el: <RanksTab /> },
     { id: 'family', label: 'Family Settings', show: can('manageSettings'), el: <FamilySettingsTab /> },
   ].filter((t) => t.show);

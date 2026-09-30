@@ -7,6 +7,7 @@ import { useHub } from '../../hooks/useHub';
 import { db } from '../../lib/firebase';
 import { displayName } from '../../lib/format';
 import type { Member } from '../../lib/types';
+import { ResetPinModal } from './ResetPinModal';
 
 export default function MembersTab() {
   const { members, rankById } = useHub();
@@ -43,9 +44,11 @@ export default function MembersTab() {
 }
 
 function MemberRow({ member }: { member: Member }) {
-  const { ranks, rankById, outranks, members } = useHub();
+  const { ranks, rankById, outranks, members, can } = useHub();
   const [error, setError] = useState('');
-  const editable = outranks(member.rankId);
+  const [resetting, setResetting] = useState(false);
+  const editable = can('manageMembers') && outranks(member.rankId);
+  const canReset = can('resetPins') && outranks(member.rankId);
   const rank = member.rankId ? rankById.get(member.rankId) : null;
   const bosses = members.filter((m) => m.status === 'active' && m.id !== member.id && (rankById.get(m.rankId ?? '')?.order ?? 99) <= (rank?.order ?? 99));
 
@@ -101,7 +104,12 @@ function MemberRow({ member }: { member: Member }) {
           <span className="text-smoke">—</span>
         )}
       </td>
-      <td className="px-3 py-2">
+      <td className="whitespace-nowrap px-3 py-2">
+        {canReset && (
+          <button className="btn-ghost mr-2 px-3 py-1 text-xs" onClick={() => setResetting(true)}>
+            Reset PIN
+          </button>
+        )}
         {editable ? (
           member.status === 'active' ? (
             <button className="btn-danger px-3 py-1 text-xs" onClick={() => confirm(`Suspend ${displayName(member)}? They'll lose hub access.`) && save({ status: 'suspended' })}>
@@ -116,8 +124,9 @@ function MemberRow({ member }: { member: Member }) {
             </button>
           )
         ) : (
-          <span className="text-xs text-smoke">Above your pay grade</span>
+          !canReset && <span className="text-xs text-smoke">Above your pay grade</span>
         )}
+        {resetting && <ResetPinModal member={member} onClose={() => setResetting(false)} />}
       </td>
     </tr>
   );

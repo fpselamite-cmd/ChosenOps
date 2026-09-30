@@ -9,6 +9,7 @@ export const PERMISSIONS = {
   editBudget: 'Edit budget',
   editInventory: 'Edit inventory',
   postAnnouncements: 'Post announcements',
+  resetPins: 'Reset member PINs',
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -52,6 +53,8 @@ export interface Member {
   joinedAt?: Timestamp;
   character?: Character;
   avatar?: string | null;
+  pinResetBy?: string;
+  pinResetAt?: Timestamp;
 }
 
 export type Currency = 'clean' | 'dirty' | 'rep';
@@ -103,7 +106,7 @@ export const DEFAULT_RANKS: Omit<Rank, 'order'>[] = [
   {
     id: 'consigliere',
     name: 'Consigliere',
-    permissions: { approveMembers: true, manageMembers: true, viewBudget: true, editBudget: true, editInventory: true, postAnnouncements: true },
+    permissions: { approveMembers: true, manageMembers: true, resetPins: true, viewBudget: true, editBudget: true, editInventory: true, postAnnouncements: true },
   },
   { id: 'lieutenant', name: 'Lieutenant', permissions: { approveMembers: true, viewBudget: true, editInventory: true, postAnnouncements: true } },
   { id: 'enforcer', name: 'Enforcer', permissions: { viewBudget: true, editInventory: true } },
