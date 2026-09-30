@@ -62,8 +62,9 @@ You only need to do these steps once, all in the browser:
 
 **Deploy:**
 
-7. GitHub → **Actions → Deploy → Run workflow**, pick the branch, and run it. After that, every merge into `main`
-   deploys automatically.
+7. Merge the hub's pull request into `main`. That starts the first deploy (watch it under GitHub → **Actions**).
+   From then on every merge into `main` deploys automatically, and you can redeploy any time from
+   **Actions → Deploy → Run workflow**. If the first run failed because a step above wasn't finished, just re-run it.
 8. Open **<https://chosenops.web.app>** and **register first**. The first account becomes Head of the Family.
 
 Every deploy runs the security-rule tests first. If they fail, nothing is published.
