@@ -15,9 +15,10 @@ import Profile from './pages/Profile';
 import SetupNeeded from './pages/SetupNeeded';
 
 export default function App() {
-  const { user, me, loading } = useAuth();
+  const { user, me, loading, lockedOut } = useAuth();
   // Keep the register form mounted while its account is being created so it can show errors.
-  const registering = useLocation().pathname === '/register';
+  const path = useLocation().pathname;
+  const registering = path === '/register' || path === '/reset-pin';
 
   if (!firebaseConfigured) return <SetupNeeded />;
   if (!user && loading) return <Loading label="Opening the doors…" />;
@@ -27,11 +28,13 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login mode="login" />} />
         <Route path="/register" element={<Login mode="register" />} />
+        <Route path="/reset-pin" element={<Login mode="reset" />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
 
   if (loading) return <Loading label="Opening the doors…" />;
+  if (!me && lockedOut) return <Pending locked />;
   // Signed in but not (yet) an active member of the family.
   if (!me) return <Loading label="Setting up your file…" />;
   if (me.status !== 'active') return <Pending />;

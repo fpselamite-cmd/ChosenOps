@@ -4,9 +4,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from './firebase';
+import { doc, getDoc, serverTimestamp, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { DEFAULT_INVENTORY_CATEGORIES, DEFAULT_RANKS, DEFAULT_TRANSACTION_CATEGORIES } from './types';
 
 // Members only ever see a username and PIN. Under the hood Firebase Auth needs an
@@ -15,7 +14,11 @@ const EMAIL_DOMAIN = 'members.chosen.hub';
 export const USERNAME_RE = /^[a-zA-Z0-9_.]{3,20}$/;
 export const PIN_RE = /^\d{4,8}$/;
 
-const toEmail = (username: string) => `${username.toLowerCase()}@${EMAIL_DOMAIN}`;
+/**
+ * Each PIN reset moves the member onto a fresh sign-in account (see firestore.rules),
+ * so the email carries a version: `name@…` originally, then `name+1@…`, `name+2@…`.
+ */
+const toEmail = (username: string, v = 0) => `${username.toLowerCase()}${v ? `+${v}` : ''}@${EMAIL_DOMAIN}`;
 const toPassword = (pin: string) => `chosen:${pin}`;
 
 export class AuthError extends Error {}
@@ -31,8 +34,10 @@ function friendly(err: unknown): Error {
 }
 
 export async function login(username: string, pin: string) {
+  const lower = username.trim().toLowerCase();
   try {
-    await signInWithEmailAndPassword(auth, toEmail(username.trim()), toPassword(pin));
+    const v = (await getDoc(doc(db, 'usernames', lower))).data()?.v ?? 0;
+    await signInWithEmailAndPassword(auth, toEmail(lower, v), toPassword(pin));
   } catch (err) {
     throw friendly(err);
   }
@@ -40,16 +45,60 @@ export async function login(username: string, pin: string) {
 
 export const logout = () => signOut(auth);
 
-/** Officer-only: sets a new PIN for a member ranked below the caller (see functions/src/index.ts). */
-export async function resetMemberPin(uid: string, pin: string) {
+// Reset codes avoid look-alike characters (0/O, 1/I/L) so they're easy to read out.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const RESET_HOURS = 24;
+
+async function sha256Hex(text: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+const normalizeCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** Officer-only: issues a one-time code the member can use to choose a new PIN. Replaces any earlier code. */
+export async function issueResetCode(memberId: string, officerId: string) {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const code = [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  const expiresAt = Timestamp.fromMillis(Date.now() + RESET_HOURS * 3600_000);
+  await setDoc(doc(db, 'pinResets', memberId), { codeHash: await sha256Hex(code), by: officerId, expiresAt, at: serverTimestamp() });
+  return { code: `${code.slice(0, 4)}-${code.slice(4)}`, expiresAt: expiresAt.toDate() };
+}
+
+/**
+ * Member redeems a reset code: creates a fresh sign-in account with the new PIN and
+ * links it to their member file. The rules verify the code and retire the old account.
+ */
+export async function redeemResetCode(username: string, rawCode: string, pin: string) {
+  const lower = username.trim().toLowerCase();
+  const code = normalizeCode(rawCode);
   if (!PIN_RE.test(pin)) throw new AuthError('PIN must be 4–8 digits.');
+  if (code.length !== 8) throw new AuthError('Reset codes are 8 characters, like ABCD-2345.');
+  const nameSnap = await getDoc(doc(db, 'usernames', lower));
+  if (!nameSnap.exists()) throw new AuthError('No member with that username.');
+  const { uid: memberId, v = 0 } = nameSnap.data() as { uid: string; v?: number };
+
+  let cred;
   try {
-    await httpsCallable(functions, 'resetPin')({ uid, pin });
+    cred = await createUserWithEmailAndPassword(auth, toEmail(lower, v + 1), toPassword(pin));
   } catch (err) {
-    const code = (err as { code?: string }).code ?? '';
-    if (code === 'functions/not-found' || code === 'functions/internal')
-      throw new AuthError('PIN reset is not set up on the server yet (deploy the resetPin function).');
-    throw new AuthError((err as Error).message);
+    // A previous attempt left an account behind at this version; sign into it if the PIN matches.
+    if ((err as { code?: string }).code !== 'auth/email-already-in-use') throw friendly(err);
+    try {
+      cred = await signInWithEmailAndPassword(auth, toEmail(lower, v + 1), toPassword(pin));
+    } catch {
+      throw new AuthError('That reset was already started with a different PIN. Ask for a new code.');
+    }
+  }
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'authLinks', cred.user.uid), { memberId, code });
+    batch.update(doc(db, 'users', memberId), { authUid: cred.user.uid });
+    batch.update(doc(db, 'usernames', lower), { v: v + 1 });
+    batch.delete(doc(db, 'pinResets', memberId));
+    await batch.commit();
+  } catch {
+    await deleteUser(cred.user).catch(() => signOut(auth));
+    throw new AuthError('That code is wrong, expired or already used.');
   }
 }
 

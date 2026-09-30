@@ -53,8 +53,8 @@ export interface Member {
   joinedAt?: Timestamp;
   character?: Character;
   avatar?: string | null;
-  pinResetBy?: string;
-  pinResetAt?: Timestamp;
+  /** Sign-in account currently bound to this member; absent means the original one. */
+  authUid?: string;
 }
 
 export type Currency = 'clean' | 'dirty' | 'rep';

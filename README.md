@@ -4,7 +4,7 @@ A black-and-gold hub for **The Chosen**: member login (username + PIN), approval
 and permissions, character profiles with portraits, a Chain-of-Command member wall, a treasury (Clean Money,
 Dirty Money, Gang Rep) and a gang inventory.
 
-Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth, Firestore, and one Cloud Function for PIN resets).
+Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth + Firestore). Runs entirely on the free Spark plan — no card needed.
 
 ## Pages
 
@@ -42,9 +42,6 @@ Officers can only act on members and ranks **below** their own rank. These rules
 1. Go to <https://console.firebase.google.com>, click **Add project**, and name it (e.g. `the-chosen-hub`).
 2. **Build → Authentication → Get started → Sign-in method** and enable **Email/Password**.
 3. **Build → Firestore Database → Create database** (production mode, pick a region near you).
-3a. Upgrade the project to the **Blaze (pay-as-you-go)** plan (bottom-left of the console). PIN resets run as a
-    small Cloud Function, and Firebase requires Blaze for those. A hub this size stays inside the free allowance,
-    but it's worth setting a budget alert (e.g. $1) under Google Cloud Billing → Budgets & alerts.
 4. **Project settings → Your apps → Web (`</>`)**: register an app and copy the config values.
 5. In this folder:
    ```bash
@@ -52,15 +49,14 @@ Officers can only act on members and ranks **below** their own rank. These rules
    cp .env.example .env              # paste the config values into .env
    cp .firebaserc.example .firebaserc # put your project id in it
    npx firebase login
-   npm --prefix functions install
-   npx firebase deploy --only firestore:rules,functions   # upload the security rules + PIN reset function
+   npx firebase deploy --only firestore:rules   # upload the security rules
    ```
 6. `npm run dev` and open the link. **Register first.** The first account becomes Head of the Family.
 
 ## Deploying
 
 ```bash
-npm run deploy     # builds and deploys hosting, rules and functions
+npm run deploy     # builds and deploys hosting + security rules
 ```
 
 Your hub will be at `https://<project-id>.web.app`.
@@ -68,17 +64,20 @@ Your hub will be at `https://<project-id>.web.app`.
 ## Local development without a Firebase project
 
 ```bash
-npm run emulators   # terminal 1: local Auth + Firestore + Functions (needs Java)
+npm run emulators   # terminal 1: local Auth + Firestore (needs Java)
 npm run dev:emu     # terminal 2: app pointed at the emulators
 npm run test:rules  # security-rule tests
-npm run test:functions  # PIN reset permission tests
 ```
 
 ## Notes
 
 - **Logo:** upload it in **Admin → Family Settings**. It shows on the sign-in page, sidebar and dashboard. Until then a placeholder crest is used.
 - **Images** (portraits, logo) are resized in the browser and stored in Firestore, so no paid Storage bucket is needed.
-- **Forgotten PIN:** an officer with the *Reset member PINs* permission opens **Admin → Members → Reset PIN**, sets
-  (or generates) a new PIN and passes it on privately. It only works on members ranked below them, and it signs the
-  member out everywhere. Ranks created before this feature existed need the permission ticked in **Ranks & Permissions**
+- **Forgotten PIN:** an officer with the *Reset member PINs* permission opens **Admin → Members → Reset PIN** and
+  creates a one-time code (valid 24 hours) for a member ranked below them. The member goes to the sign-in page →
+  *"Forgot your PIN? … enter it here"*, enters the code and picks a new PIN. The old PIN stops working the moment the
+  code is used. Ranks created before this feature existed need the permission ticked in **Ranks & Permissions**
   (the top rank always has it).
+  - How it works without a server: each reset moves the member onto a fresh Firebase sign-in account that's linked back to
+    their member file (`authLinks`). The security rules check the code (only its SHA-256 hash is stored) and retire the old
+    account. You'll see extra entries like `name+1@members.chosen.hub` under Authentication. That's expected.
