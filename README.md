@@ -37,31 +37,46 @@ Ranks are fully editable in **Admin → Ranks & Permissions**. Defaults:
 Officers can only act on members and ranks **below** their own rank. These rules are enforced on the server in
 `firestore.rules`, not just hidden in the UI.
 
-## Setting up Firebase (one time)
+## Going live (one-time setup)
 
-1. Go to <https://console.firebase.google.com>, click **Add project**, and name it (e.g. `the-chosen-hub`).
-2. **Build → Authentication → Get started → Sign-in method** and enable **Email/Password**.
-3. **Build → Firestore Database → Create database** (production mode, pick a region near you).
-4. **Project settings → Your apps → Web (`</>`)**: register an app and copy the config values.
-5. In this folder:
-   ```bash
-   npm install
-   cp .env.example .env              # paste the config values into .env
-   cp .firebaserc.example .firebaserc # put your project id in it
-   npx firebase login
-   npx firebase deploy --only firestore:rules   # upload the security rules
-   ```
-6. `npm run dev` and open the link. **Register first.** The first account becomes Head of the Family.
+The hub is already wired to the **chosenops** Firebase project and deploys itself from GitHub.
+You only need to do these steps once, all in the browser:
 
-## Deploying
+**In the Firebase console** (<https://console.firebase.google.com/project/chosenops>):
+
+1. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable → Save.**
+   (Members never see email. The hub uses it behind the scenes for username + PIN.)
+2. **Build → Firestore Database → Create database.** Choose **Start in production mode** and a location near your
+   players (e.g. `nam5 (United States)`). The location can't be changed later.
+3. **Build → Hosting → Get started.** Click *Next* through every step; you don't need to run the commands it shows.
+
+**Create a deploy key** so GitHub can publish the site:
+
+4. Open <https://console.cloud.google.com/iam-admin/serviceaccounts?project=chosenops> → **Create service account**.
+   Name it `github-deploy` → *Create and continue* → add the roles **Firebase Admin** and **Service Usage Consumer**
+   → *Done*.
+5. Click the new account → **Keys → Add key → Create new key → JSON**. A file downloads.
+6. In GitHub, open the repo → **Settings → Secrets and variables → Actions → New repository secret**.
+   Name: `FIREBASE_SERVICE_ACCOUNT`. Value: open the downloaded file in Notepad, copy **everything**, and paste.
+   Save, then **delete the downloaded file**. It's a password for your Firebase project.
+
+**Deploy:**
+
+7. GitHub → **Actions → Deploy → Run workflow**, pick the branch, and run it. After that, every merge into `main`
+   deploys automatically.
+8. Open **<https://chosenops.web.app>** and **register first**. The first account becomes Head of the Family.
+
+Every deploy runs the security-rule tests first. If they fail, nothing is published.
+
+## Local development
 
 ```bash
-npm run deploy     # builds and deploys hosting + security rules
+npm install
+npm run dev        # runs the hub locally against the LIVE chosenops data
+npm run deploy     # manual deploy (needs `npx firebase login` first)
 ```
 
-Your hub will be at `https://<project-id>.web.app`.
-
-## Local development without a Firebase project
+### Offline sandbox (fake data, no Firebase account needed)
 
 ```bash
 npm run emulators   # terminal 1: local Auth + Firestore (needs Java)

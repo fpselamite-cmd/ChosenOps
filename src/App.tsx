@@ -3,7 +3,6 @@ import { AppShell } from './components/AppShell';
 import { Loading } from './components/Field';
 import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
-import { firebaseConfigured } from './lib/firebase';
 import Admin from './pages/admin/Admin';
 import Budget from './pages/Budget';
 import Dashboard from './pages/Dashboard';
@@ -12,7 +11,6 @@ import Login from './pages/Login';
 import Members from './pages/Members';
 import Pending from './pages/Pending';
 import Profile from './pages/Profile';
-import SetupNeeded from './pages/SetupNeeded';
 
 export default function App() {
   const { user, me, loading, lockedOut } = useAuth();
@@ -20,7 +18,6 @@ export default function App() {
   const path = useLocation().pathname;
   const registering = path === '/register' || path === '/reset-pin';
 
-  if (!firebaseConfigured) return <SetupNeeded />;
   if (!user && loading) return <Loading label="Opening the doors…" />;
 
   if (!user || (registering && !me))
