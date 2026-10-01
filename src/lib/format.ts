@@ -1,17 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { Currency, Member } from './types';
-
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const num = new Intl.NumberFormat('en-US');
-
-export function formatAmount(type: Currency, amount: number, signed = false) {
-  const sign = signed && amount > 0 ? '+' : '';
-  if (type === 'rep') return `${sign}${num.format(amount)} rep`;
-  return sign + money.format(amount);
-}
-
-export const formatMoney = (n: number) => money.format(n);
-export const formatNumber = (n: number) => num.format(n);
+import type { Member } from './types';
 
 export function formatDate(ts?: Timestamp | null, withTime = false) {
   if (!ts) return '—';
@@ -36,8 +24,17 @@ export function timeAgo(ts?: Timestamp | null) {
 
 export const displayName = (m?: Member | null) => m?.character?.characterName?.trim() || m?.username || 'Unknown';
 
-export const CURRENCY_META: Record<Currency, { label: string; color: string; bg: string }> = {
-  clean: { label: 'Clean Money', color: 'text-clean', bg: 'bg-clean/10 border-clean/30' },
-  dirty: { label: 'Dirty Money', color: 'text-dirty', bg: 'bg-dirty/10 border-dirty/30' },
-  rep: { label: 'Gang Rep', color: 'text-rep', bg: 'bg-rep/10 border-rep/30' },
-};
+/** Plain-text preview of markdown lore: strips syntax, links and mentions. */
+export function excerpt(markdown: string, length = 180) {
+  const text = markdown
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, t, label) => label || t)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > length ? text.slice(0, length).replace(/\s+\S*$/, '') + '…' : text;
+}
+
+/** Year part of a YYYY-MM-DD in-world date (may be negative or long, e.g. "-0300"). */
+export const yearOf = (when: string) => when.replace(/-\d{2}-\d{2}$/, '');

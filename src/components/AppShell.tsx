@@ -16,17 +16,19 @@ export function AppShell() {
   const isOfficer = can('approveMembers') || can('manageMembers') || can('manageRanks') || can('manageSettings') || can('resetPins');
 
   const nav = [
-    { to: '/', label: 'Dashboard', icon: '♛', end: true },
+    { to: '/', label: 'Home', icon: '☉', end: true },
+    { to: '/archive', label: 'The Archive', icon: '✦' },
+    { to: '/chronicle', label: 'The Chronicle', icon: '⧗' },
+    { to: '/journals', label: 'Journals', icon: '✎' },
     { to: '/members', label: 'The Family', icon: '♞' },
-    { to: '/budget', label: 'Treasury', icon: '$', hidden: !can('viewBudget') },
-    { to: '/inventory', label: 'Inventory', icon: '▣' },
+    { to: '/bloodlines', label: 'Bloodlines', icon: '⚭' },
     { to: '/admin', label: 'Admin', icon: '⚙', hidden: !isOfficer, badge: can('approveMembers') ? pending : 0 },
   ];
 
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-5 py-6">
-        <Crest className="h-12 w-12" />
+        <Crest className="h-14 w-14" spin />
         <div className="min-w-0">
           <div className="gold-text truncate font-display text-xl font-black">{branding.name}</div>
           <div className="truncate text-[11px] uppercase tracking-[0.2em] text-smoke">{branding.motto}</div>
@@ -56,6 +58,13 @@ export function AppShell() {
             </NavLink>
           ))}
       </nav>
+      {can('writeLore') && (
+        <div className="px-4 pb-4">
+          <NavLink to="/archive/new" onClick={() => setOpen(false)} className="btn-gold w-full font-display tracking-wider">
+            ✦ Write lore
+          </NavLink>
+        </div>
+      )}
       <div className="divider-gold" />
       {me && (
         <div className="flex items-center gap-3 p-4">
@@ -78,7 +87,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen lg:pl-64">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-edge bg-coal/95 lg:block">{sidebar}</aside>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-edge bg-night/90 backdrop-blur lg:block">{sidebar}</aside>
 
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-edge bg-coal/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center gap-2">

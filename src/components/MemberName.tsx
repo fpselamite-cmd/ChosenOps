@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
+import { useLore } from '../hooks/useLore';
 import { displayName } from '../lib/format';
 import type { Member } from '../lib/types';
 import { Avatar } from './Avatar';
@@ -79,6 +80,9 @@ function HoverCard({ member }: { member: Member }) {
   const rank = member.rankId ? rankById.get(member.rankId) : null;
   const c = member.character ?? {};
   const boss = member.reportsTo ? memberById.get(member.reportsTo) : null;
+  const { tiesOf, lore } = useLore();
+  const ties = tiesOf(member.id).length;
+  const written = lore.filter((l) => l.authorId === member.id).length;
   return (
     <div className="panel animate-[fadein_.12s_ease-out] overflow-hidden border-gold-700/60 p-0">
       <div className="h-1 bg-gradient-to-r from-gold-700 via-gold-300 to-gold-700" />
@@ -92,6 +96,7 @@ function HoverCard({ member }: { member: Member }) {
           </div>
         </div>
       </div>
+      {c.quote && <p className="border-t border-edge px-3 py-2 font-serif text-sm italic text-parchment/85">❝ {c.quote} ❞</p>}
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-edge px-3 py-2 text-xs">
         <span className="text-smoke">Status</span>
         <StatusPill status={c.characterStatus} />
@@ -101,15 +106,21 @@ function HoverCard({ member }: { member: Member }) {
             <span className="truncate">{c.specialty}</span>
           </>
         )}
-        {c.phone && (
+        {ties > 0 && (
           <>
-            <span className="text-smoke">Phone</span>
-            <span className="truncate">{c.phone}</span>
+            <span className="text-smoke">Ties</span>
+            <span>{ties}</span>
+          </>
+        )}
+        {written > 0 && (
+          <>
+            <span className="text-smoke">Lore written</span>
+            <span>{written}</span>
           </>
         )}
         {boss && (
           <>
-            <span className="text-smoke">Reports to</span>
+            <span className="text-smoke">Answers to</span>
             <span className="truncate">{displayName(boss)}</span>
           </>
         )}

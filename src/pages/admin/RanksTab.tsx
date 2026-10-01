@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { RankBadge } from '../../components/RankBadge';
 import { useHub } from '../../hooks/useHub';
 import { db } from '../../lib/firebase';
-import { PERMISSIONS, type Permission, type Rank } from '../../lib/types';
+import { DEFAULT_ON_PERMISSIONS, PERMISSIONS, type Permission, type Rank } from '../../lib/types';
 
 export default function RanksTab() {
   const { ranks, myRank, members } = useHub();
@@ -149,7 +149,7 @@ function RankRow({
               type="checkbox"
               className="accent-gold-400"
               disabled={!editable}
-              checked={rank.order === 0 || !!perms[p]}
+              checked={rank.order === 0 || (perms[p] ?? DEFAULT_ON_PERMISSIONS.includes(p))}
               onChange={(e) => setPerms((prev) => ({ ...prev, [p]: e.target.checked }))}
             />
             {PERMISSIONS[p]}

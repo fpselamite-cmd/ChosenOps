@@ -3,10 +3,15 @@ import { AppShell } from './components/AppShell';
 import { Loading } from './components/Field';
 import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
+import { LoreProvider, useLore } from './hooks/useLore';
 import Admin from './pages/admin/Admin';
-import Budget from './pages/Budget';
+import Bloodlines from './pages/Bloodlines';
+import Chronicle from './pages/Chronicle';
 import Dashboard from './pages/Dashboard';
-import Inventory from './pages/Inventory';
+import Journals from './pages/Journals';
+import LoreArticle from './pages/lore/LoreArticle';
+import LoreEditor from './pages/lore/LoreEditor';
+import LoreIndex from './pages/lore/LoreIndex';
 import Login from './pages/Login';
 import Members from './pages/Members';
 import Pending from './pages/Pending';
@@ -38,22 +43,37 @@ export default function App() {
 
   return (
     <HubProvider>
-      <MemberRoutes />
+      <HubGate />
     </HubProvider>
   );
 }
 
-function MemberRoutes() {
+function HubGate() {
   const { ready } = useHub();
-  if (!ready) return <Loading />;
+  if (!ready) return <Loading label="Opening the Archive…" />;
+  return (
+    <LoreProvider>
+      <MemberRoutes />
+    </LoreProvider>
+  );
+}
+
+function MemberRoutes() {
+  const { ready } = useLore();
+  if (!ready) return <Loading label="Opening the Archive…" />;
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
         <Route path="members" element={<Members />} />
         <Route path="members/:id" element={<Profile />} />
-        <Route path="budget" element={<Budget />} />
-        <Route path="inventory" element={<Inventory />} />
+        <Route path="archive" element={<LoreIndex />} />
+        <Route path="archive/new" element={<LoreEditor key="new" />} />
+        <Route path="archive/:id" element={<LoreArticle />} />
+        <Route path="archive/:id/edit" element={<LoreEditor />} />
+        <Route path="chronicle" element={<Chronicle />} />
+        <Route path="journals" element={<Journals />} />
+        <Route path="bloodlines" element={<Bloodlines />} />
         <Route path="admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

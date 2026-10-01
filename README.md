@@ -1,8 +1,7 @@
-# ChosenOps — The Chosen Family Hub
+# ChosenOps — The Chosen Family Archive
 
-A black-and-gold hub for **The Chosen**: member login (username + PIN), approval-gated signup, admin-editable ranks
-and permissions, character profiles with portraits, a Chain-of-Command member wall, a treasury (Clean Money,
-Dirty Money, Gang Rep) and a gang inventory.
+A black-and-gold, star-lit archive for **The Chosen**: the family's lore, history, characters and bloodlines in
+one place. Members sign in with a username + PIN; leadership approves newcomers and runs ranks and permissions.
 
 Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth + Firestore). Runs entirely on the free Spark plan — no card needed.
 
@@ -11,12 +10,14 @@ Built with Vite + React + TypeScript + Tailwind, backed by Firebase (Auth + Fire
 | Page | What it does |
 | --- | --- |
 | **Sign in / Register** | Username + 4–8 digit PIN. The very first person to register founds the family (top rank). Everyone after waits for approval. |
-| **Dashboard** | Family banner, announcement ("Word from the Top"), Clean / Dirty / Rep totals, leadership, recent money moves and stash activity. |
+| **Home** | The family seal, "Word from the Top", canon lore, the latest Archive entries, journal excerpts, recent Chronicle events and leadership. |
+| **The Archive** | The lore wiki: entries with cover images, categories (Family History, Legends, Places, Factions, Events, Artifacts, Customs — editable), search and a canon filter. Entries use simple formatting, `[[Other Entry]]` links and `@username` mentions with hover cards. |
+| **The Chronicle** | A timeline of in-world events in order, each optionally linked to its Archive entry and the characters who were there. Supports "before the founding" (negative) years and custom date labels. |
+| **Journals** | Every character's in-character diary, newest first. |
 | **The Family** | Member wall grouped by rank, top of the chain first. Toggle **Portraits** / **List**. Search. |
-| **Profile** | Character name, alias, status, specialty, phone, DOB, vehicle, Discord, backstory, portrait upload, and who reports to them. |
-| **Treasury** | Running totals plus a ledger. Log money in/out or rep gained/lost. |
-| **Inventory** | Add items (name, amount, unit cost, clean/dirty, category, location, notes). Optionally deduct the cost from the treasury. Quick +/- on quantities. |
-| **Admin** | Approve pending members, set ranks / chain of command / suspensions, **reset PINs**, edit ranks and permissions, and set the family name, motto, logo and categories. |
+| **Bloodlines** | Family trees drawn from "Parent of" and "Spouse of" ties, plus a list of sworn bonds, siblings, rivals and enemies. |
+| **Profile** | Tabs for **Dossier** (portrait, quote, story, particulars), **Journal**, **Ties** and **Appears in** (lore and events featuring them). |
+| **Admin** | Approve pending members, set ranks / chain of command / suspensions, **reset PINs**, edit ranks and permissions, and set the family name, motto, logo and Archive categories. |
 
 Hover (or keyboard-focus) any member's name or portrait to see a quick-look card.
 
@@ -28,11 +29,13 @@ Ranks are fully editable in **Admin → Ranks & Permissions**. Defaults:
 | --- | --- |
 | Head of the Family | Everything (the top rank always has every permission) |
 | Underboss | Everything |
-| Consigliere | Approve & manage members, reset PINs, view/edit budget, edit inventory, announcements |
-| Lieutenant | Approve members, view budget, edit inventory, announcements |
-| Enforcer | View budget, edit inventory |
-| Associate | View budget |
-| Prospect | View only |
+| Consigliere | Approve & manage members, reset PINs, write & curate lore, announcements |
+| Lieutenant | Approve members, write & curate lore, announcements |
+| Enforcer, Associate, Prospect | Write lore |
+
+- **Write lore** lets a member add Archive entries, Chronicle events and ties for their own character, and edit what they wrote. It's on for every rank unless switched off.
+- **Curate lore** lets officers edit or remove anyone's entries and mark entries as **canon**.
+- Anyone active can keep a journal.
 
 Officers can only act on members and ranks **below** their own rank. These rules are enforced on the server in
 `firestore.rules`, not just hidden in the UI.
@@ -87,8 +90,8 @@ npm run test:rules  # security-rule tests
 
 ## Notes
 
-- **Logo:** upload it in **Admin → Family Settings**. It shows on the sign-in page, sidebar and dashboard. Until then a placeholder crest is used.
-- **Images** (portraits, logo) are resized in the browser and stored in Firestore, so no paid Storage bucket is needed.
+- **Logo:** the family seal ships with the app (`public/brand/`, cut out from `logo-source.png`). Uploading a different one in **Admin → Family Settings** overrides it.
+- **Images** (portraits, Archive covers, logo) are resized in the browser and stored in Firestore, so no paid Storage bucket is needed. Archive covers keep a small card version on the entry and the full image in `loreCovers/`.
 - **Forgotten PIN:** an officer with the *Reset member PINs* permission opens **Admin → Members → Reset PIN** and
   creates a one-time code (valid 24 hours) for a member ranked below them. The member goes to the sign-in page →
   *"Forgot your PIN? … enter it here"*, enters the code and picks a new PIN. The old PIN stops working the moment the

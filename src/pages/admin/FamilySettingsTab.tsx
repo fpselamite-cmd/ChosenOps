@@ -1,6 +1,7 @@
 import { doc, updateDoc } from 'firebase/firestore';
 import { useState, type FormEvent } from 'react';
 import { Field } from '../../components/Field';
+import { DEFAULT_LOGO } from '../../components/Crest';
 import { ImagePicker } from '../../components/ImagePicker';
 import { useAuth } from '../../hooks/useAuth';
 import { useHub } from '../../hooks/useHub';
@@ -12,8 +13,7 @@ export default function FamilySettingsTab() {
   const [name, setName] = useState(branding.name);
   const [motto, setMotto] = useState(branding.motto);
   const [logo, setLogo] = useState<string | null>(branding.logo ?? null);
-  const [invCats, setInvCats] = useState(settings.inventoryCategories.join(', '));
-  const [txCats, setTxCats] = useState(settings.transactionCategories.join(', '));
+  const [loreCats, setLoreCats] = useState(settings.loreCategories.join(', '));
   const [status, setStatus] = useState('');
 
   const split = (s: string) => [...new Set(s.split(',').map((x) => x.trim()).filter(Boolean))];
@@ -24,7 +24,7 @@ export default function FamilySettingsTab() {
     try {
       await Promise.all([
         updateDoc(doc(db, 'settings', 'branding'), { name: name.trim() || 'The Chosen', motto: motto.trim(), logo }),
-        updateDoc(doc(db, 'settings', 'family'), { inventoryCategories: split(invCats), transactionCategories: split(txCats) }),
+        updateDoc(doc(db, 'settings', 'family'), { loreCategories: split(loreCats) }),
       ]);
       setStatus('Saved ✓');
     } catch (err) {
@@ -36,11 +36,11 @@ export default function FamilySettingsTab() {
     <form onSubmit={save} className="space-y-6">
       <section className="panel grid gap-6 p-5 md:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center gap-3">
-          <img src={logo || '/crest.svg'} alt="Logo" className="h-32 w-32 object-contain" />
+          <img src={logo || DEFAULT_LOGO} alt="Logo" className="h-32 w-32 object-contain" />
           <ImagePicker onPick={setLogo} label="Upload logo" square={false} size={512} />
           {logo && (
             <button type="button" className="text-xs text-smoke hover:text-red-400" onClick={() => setLogo(null)}>
-              Use default crest
+              Use the family seal
             </button>
           )}
         </div>
@@ -55,12 +55,10 @@ export default function FamilySettingsTab() {
         </div>
       </section>
       <section className="panel space-y-4 p-5">
-        <Field label="Inventory categories (comma separated)">
-          <input className="input" value={invCats} onChange={(e) => setInvCats(e.target.value)} />
+        <Field label="Archive categories (comma separated)">
+          <input className="input" value={loreCats} onChange={(e) => setLoreCats(e.target.value)} />
         </Field>
-        <Field label="Transaction categories (comma separated)">
-          <input className="input" value={txCats} onChange={(e) => setTxCats(e.target.value)} />
-        </Field>
+        <p className="text-xs text-smoke">Renaming a category doesn't move existing entries; they keep their old category until edited.</p>
       </section>
       <div className="flex items-center gap-3">
         <button className="btn-gold">Save settings</button>

@@ -45,7 +45,7 @@ async function seed() {
     await setDoc(doc(db, 'users/assoc'), user('assoc', 'associate'));
     await setDoc(doc(db, 'users/prospect'), user('prospect', 'prospect'));
     await setDoc(doc(db, 'users/newbie'), user('newbie', null, 'pending'));
-    await setDoc(doc(db, 'settings/family'), { announcement: 'hi', inventoryCategories: [], transactionCategories: [] });
+    await setDoc(doc(db, 'settings/family'), { announcement: 'hi', loreCategories: [] });
     await setDoc(doc(db, 'settings/branding'), { name: 'The Chosen', motto: '', logo: null });
   });
 }
@@ -63,7 +63,7 @@ describe('bootstrap', () => {
     b.set(doc(db, 'users/founder'), user('founder', 'head'));
     b.set(doc(db, 'usernames/founder'), { uid: 'founder' });
     b.set(doc(db, 'settings/branding'), { name: 'x', motto: '', logo: null });
-    b.set(doc(db, 'settings/family'), { announcement: '', inventoryCategories: [], transactionCategories: [] });
+    b.set(doc(db, 'settings/family'), { announcement: '', loreCategories: [] });
     await assertSucceeds(b.commit());
   });
 
@@ -95,7 +95,7 @@ describe('members', () => {
   it('pending users only see themselves', async () => {
     await assertSucceeds(getDoc(doc(as('newbie'), 'users/newbie')));
     await assertFails(getDoc(doc(as('newbie'), 'users/boss')));
-    await assertFails(getDoc(doc(as('newbie'), 'inventory/x')));
+    await assertFails(getDoc(doc(as('newbie'), 'lore/x')));
   });
 
   it('members edit their own sheet but cannot self-promote', async () => {
@@ -138,30 +138,127 @@ describe('ranks', () => {
   });
 });
 
-describe('budget & inventory', () => {
+describe('settings', () => {
   beforeEach(seed);
-  const tx = (uid: string) => ({ type: 'dirty', amount: 500, reason: 'job', createdBy: uid });
-  const item = (uid: string) => ({ name: 'Pistol', category: 'Weapons', quantity: 2, unitCost: 100, costType: 'dirty', addedBy: uid });
-
-  it('budget visibility and editing follow permissions', async () => {
-    await assertSucceeds(getDoc(doc(as('assoc'), 'transactions/x')));
-    await assertFails(getDoc(doc(as('prospect'), 'transactions/x')));
-    await assertFails(addDoc(collection(as('assoc'), 'transactions'), tx('assoc')));
-    await assertSucceeds(addDoc(collection(as('consig'), 'transactions'), tx('consig')));
-    await assertFails(addDoc(collection(as('consig'), 'transactions'), { ...tx('consig'), type: 'gold' }));
-  });
-
-  it('inventory editing follows permissions', async () => {
-    await assertSucceeds(getDoc(doc(as('prospect'), 'inventory/x')));
-    await assertFails(addDoc(collection(as('assoc'), 'inventory'), item('assoc')));
-    await assertSucceeds(addDoc(collection(as('lt'), 'inventory'), item('lt')));
-  });
-
   it('announcements vs settings', async () => {
     await assertSucceeds(updateDoc(doc(as('lt'), 'settings/family'), { announcement: 'Meeting at 9' }));
-    await assertFails(updateDoc(doc(as('lt'), 'settings/family'), { inventoryCategories: ['x'] }));
+    await assertFails(updateDoc(doc(as('lt'), 'settings/family'), { loreCategories: ['x'] }));
     await assertFails(updateDoc(doc(as('lt'), 'settings/branding'), { name: 'x' }));
     await assertSucceeds(updateDoc(doc(as('boss'), 'settings/branding'), { name: 'The Chosen Few' }));
+  });
+  it('old budget and inventory collections are closed', async () => {
+    await assertFails(getDoc(doc(as('boss'), 'transactions/x')));
+    await assertFails(setDoc(doc(as('boss'), 'inventory/x'), { name: 'x' }));
+  });
+});
+
+describe('lore', () => {
+  beforeEach(seed);
+  const entry = (authorId: string, extra = {}) => ({
+    title: 'The Founding',
+    category: 'Family History',
+    summary: 'How it began.',
+    body: 'It began in the rain. [[The Docks]] @boss',
+    characters: ['boss'],
+    canon: false,
+    thumb: null,
+    authorId,
+    ...extra,
+  });
+
+  it('members write their own entries; pending members cannot read', async () => {
+    await assertSucceeds(setDoc(doc(as('prospect'), 'lore/a'), entry('prospect')));
+    await assertFails(setDoc(doc(as('prospect'), 'lore/b'), entry('boss'))); // impersonation
+    await assertFails(setDoc(doc(as('prospect'), 'lore/c'), entry('prospect', { canon: true })));
+    await assertFails(getDoc(doc(as('newbie'), 'lore/a')));
+    await assertSucceeds(getDoc(doc(as('assoc'), 'lore/a')));
+  });
+
+  it('authors edit their own; curators edit anyone and set canon', async () => {
+    await setDoc(doc(as('assoc'), 'lore/a'), entry('assoc'));
+    await assertSucceeds(updateDoc(doc(as('assoc'), 'lore/a'), { body: 'Rewritten' }));
+    await assertFails(updateDoc(doc(as('assoc'), 'lore/a'), { canon: true }));
+    await assertFails(updateDoc(doc(as('prospect'), 'lore/a'), { body: 'Vandalism' }));
+    await assertFails(deleteDoc(doc(as('prospect'), 'lore/a')));
+    await assertSucceeds(updateDoc(doc(as('lt'), 'lore/a'), { canon: true, body: 'Edited by curator' }));
+    await assertFails(updateDoc(doc(as('lt'), 'lore/a'), { authorId: 'lt' }));
+    await assertSucceeds(deleteDoc(doc(as('lt'), 'lore/a')));
+  });
+
+  it('validates sizes and shapes', async () => {
+    await assertFails(setDoc(doc(as('assoc'), 'lore/a'), entry('assoc', { title: 'x'.repeat(200) })));
+    await assertFails(setDoc(doc(as('assoc'), 'lore/a'), entry('assoc', { body: 'x'.repeat(60001) })));
+    await assertFails(setDoc(doc(as('assoc'), 'lore/a'), entry('assoc', { characters: 'boss' })));
+  });
+
+  it('cover images follow the article author', async () => {
+    const db = as('assoc');
+    const b = writeBatch(db);
+    b.set(doc(db, 'lore/a'), entry('assoc'));
+    b.set(doc(db, 'loreCovers/a'), { image: 'data:image/webp;base64,AAAA' });
+    await assertSucceeds(b.commit());
+    await assertFails(setDoc(doc(as('prospect'), 'loreCovers/a'), { image: 'x' }));
+    await assertSucceeds(setDoc(doc(as('lt'), 'loreCovers/a'), { image: 'y' }));
+    const d = writeBatch(db);
+    d.delete(doc(db, 'lore/a'));
+    d.delete(doc(db, 'loreCovers/a'));
+    await assertSucceeds(d.commit());
+  });
+
+  it('writeLore is on by default for ranks that predate it, and can be switched off', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'ranks/associate'), { name: 'Associate', order: 5, permissions: { viewBudget: true } });
+      await setDoc(doc(ctx.firestore(), 'ranks/prospect'), { name: 'Prospect', order: 6, permissions: { writeLore: false } });
+    });
+    await assertSucceeds(setDoc(doc(as('assoc'), 'lore/a'), entry('assoc')));
+    await assertFails(setDoc(doc(as('prospect'), 'lore/b'), entry('prospect')));
+    await assertSucceeds(addDoc(collection(as('prospect'), 'journals'), { authorId: 'prospect', title: 'Still mine', body: '...' }));
+  });
+});
+
+describe('chronicle', () => {
+  beforeEach(seed);
+  const ev = (authorId: string, extra = {}) => ({ title: 'The Docks War', when: '1923-03-14', whenLabel: 'Spring, 1923', description: '', characters: [], loreId: null, authorId, ...extra });
+
+  it('follows the same author/curator pattern and checks dates', async () => {
+    await assertSucceeds(setDoc(doc(as('assoc'), 'chronicle/a'), ev('assoc')));
+    await assertSucceeds(setDoc(doc(as('assoc'), 'chronicle/old'), ev('assoc', { when: '-0300-01-01' })));
+    await assertFails(setDoc(doc(as('assoc'), 'chronicle/b'), ev('assoc', { when: 'last tuesday' })));
+    await assertFails(updateDoc(doc(as('prospect'), 'chronicle/a'), { title: 'x' }));
+    await assertSucceeds(updateDoc(doc(as('assoc'), 'chronicle/a'), { title: 'The Docks War (revised)' }));
+    await assertSucceeds(deleteDoc(doc(as('lt'), 'chronicle/a')));
+  });
+});
+
+describe('journals', () => {
+  beforeEach(seed);
+  it('only the author writes; curators may remove', async () => {
+    await assertSucceeds(setDoc(doc(as('assoc'), 'journals/a'), { authorId: 'assoc', title: 'Day one', body: 'Rain again.' }));
+    await assertFails(setDoc(doc(as('assoc'), 'journals/b'), { authorId: 'boss', title: 'Forged', body: '...' }));
+    await assertFails(updateDoc(doc(as('lt'), 'journals/a'), { body: 'Edited by someone else' }));
+    await assertSucceeds(updateDoc(doc(as('assoc'), 'journals/a'), { body: 'Rain, still.' }));
+    await assertFails(getDoc(doc(as('newbie'), 'journals/a')));
+    await assertSucceeds(deleteDoc(doc(as('lt'), 'journals/a')));
+  });
+});
+
+describe('relationships', () => {
+  beforeEach(seed);
+  const tie = (a: string, b: string, createdBy: string, type = 'sibling') => ({ a, b, type, note: '', createdBy });
+
+  it('members add and remove ties that involve themselves', async () => {
+    await assertSucceeds(setDoc(doc(as('assoc'), 'relationships/a'), tie('assoc', 'prospect', 'assoc')));
+    await assertFails(setDoc(doc(as('assoc'), 'relationships/b'), tie('boss', 'prospect', 'assoc')));
+    await assertFails(setDoc(doc(as('assoc'), 'relationships/c'), tie('assoc', 'assoc', 'assoc')));
+    await assertFails(setDoc(doc(as('assoc'), 'relationships/d'), tie('assoc', 'boss', 'assoc', 'lover')));
+    await assertFails(updateDoc(doc(as('assoc'), 'relationships/a'), { type: 'enemy' }));
+    await assertSucceeds(deleteDoc(doc(as('prospect'), 'relationships/a')));
+  });
+
+  it('curators manage anyone’s ties', async () => {
+    await assertSucceeds(setDoc(doc(as('lt'), 'relationships/a'), tie('boss', 'prospect', 'lt', 'parent')));
+    await assertFails(deleteDoc(doc(as('assoc'), 'relationships/a')));
+    await assertSucceeds(deleteDoc(doc(as('lt'), 'relationships/a')));
   });
 });
 
@@ -203,7 +300,7 @@ describe('PIN reset codes', () => {
     // New account acts as the member
     await assertSucceeds(getDoc(doc(as('assoc2'), 'users/boss')));
     await assertSucceeds(updateDoc(doc(as('assoc2'), 'users/assoc'), { character: { characterName: 'New Me' } }));
-    await assertSucceeds(getDoc(doc(as('assoc2'), 'transactions/x')));
+    await assertSucceeds(getDoc(doc(as('assoc2'), 'lore/x')));
     // Old account (old PIN) is locked out
     await assertFails(getDoc(doc(as('assoc'), 'users/boss')));
     await assertFails(updateDoc(doc(as('assoc'), 'users/assoc'), { character: {} }));
@@ -223,8 +320,9 @@ describe('PIN reset codes', () => {
   it('linked officers keep their powers', async () => {
     await issue('boss', 'consig');
     await redeem('consig2', 'consig', 'ABCD2345');
-    await assertSucceeds(addDoc(collection(as('consig2'), 'transactions'), { type: 'clean', amount: 1, reason: 'x', createdBy: 'consig' }));
-    await assertFails(addDoc(collection(as('consig2'), 'transactions'), { type: 'clean', amount: 1, reason: 'x', createdBy: 'consig2' }));
+    const lore = (authorId: string) => ({ title: 'T', category: 'Legends', body: 'b', characters: [], canon: false, authorId });
+    await assertSucceeds(addDoc(collection(as('consig2'), 'lore'), lore('consig')));
+    await assertFails(addDoc(collection(as('consig2'), 'lore'), lore('consig2')));
     await assertSucceeds(updateDoc(doc(as('consig2'), 'users/prospect'), { rankId: 'associate' }));
   });
 
