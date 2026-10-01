@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { DEFAULT_INVENTORY_CATEGORIES, DEFAULT_RANKS, DEFAULT_TRANSACTION_CATEGORIES } from './types';
+import { DEFAULT_LORE_CATEGORIES, DEFAULT_RANKS } from './types';
 
 // Members only ever see a username and PIN. Under the hood Firebase Auth needs an
 // email + password, so both are derived deterministically here.
@@ -138,9 +138,8 @@ export async function register(username: string, pin: string): Promise<{ founder
         batch.set(doc(db, 'usernames', lower), { uid });
         batch.set(doc(db, 'settings', 'branding'), { name: 'The Chosen', motto: 'Blood. Gold. Loyalty.', logo: null });
         batch.set(doc(db, 'settings', 'family'), {
-          announcement: 'Welcome to the hub. The family is open for business.',
-          inventoryCategories: DEFAULT_INVENTORY_CATEGORIES,
-          transactionCategories: DEFAULT_TRANSACTION_CATEGORIES,
+          announcement: 'Welcome to the Archive. Every story we write down becomes part of who we are.',
+          loreCategories: DEFAULT_LORE_CATEGORIES,
         });
         await batch.commit();
         return { founder: true };

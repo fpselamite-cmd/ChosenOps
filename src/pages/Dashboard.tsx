@@ -4,22 +4,23 @@ import { Link } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { Crest } from '../components/Crest';
 import { Empty } from '../components/Field';
+import { JournalCard } from '../components/Journal';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
+import { Ornament, SectionTitle } from '../components/Ornament';
 import { RankBadge } from '../components/RankBadge';
-import { StatTile } from '../components/StatTile';
 import { useAuth } from '../hooks/useAuth';
-import { useInventory, useLedger } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { useLore } from '../hooks/useLore';
 import { db } from '../lib/firebase';
-import { CURRENCY_META, displayName, formatAmount, timeAgo } from '../lib/format';
+import { displayName, timeAgo } from '../lib/format';
+import { compareWhen } from '../lib/lore';
+import { LoreCard } from './lore/LoreIndex';
 
 export default function Dashboard() {
   const { me, branding } = useAuth();
   const { can, members, ranks, rankById, settings } = useHub();
-  const canBudget = can('viewBudget');
-  const { transactions, totals } = useLedger(canBudget);
-  const { items } = useInventory();
+  const { lore, chronicle, journals } = useLore();
   const [editing, setEditing] = useState(false);
 
   const active = members.filter((m) => m.status === 'active');
@@ -27,51 +28,55 @@ export default function Dashboard() {
   const leadership = active
     .filter((m) => m.rankId && leadershipRanks.includes(m.rankId))
     .sort((a, b) => (rankById.get(a.rankId!)?.order ?? 99) - (rankById.get(b.rankId!)?.order ?? 99));
-  const recentItems = [...(items ?? [])].sort((a, b) => (b.updatedAt?.toMillis() ?? 0) - (a.updatedAt?.toMillis() ?? 0)).slice(0, 5);
+  const canon = lore.filter((l) => l.canon).slice(0, 3);
+  const recent = lore.filter((l) => !canon.includes(l)).slice(0, 6);
+  const latestEvents = [...chronicle].sort((a, b) => compareWhen(b.when, a.when)).slice(0, 5);
   const hour = new Date().getHours();
-  const greeting = hour < 5 ? 'Late night' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 5 ? 'The night is long' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="space-y-6">
-      <section className="panel relative overflow-hidden p-6 sm:p-8">
-        <div className="pointer-events-none absolute -right-10 -top-10 opacity-[0.07]">
-          <Crest className="h-72 w-72" />
+    <div className="space-y-10">
+      <section className="relative overflow-hidden rounded-2xl border border-edge bg-night/70 px-6 py-10 text-center sm:py-14">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 opacity-[0.08]">
+          <Crest className="h-full w-full" spin />
         </div>
-        <div className="relative flex flex-wrap items-center gap-6">
-          <Crest className="h-20 w-20 sm:h-24 sm:w-24" />
-          <div className="min-w-[14rem] flex-1">
-            <p className="text-xs uppercase tracking-[0.3em] text-smoke">
-              {greeting}, {displayName(me)}
-            </p>
-            <h1 className="gold-text mt-1 text-3xl font-black sm:text-5xl">{branding.name}</h1>
-            <p className="mt-1 font-display text-sm tracking-[0.25em] text-gold-400/80">{branding.motto}</p>
-          </div>
-          <div className="flex w-full justify-around gap-6 text-center sm:w-auto">
-            <Stat label="Members" value={active.length} />
-            <Stat label="Items" value={items?.length ?? '—'} />
-            {can('approveMembers') && <Stat label="Pending" value={members.filter((m) => m.status === 'pending').length} to="/admin" />}
+        <div className="relative">
+          <Crest className="mx-auto h-28 w-28 sm:h-36 sm:w-36" />
+          <p className="mt-5 text-xs uppercase tracking-[0.35em] text-smoke">
+            {greeting}, {displayName(me)}
+          </p>
+          <h1 className="gold-text mt-2 text-4xl font-black sm:text-6xl">{branding.name}</h1>
+          <p className="mt-2 font-display text-sm tracking-[0.3em] text-gold-400/80">{branding.motto}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-8">
+            <Stat label="Members" value={active.length} to="/members" />
+            <Stat label="Archive entries" value={lore.length} to="/archive" />
+            <Stat label="Chronicled events" value={chronicle.length} to="/chronicle" />
+            {can('approveMembers') && <Stat label="At the door" value={members.filter((m) => m.status === 'pending').length} to="/admin" />}
           </div>
         </div>
       </section>
 
       {me && !me.character?.characterName && (
         <Link to={`/members/${me.id}`} className="panel block border-gold-500/50 p-4 text-sm hover:border-gold-300">
-          <span className="text-gold-200">Your file is empty.</span> <span className="text-smoke">Add your character name, picture and details →</span>
+          <span className="text-gold-200">Your file is empty.</span> <span className="text-smoke">Give your character a name, a portrait and a story →</span>
         </Link>
       )}
 
-      <section className="panel p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="panel-title">Word from the Top</h2>
-          {can('postAnnouncements') && (
-            <button className="text-xs text-gold-300 hover:underline" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-          )}
-        </div>
+      <section className="panel p-6">
+        <SectionTitle
+          action={
+            can('postAnnouncements') && (
+              <button className="text-xs text-gold-300 hover:underline" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            )
+          }
+        >
+          Word from the Top
+        </SectionTitle>
         {settings.announcement ? (
           <>
-            <p className="whitespace-pre-wrap font-display text-lg leading-relaxed text-bone">{settings.announcement}</p>
+            <p className="whitespace-pre-wrap font-serif text-2xl leading-relaxed text-parchment">{settings.announcement}</p>
             {settings.announcementBy && (
               <p className="mt-3 text-xs text-smoke">
                 — <MemberName id={settings.announcementBy} />, {timeAgo(settings.announcementAt)}
@@ -83,90 +88,133 @@ export default function Dashboard() {
         )}
       </section>
 
-      {canBudget && (
-        <section className="grid gap-4 sm:grid-cols-3">
-          <StatTile type="clean" value={totals.clean} hint="Legit, bankable" />
-          <StatTile type="dirty" value={totals.dirty} hint="Needs washing" />
-          <StatTile type="rep" value={totals.rep} hint="Standing on the streets" />
+      {canon.length > 0 && (
+        <section>
+          <SectionTitle
+            action={
+              <Link to="/archive?canon=1" className="text-xs text-gold-300 hover:underline">
+                All canon →
+              </Link>
+            }
+          >
+            Canon
+          </SectionTitle>
+          <div className="grid gap-5 md:grid-cols-3">
+            {canon.map((l) => (
+              <LoreCard key={l.id} entry={l} />
+            ))}
+          </div>
         </section>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <section className="panel min-w-0 p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="panel-title">Leadership</h2>
-            <Link to="/members" className="text-xs text-gold-300 hover:underline">
-              Full family →
+      <section>
+        <SectionTitle
+          action={
+            <Link to="/archive" className="text-xs text-gold-300 hover:underline">
+              The Archive →
             </Link>
+          }
+        >
+          Lately in the Archive
+        </SectionTitle>
+        {recent.length ? (
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {recent.map((l) => (
+              <LoreCard key={l.id} entry={l} />
+            ))}
           </div>
-          {leadership.length ? (
-            <ul className="space-y-3">
-              {leadership.map((m) => (
-                <li key={m.id} className="flex items-center gap-3">
-                  <MemberName id={m.id}>
-                    <Avatar member={m} size="md" ring={rankById.get(m.rankId!)?.order === 0} />
-                  </MemberName>
-                  <div className="min-w-0">
-                    <MemberName id={m.id} />
-                    <div className="mt-0.5">
-                      <RankBadge rank={rankById.get(m.rankId!)} />
-                    </div>
-                  </div>
-                </li>
+        ) : (
+          <Empty>
+            Nothing written yet.{' '}
+            {can('writeLore') && (
+              <Link to="/archive/new" className="text-gold-300 hover:underline">
+                Write the first entry →
+              </Link>
+            )}
+          </Empty>
+        )}
+      </section>
+
+      <Ornament />
+
+      <div className="grid gap-8 lg:grid-cols-5">
+        <section className="min-w-0 lg:col-span-3">
+          <SectionTitle
+            action={
+              <Link to="/journals" className="text-xs text-gold-300 hover:underline">
+                All journals →
+              </Link>
+            }
+          >
+            From the journals
+          </SectionTitle>
+          {journals.length ? (
+            <div className="space-y-4">
+              {journals.slice(0, 3).map((j) => (
+                <JournalCard key={j.id} entry={j} showAuthor collapsed />
               ))}
-            </ul>
+            </div>
           ) : (
-            <Empty>No one at the top yet.</Empty>
+            <Empty>No journal entries yet.</Empty>
           )}
         </section>
 
-        <div className="min-w-0 space-y-6 lg:col-span-3">
-          {canBudget && (
-            <section className="panel p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="panel-title">Recent Money Moves</h2>
-                <Link to="/budget" className="text-xs text-gold-300 hover:underline">
-                  Treasury →
+        <div className="min-w-0 space-y-8 lg:col-span-2">
+          <section className="panel p-5">
+            <SectionTitle
+              action={
+                <Link to="/chronicle" className="text-xs text-gold-300 hover:underline">
+                  Timeline →
                 </Link>
-              </div>
-              {transactions?.length ? (
-                <ul className="divide-y divide-edge">
-                  {transactions.slice(0, 5).map((t) => (
-                    <li key={t.id} className="flex items-center gap-3 py-2 text-sm">
-                      <span className={`hidden w-24 shrink-0 text-xs sm:inline ${CURRENCY_META[t.type].color}`}>{CURRENCY_META[t.type].label}</span>
-                      <span className="min-w-0 flex-1 truncate">{t.reason}</span>
-                      <span className={`font-semibold ${t.amount < 0 ? 'text-red-400' : CURRENCY_META[t.type].color}`}>
-                        {formatAmount(t.type, t.amount, true)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Empty>No transactions yet.</Empty>
-              )}
-            </section>
-          )}
+              }
+            >
+              The Chronicle
+            </SectionTitle>
+            {latestEvents.length ? (
+              <ol className="relative space-y-4 border-l border-gold-700/60 pl-5">
+                {latestEvents.map((e) => (
+                  <li key={e.id} className="relative">
+                    <span className="absolute -left-[25px] top-1.5 h-2 w-2 rotate-45 border border-gold-300 bg-ink" />
+                    <Link to={`/chronicle#${e.id}`} className="group block">
+                      <div className="font-display text-[10px] uppercase tracking-[0.2em] text-gold-300">{e.whenLabel || e.when}</div>
+                      <div className="text-sm text-bone group-hover:text-gold-200">{e.title}</div>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-smoke">No events recorded.</p>
+            )}
+          </section>
 
           <section className="panel p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="panel-title">Stash Activity</h2>
-              <Link to="/inventory" className="text-xs text-gold-300 hover:underline">
-                Inventory →
-              </Link>
-            </div>
-            {recentItems.length ? (
-              <ul className="divide-y divide-edge">
-                {recentItems.map((i) => (
-                  <li key={i.id} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="w-24 shrink-0 truncate text-xs text-smoke">{i.category}</span>
-                    <span className="min-w-0 flex-1 truncate">{i.name}</span>
-                    <span className="font-semibold text-gold-200">×{i.quantity}</span>
-                    <span className="hidden w-20 text-right text-xs text-smoke sm:block">{timeAgo(i.updatedAt)}</span>
+            <SectionTitle
+              action={
+                <Link to="/members" className="text-xs text-gold-300 hover:underline">
+                  Full family →
+                </Link>
+              }
+            >
+              Leadership
+            </SectionTitle>
+            {leadership.length ? (
+              <ul className="space-y-3">
+                {leadership.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3">
+                    <MemberName id={m.id}>
+                      <Avatar member={m} size="md" ring={rankById.get(m.rankId!)?.order === 0} />
+                    </MemberName>
+                    <div className="min-w-0">
+                      <MemberName id={m.id} />
+                      <div className="mt-0.5">
+                        <RankBadge rank={rankById.get(m.rankId!)} />
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>
             ) : (
-              <Empty>The stash is empty.</Empty>
+              <p className="text-sm text-smoke">No one at the top yet.</p>
             )}
           </section>
         </div>

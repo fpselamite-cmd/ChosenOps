@@ -30,8 +30,10 @@ service cloud.firestore {
     function isActive() { return isMe(myId()) && me().status == 'active'; }
     function myRank() { return get(rankPath(me().rankId)).data; }
     function can(p) {
-      return isActive() && (myRank().order == 0 || myRank().permissions.get(p, false) == true);
+      return isActive() && (myRank().order == 0 || myRank().permissions.get(p, p in defaultOn()) == true);
     }
+    // Permissions a rank has unless switched off (see DEFAULT_ON_PERMISSIONS in src/lib/types.ts).
+    function defaultOn() { return ['writeLore']; }
     function rankOrder(rankId) { return get(rankPath(rankId)).data.order; }
     // True when rankId sits strictly below the caller in the chain of command.
     function outranks(rankId) {
@@ -161,27 +163,78 @@ service cloud.firestore {
         || (can('postAnnouncements') && changed().hasOnly(['announcement', 'announcementBy', 'announcementAt']));
     }
 
-    match /transactions/{id} {
-      allow read: if can('viewBudget');
-      allow create: if can('editBudget')
-        && request.resource.data.createdBy == myId()
-        && request.resource.data.type in ['clean', 'dirty', 'rep']
-        && request.resource.data.amount is number;
-      allow update: if can('editBudget') && request.resource.data.type in ['clean', 'dirty', 'rep']
-        && request.resource.data.amount is number;
-      allow delete: if can('editBudget');
+    // ---- Lore -------------------------------------------------------------
+    // Members with writeLore create and edit their own entries; curators
+    // (editAllLore) edit or remove anyone's and are the only ones who set canon.
+
+    function str(field, max) {
+      return request.resource.data[field] is string && request.resource.data[field].size() <= max;
+    }
+    function optStr(field, max) { return !(field in request.resource.data) || request.resource.data[field] == null || str(field, max); }
+    function memberList(field) { return request.resource.data[field] is list && request.resource.data[field].size() <= 50; }
+    function curator() { return can('editAllLore'); }
+    function ownsIt() { return resource.data.authorId == myId() && can('writeLore'); }
+
+    match /lore/{id} {
+      allow read: if isActive();
+      allow create: if can('writeLore')
+        && request.resource.data.authorId == myId()
+        && (request.resource.data.canon == false || curator())
+        && loreValid();
+      allow update: if loreValid() && request.resource.data.authorId == resource.data.authorId && (
+        curator() || (ownsIt() && request.resource.data.canon == resource.data.canon)
+      );
+      allow delete: if curator() || ownsIt();
+
+      function loreValid() {
+        return str('title', 120) && str('category', 60) && optStr('summary', 400)
+          && str('body', 60000) && request.resource.data.canon is bool
+          && memberList('characters') && smallImage('thumb');
+      }
     }
 
-    match /inventory/{id} {
+    match /loreCovers/{id} {
       allow read: if isActive();
-      allow create: if can('editInventory')
-        && request.resource.data.addedBy == myId()
-        && request.resource.data.quantity is number
-        && request.resource.data.costType in ['clean', 'dirty'];
-      allow update: if can('editInventory')
-        && request.resource.data.quantity is number
-        && request.resource.data.costType in ['clean', 'dirty'];
-      allow delete: if can('editInventory');
+      allow create, update: if smallImage('image') && (curator() || (can('writeLore')
+          && getAfter(/databases/$(database)/documents/lore/$(id)).data.authorId == myId()));
+      allow delete: if curator() || (can('writeLore')
+          && get(/databases/$(database)/documents/lore/$(id)).data.authorId == myId());
+    }
+
+    match /chronicle/{id} {
+      allow read: if isActive();
+      allow create: if can('writeLore') && request.resource.data.authorId == myId() && eventValid();
+      allow update: if eventValid() && request.resource.data.authorId == resource.data.authorId && (curator() || ownsIt());
+      allow delete: if curator() || ownsIt();
+
+      function eventValid() {
+        return str('title', 120) && request.resource.data.when.matches('^-?[0-9]{1,6}-[0-9]{2}-[0-9]{2}$')
+          && optStr('whenLabel', 80) && optStr('description', 4000) && memberList('characters');
+      }
+    }
+
+    // In-character journals: any active member writes their own.
+    match /journals/{id} {
+      allow read: if isActive();
+      allow create: if isActive() && request.resource.data.authorId == myId() && journalValid();
+      allow update: if isActive() && resource.data.authorId == myId()
+        && request.resource.data.authorId == myId() && journalValid();
+      allow delete: if (isActive() && resource.data.authorId == myId()) || curator();
+
+      function journalValid() { return str('title', 120) && str('body', 30000) && optStr('whenLabel', 80); }
+    }
+
+    // Ties between characters. A member may only add ties that involve themselves.
+    match /relationships/{id} {
+      allow read: if isActive();
+      allow create: if can('writeLore')
+        && request.resource.data.createdBy == myId()
+        && request.resource.data.a is string && request.resource.data.b is string
+        && request.resource.data.a != request.resource.data.b
+        && request.resource.data.type in ['parent', 'sibling', 'spouse', 'sworn', 'mentor', 'ally', 'rival', 'enemy']
+        && optStr('note', 200)
+        && (myId() in [request.resource.data.a, request.resource.data.b] || curator());
+      allow delete: if (isActive() && myId() in [resource.data.a, resource.data.b]) || curator();
     }
   }
 }

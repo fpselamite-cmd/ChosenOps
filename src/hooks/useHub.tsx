@@ -4,8 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { db } from '../lib/firebase';
 import { hasPermission } from '../lib/permissions';
 import {
-  DEFAULT_INVENTORY_CATEGORIES,
-  DEFAULT_TRANSACTION_CATEGORIES,
+  DEFAULT_LORE_CATEGORIES,
   type FamilySettings,
   type Member,
   type Permission,
@@ -29,8 +28,7 @@ interface HubState {
 const HubContext = createContext<HubState | null>(null);
 
 const DEFAULT_SETTINGS: FamilySettings = {
-  inventoryCategories: DEFAULT_INVENTORY_CATEGORIES,
-  transactionCategories: DEFAULT_TRANSACTION_CATEGORIES,
+  loreCategories: DEFAULT_LORE_CATEGORIES,
 };
 
 /** Live family-wide data shared by every page. Mounted only for active members. */
@@ -54,7 +52,10 @@ export function HubProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       liveQuery(doc(db, 'settings', 'family'), (snap) => {
-        if (snap.exists()) setSettings({ ...DEFAULT_SETTINGS, ...(snap.data() as FamilySettings) });
+        if (!snap.exists()) return;
+        const data = snap.data() as Partial<FamilySettings>;
+        // Families founded before the lore redesign have no loreCategories yet.
+        setSettings({ ...DEFAULT_SETTINGS, ...data, loreCategories: data.loreCategories?.length ? data.loreCategories : DEFAULT_LORE_CATEGORIES });
       }),
     [],
   );
