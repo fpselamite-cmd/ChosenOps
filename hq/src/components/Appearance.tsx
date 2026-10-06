@@ -65,8 +65,8 @@ export function Appearance() {
                         s.id === 'plain'
                           ? '#060607'
                           : s.id === 'deep'
-                            ? "url('/brand/stars-dust.svg') 0 0/240px, radial-gradient(circle at 75% 20%, rgba(120,70,170,.5), transparent 60%), radial-gradient(circle at 15% 90%, rgba(40,90,170,.45), transparent 60%), #03040a"
-                            : "url('/brand/stars-bright.svg') 0 0/300px, url('/brand/stars-dust.svg') 0 0/240px, #05060c",
+                            ? "url('/brand/stars-dust.svg') 0 0/240px, radial-gradient(circle at 75% 20%, rgba(110,60,150,.22), transparent 60%), radial-gradient(circle at 15% 90%, rgba(40,80,150,.18), transparent 60%), #020202"
+                            : "url('/brand/stars-bright.svg') 0 0/300px, url('/brand/stars-dust.svg') 0 0/240px, #040404",
                     }}
                   />
                   <span className="block px-2 py-1 text-[11px] text-gold-100">{s.label}</span>
