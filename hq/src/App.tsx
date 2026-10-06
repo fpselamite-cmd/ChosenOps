@@ -11,6 +11,8 @@ import { ROADMAP } from './lib/roadmap';
 import Crews from './pages/Crews';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
+import Narcotics from './pages/Narcotics';
+import Stash from './pages/Stash';
 import PettyCrime from './pages/PettyCrime';
 import Login from './pages/Login';
 import Pending from './pages/Pending';
@@ -64,10 +66,25 @@ function MemberRoutes() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
-        <Route path="stash" element={placeholder('stash')} />
-        <Route path="timers" element={placeholder('timers')} />
-        <Route path="meth" element={placeholder('meth')} />
-        <Route path="coke" element={placeholder('coke')} />
+        <Route
+          path="narcotics"
+          element={
+            <Gate page="narcotics">
+              <Narcotics />
+            </Gate>
+          }
+        />
+        <Route
+          path="stash"
+          element={
+            <Gate page="stash">
+              <Stash />
+            </Gate>
+          }
+        />
+        <Route path="timers" element={<Navigate to="/narcotics?tab=weed" replace />} />
+        <Route path="meth" element={<Navigate to="/narcotics?tab=meth" replace />} />
+        <Route path="coke" element={<Navigate to="/narcotics?tab=coke" replace />} />
         <Route path="blackmarket" element={placeholder('blackmarket')} />
         <Route path="blacksites" element={placeholder('blacksites')} />
         <Route path="gear" element={placeholder('gear')} />

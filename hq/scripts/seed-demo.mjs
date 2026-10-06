@@ -13,14 +13,14 @@ const RANKS = [
   ['consigliere', 'Consigliere', true, 'all'],
   ['underboss', 'Underboss', true, 'all'],
   ['treasurer', 'Treasurer', true, { approveMembers: true, postAnnouncements: true, confirmRep: true }],
-  ['caporegime', 'Caporegime', false, { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true }],
+  ['caporegime', 'Caporegime', false, { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true, manageOps: true }],
   ['lieutenant', 'Lieutenant', false, { approveMembers: true, confirmRep: true }],
   ['enforcer', 'Enforcer', false, {}],
   ['soldier', 'Soldier', false, {}],
   ['associate', 'Associate', false, {}],
 ];
-const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true };
-const PAGE_IDS = ['stash', 'timers', 'meth', 'coke', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
+const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true };
+const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
 const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
 const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
 
@@ -100,9 +100,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     setDoc(doc(db, 'crews', id), {
       name, tag, color, motto, emblem: null, leaderId: ids[leader], memberIds: members.map((m) => ids[m]), pages: pages(unlocks), createdAt: Timestamp.now(),
     });
-  await crew('grow', 'Green Room', 'GRN', '#27ae60', 'Marco Gallo', ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], 'Patience pays.', ['stash', 'timers', 'map']);
-  await crew('hit', 'Hit Squad', 'HIT', '#c0392b', 'Rocco Vale', ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], 'Hold the hill.', ['map', 'calendar']);
-  await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.', ['meth', 'timers']);
+  await crew('grow', 'Green Room', 'GRN', '#27ae60', 'Marco Gallo', ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], 'Patience pays.', ['narcotics', 'map']);
+  await crew('hit', 'Hit Squad', 'HIT', '#c0392b', 'Rocco Vale', ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], 'Hold the hill.', ['map', 'calendar', 'stash']);
+  await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.', ['narcotics']);
   await crew('money', 'Counting Room', 'CNT', '#d4af37', 'Lena Russo', ['Lena Russo', 'Mia Santos', 'Don Vito'], '', ['blackmarket']);
 
   // Petty crime
@@ -129,6 +129,61 @@ await env.withSecurityRulesDisabled(async (ctx) => {
       ...(by ? { decidedBy: ids[by], decidedAt: Timestamp.fromMillis(now - (hoursAgo - 0.5) * 3600_000) } : {}),
     });
   await setDoc(doc(db, 'stats/familyRep'), { total: 2475 });
+
+  // ---------- Narcotics & Stash ----------
+  const sign = { _by: ids['Don Vito'], _via: 'rank' };
+  const H = 3600_000;
+  const loc = (id, data) => setDoc(doc(db, 'locations', id), { crewId: null, excludeTotals: false, ...data, ...sign });
+  await loc('main', { kind: 'stash', name: 'Main Stash', postal: '8021', order: 0, note: 'The vault under the club. Gang-wide.' });
+  await loc('basement', { kind: 'stash', name: "Tempest's Basement", postal: '9359', crewId: 'cook', order: 1, note: 'Keep it light in case of raids.' });
+  await loc('lockup', { kind: 'stash', name: 'Docks Lockup', postal: '10060', crewId: 'hit', order: 2 });
+  const grow = (id, postal, name, crewId, startedHoursAgo, plan, extra = {}) =>
+    loc(id, {
+      kind: 'grow', postal, name, crewId, durationHours: 36, pots: 10, stashTo: 'main', storage: false, alertSent: startedHoursAgo !== null && startedHoursAgo >= 36,
+      startTime: startedHoursAgo === null ? null : Timestamp.fromMillis(now - startedHoursAgo * H), strainPots: plan, order: 10, ...extra,
+    });
+  await grow('g7078', '7078', 'Leon VW', 'grow', 22, { acapulco: 3, dosidos: 3, gelato41: 2, nl: 2 });
+  await grow('g9182', '9182', 'Leon JT', 'grow', 37, { skunk1: 4, ogkush: 3, rainbow: 3 });
+  await grow('g10060', '10060', 'Benny Docks', null, null, {});
+  await grow('g9043', '9043', 'Jay 1', 'grow', 7, { lemonskunk: 5, columbian: 5 }, { storage: true });
+  const bud = (bricks, trimmed, untrimmed) => ({ bricks, trimmed, untrimmed });
+  await setDoc(doc(db, 'stock', 'main'), {
+    acapulco: bud(4, 8750, 2856), columbian: bud(1, 1750, 1290), dosidos: bud(9, 20500, 3894), skunk1: bud(2, 1250, 1649), ogkush: bud(3, 6500, 1356),
+    afghani: bud(1, 1250, 1144), rainbow: bud(8, 1750, 1596), nl: bud(3, 18500, 3628), lemonskunk: bud(5, 1750, 1457), gelato41: bud(2, 9500, 2926),
+    coca: 6200, cokeSmall: 3, cokeLarge: 1, meth: 4,
+    items: { pistol50: 6, carbine: 3, extmag: 8, suppressor: 4, ammo556: 1200, armor: 10, lockpick: 15 },
+    ...sign,
+  });
+  await setDoc(doc(db, 'stock', 'basement'), { meth: 3, coca: 0, items: { pistol50: 2, armor: 4 }, ...sign });
+  await setDoc(doc(db, 'stock', 'lockup'), { cokeSmall: 2, items: { carbine: 4, smg: 2, ammo556: 800, extmag: 6 }, nl: bud(2, 0, 0), ...sign });
+  await setDoc(doc(db, 'stock', 'g9043'), { lemonskunk: bud(0, 0, 1980), ...sign });
+  const types = [
+    ['pistol50', 'Pistol .50', 'gun'], ['carbine', 'Carbine Rifle', 'gun'], ['smg', 'SMG', 'gun'], ['extmag', 'Extended Mag', 'attachment'],
+    ['suppressor', 'Suppressor', 'attachment'], ['ammo556', '5.56 Rounds', 'ammo'], ['armor', 'Heavy Armor', 'gear'], ['lockpick', 'Lockpick', 'other'],
+  ];
+  for (const [id, name, category] of types) await setDoc(doc(db, 'itemTypes', id), { name, category, ...sign });
+  await setDoc(doc(db, 'supplies', 'lab'), { sodium: 14, ammonia: 6, soda: 40, water: 36, bags: 22, hammers: 5, oil: 12, cement: 30, acid: 8, ...sign });
+  await setDoc(doc(db, 'settings', 'narcotics'), { supplyLow: { ammonia: 10, acid: 20 }, ...sign });
+  const cook = (id, who, size, minsAgo, mins) =>
+    setDoc(doc(db, 'cooks', id), { by: who, size, mins, at: Timestamp.fromMillis(now - minsAgo * 60_000), done: false, told: minsAgo >= mins, ...sign });
+  await cook('k1', 'Nico Bruno', 5, 22 * 60, 24 * 60);
+  await cook('k2', 'Jax Holt', 5, 6 * 60, 24 * 60);
+  await cook('k3', 'Mia Santos', 3, 25 * 60, 24 * 60);
+  await setDoc(doc(db, 'runs', 'r1'), { by: 'Rocco Vale', crew: 'Rocco, Dani', size: 'small', n: 2, mins: 240, at: Timestamp.fromMillis(now - 95 * 60_000), done: false, told: false, ...sign });
+  const fmtDay = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+  const made = [3, 0, 5, 2, 7, 1, 0, 4, 6, 2, 3, 8, 1, 2];
+  for (let i = 0; i < 14; i++)
+    await setDoc(doc(db, 'history', fmtDay(now - i * 86400_000)), { bricksMade: made[i], cokeMade: i % 4 === 0 ? 2 : 0, methMade: i % 3 === 0 ? 1 : 0, ...sign });
+  await setDoc(doc(db, 'yields', 'dosidos'), { samples: [{ buds: 640, pots: 3, at: now - 3 * 86400_000 }, { buds: 590, pots: 3, at: now - 6 * 86400_000 }], ...sign });
+  const acts = [
+    ['Marco Gallo', 'harvest', 50], ['Nico Bruno', 'cook', 40], ['Rocco Vale', 'run', 95], ['Jax Holt', 'buds', 12], ['ChosenOps', 'ready', 30], ['Mia Santos', 'supply', 3],
+  ];
+  const KINDS = {
+    harvest: ['harvested', 'a location', ''], cook: ['put', 'a meth cook', 'down'], run: ['started', 'a coke run', ''], buds: ['updated', 'bud counts', 'in a location'],
+    ready: ['', 'A grow', 'is ready to harvest'], supply: ['updated', 'the lab supplies', ''],
+  };
+  for (const [i, [who, kind, minsAgo]] of acts.entries())
+    await setDoc(doc(db, 'activity', `a${i}`), { who, kind, pre: KINDS[kind][0], hi: KINDS[kind][1], post: KINDS[kind][2], at: Timestamp.fromMillis(now - minsAgo * 60_000), ...sign });
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {

@@ -28,6 +28,12 @@ npm run test:rules   # security rule tests
   the crew's motto, color and emblem. People can be in several crews.
 - **Petty Crime**: everyone tracks their own petty rep (quick +/− and a crime log) and can send rep to the family.
   A Lieutenant or above confirms it before it counts toward the family's gang rep; turned-down rep goes back.
+- **Narcotics** is NoelOps rebuilt inside HQ, in its own green grow-light style: the timer bar (grows, meth cooks,
+  coke runs) and LIVE ticker across the top, then **Overview · Weed · Meth · Coke**. Stock per location, trim, press,
+  move, harvests, pot plans with Smart Balance and learned yields, lab and warehouse supplies, the guides, and Undo.
+- **Stash** (gold) lists every place and everything in it: drugs, guns, attachments, ammo and gear. The **Main Stash**
+  is gang-wide; other stash houses and grows can be run by a crew. Adding and editing places needs **Manage ops**.
+- Every ops write is signed with who did it and what opened the page (rank or crew role); the rules check both.
 - **Map** and **Calendar** are buttons in the header.
 - The NoelOps pages keep their original colors: green grow-light (Stash, Timers), cyan (Meth), ice blue (Coke),
   red on black (BlackMarket).
@@ -36,7 +42,7 @@ npm run test:rules   # security rule tests
 ## Build progress
 
 1. ✅ Foundation: sign-in, ranks, page access, crews as roles, Family, Petty Crime, profiles, Admin
-2. Stash, Timers, Meth, Coke
+2. ✅ Narcotics (Overview · Weed · Meth · Coke) and Stash
 3. BlackMarket
 4. Titles, MVPs, leaderboards, Map, Calendar
 5. Blacksites

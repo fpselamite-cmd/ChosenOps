@@ -1,44 +1,5 @@
 /** What each not-yet-built page will hold. Shown on its placeholder so the plan can be reviewed. */
 export const ROADMAP: Record<string, { step: number; title: string; kicker: string; sub: string; features: string[] }> = {
-  stash: {
-    step: 2,
-    title: 'Stash',
-    kicker: 'Ops',
-    sub: 'Every strain, brick, coca leaf and meth bin, in every stash house and grow.',
-    features: [
-      'Stash houses and grow ops, each owned by a crew (or gang-wide)',
-      'Strain cards with bud and bricks, +/- buttons, trim, press and move, all with Undo',
-      'Pot plans with Smart Balance and yields learned from real harvests',
-      'Crew filter: see your crews’ stash first, leadership sees everything',
-      '“Leave out of totals” per location',
-    ],
-  },
-  timers: {
-    step: 2,
-    title: 'Timers',
-    kicker: 'Ops',
-    sub: 'Grow timers, meth cooks and coke runs, counting down on the server clock.',
-    features: [
-      'Grows: 36h timers, upcoming harvest timeline, bulk start / stop / harvest',
-      'Meth cooks with the bubbling beaker, “Might be ready” at 75%',
-      'Coke runs with size, bricks and who’s on it',
-      'Every timer tagged to a crew, and pings that crew’s Discord channel',
-    ],
-  },
-  meth: {
-    step: 2,
-    title: 'Meth',
-    kicker: 'Ops',
-    sub: 'Karma’s Meth Guide, lab supplies and cooks down.',
-    features: ['What to grab calculator', 'Lab supplies with “Running low” lines', 'Cooks down per crew', 'The 5 steps, rules and places'],
-  },
-  coke: {
-    step: 2,
-    title: 'Coke',
-    kicker: 'Ops',
-    sub: 'The Cocaine Creation Guide, warehouse supplies and runs.',
-    features: ['What to bring calculator (small / large bricks)', 'Warehouse supplies', 'Coke runs per crew', 'The 5 steps, rules and places'],
-  },
   blackmarket: {
     step: 3,
     title: 'BlackMarket',

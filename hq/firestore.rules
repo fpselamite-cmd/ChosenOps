@@ -155,6 +155,78 @@ service cloud.firestore {
         && request.resource.data.by == myId() && request.resource.data.at == request.time;
     }
 
+    // ── Ops: Narcotics and Stash ─────────────────────────────────
+    // A page opens through your rank, or through a crew whose role grants it. Every ops write is
+    // signed with _by (you) and _via ('rank' or that crew's id), and the rules check the claim.
+    function rankPage(page) {
+      let r = rankOf(me().rankId);
+      return r.order == 0 || r.get('pages', {}).get(page, false) == true;
+    }
+    function crewPage(page, crewId) {
+      let c = get(/databases/$(database)/documents/crews/$(crewId)).data;
+      return myId() in c.memberIds && c.get('pages', {}).get(page, false) == true;
+    }
+    function opens(page) {
+      let v = request.resource.data.get('_via', null);
+      return active() && request.resource.data.get('_by', null) == myId()
+        && ((v == 'rank' && rankPage(page))
+          || (v is string && v != 'rank' && exists(/databases/$(database)/documents/crews/$(v)) && crewPage(page, v)));
+    }
+    function opsWrite() { return opens('narcotics') || opens('stash'); }
+
+    match /locations/{locId} {
+      allow read: if active();
+      // Anyone working the ops runs timers, pot plans and the totals switch.
+      allow update: if opsWrite()
+        && onlyChanges(['startTime', 'alertSent', 'strainPots', 'pots', 'excludeTotals', '_by', '_via']);
+      // Adding, renaming and removing places needs the Manage ops power. The Main Stash stays.
+      allow create, update: if can('manageOps') && request.resource.data.kind in ['stash', 'grow']
+        && str(request.resource.data.name, 40);
+      allow delete: if can('manageOps') && locId != 'main';
+    }
+
+    match /stock/{locId} {
+      allow read: if active();
+      allow create, update: if opsWrite();
+      allow delete: if can('manageOps') && locId != 'main';
+    }
+
+    match /cooks/{id} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /runs/{id} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /supplies/lab {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /yields/{strain} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /history/{day} {
+      allow read: if active();
+      allow create, update: if opsWrite();
+    }
+    match /activity/{id} {
+      allow read: if active();
+      allow create: if opsWrite() && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['who', 'kind', 'pre', 'hi', 'post', 'at', '_by', '_via']);
+    }
+    // Guns, attachments and other item types kept in stashes.
+    match /itemTypes/{id} {
+      allow read: if active();
+      allow create, update: if opsWrite() && str(request.resource.data.name, 40);
+      allow delete: if can('manageOps');
+    }
+    match /settings/narcotics {
+      allow read: if active();
+      allow create, update: if can('manageOps');
+    }
+
     // ── Petty crime ──────────────────────────────────────────────
     function transfer(tid) { return get(/databases/$(database)/documents/repTransfers/$(tid)).data; }
     function transferAfter(tid) { return getAfter(/databases/$(database)/documents/repTransfers/$(tid)).data; }

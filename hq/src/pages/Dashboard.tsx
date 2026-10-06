@@ -9,7 +9,10 @@ import { Empty } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
+import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { n, type OpsLocation, type StockDoc } from '../noel/data';
+import { sumStock } from '../noel/store';
 import { db } from '../lib/firebase';
 import { ago } from '../lib/format';
 
@@ -65,6 +68,19 @@ function WordFromTheTop() {
   );
 }
 
+/** Bricks on hand across every place that counts in totals, linking to Narcotics. */
+function BricksTile() {
+  const stock = useCollection<StockDoc>('stock');
+  const locations = useCollection<OpsLocation>('locations');
+  const left = new Set((locations ?? []).filter((l) => l.excludeTotals).map((l) => l.id));
+  const t = sumStock((stock ?? []).filter((s) => !left.has(s.id)));
+  return (
+    <Link to="/narcotics" className="block">
+      <Stat label="Bricks on hand" value={stock ? n(t.bricks) : '—'} sub={`${n(t.potential)} ready to press · ${n(t.meth)} meth bins`} />
+    </Link>
+  );
+}
+
 export default function Dashboard() {
   const { me, myCrews, roster, isOnline, rankById, ranks, settings, memberById, familyRep, canSee } = useHub();
   const online = roster.filter((m) => isOnline(m.id));
@@ -80,7 +96,7 @@ export default function Dashboard() {
         <Stat label="Family" value={roster.length} sub={`${ranks.length} ranks`} />
         <Stat label="Online now" value={<span className="text-ok">{online.length}</span>} />
         <Stat label="Family rep" value={familyRep.toLocaleString('en-US')} sub="Petty rep sent in + blacksites" />
-        {canSee('stash') ? <Stat label="Bricks on hand" value="—" sub="Stash · step 2" /> : <Stat label="Your crews" value={myCrews.length} />}
+        {canSee('narcotics') ? <BricksTile /> : <Stat label="Your crews" value={myCrews.length} />}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

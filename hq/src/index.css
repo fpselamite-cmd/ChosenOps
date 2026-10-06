@@ -31,6 +31,24 @@
   --color-danger: #e5484d;
 }
 
+/* NoelOps' accent colors, used on the Narcotics page. They follow --acc-h, set on .noel. */
+@theme inline {
+  --color-weed-50: hsl(var(--acc-h) 76% 97%);
+  --color-weed-100: hsl(var(--acc-h) 84% 93%);
+  --color-weed-200: hsl(var(--acc-h) 80% 85%);
+  --color-weed-300: hsl(var(--acc-h) 79% 73%);
+  --color-weed-400: hsl(var(--acc-h) 69% 58%);
+  --color-weed-500: hsl(var(--acc-h) 71% 45%);
+  --color-weed-600: hsl(var(--acc-h) 76% 36%);
+  --color-weed-700: hsl(var(--acc-h) 72% 29%);
+  --color-weed-800: hsl(var(--acc-h) 64% 24%);
+  --color-weed-900: hsl(var(--acc-h) 61% 20%);
+  --color-weed-950: hsl(var(--acc-h) 80% 10%);
+  --color-darkbg: #060a07;
+  --color-darkcard: #0e1610;
+  --color-darkborder: #1b2a1e;
+}
+
 @layer base {
   html {
     color-scheme: dark;

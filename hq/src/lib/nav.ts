@@ -1,15 +1,13 @@
 import {
   CalendarDays,
+  Cannabis,
   Crosshair,
-  FlaskConical,
   HandCoins,
   LayoutDashboard,
   Map,
   Network,
   ShieldCheck,
-  Snowflake,
   Swords,
-  Timer,
   Users,
   VenetianMask,
   Warehouse,
@@ -30,10 +28,8 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Ops',
     items: [
+      { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics' },
       { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
-      { to: '/timers', label: 'Timers', icon: Timer, page: 'timers' },
-      { to: '/meth', label: 'Meth', icon: FlaskConical, page: 'meth' },
-      { to: '/coke', label: 'Coke', icon: Snowflake, page: 'coke' },
     ],
   },
   { group: 'Money', items: [{ to: '/blackmarket', label: 'BlackMarket', icon: VenetianMask, page: 'blackmarket' }] },
@@ -63,14 +59,12 @@ export const HEADER_NAV: NavItem[] = [
 export const ADMIN_NAV: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck };
 
 /**
- * NoelOps pages keep their original colors inside the gold shell:
- * grow green with purple grow-light, meth cyan, coke ice blue, BlackMarket red on black.
+ * Narcotics wears the full NoelOps look (its own stylesheet, scoped to .noel);
+ * the BlackMarket keeps its red on black. Everything else is gold.
  */
-export type PageTheme = 'gold' | 'grow' | 'meth' | 'coke' | 'blackmarket';
+export type PageTheme = 'gold' | 'noel' | 'blackmarket';
 export function themeFor(path: string): PageTheme {
-  if (path.startsWith('/stash') || path.startsWith('/timers')) return 'grow';
-  if (path.startsWith('/meth')) return 'meth';
-  if (path.startsWith('/coke')) return 'coke';
+  if (path.startsWith('/narcotics')) return 'noel';
   if (path.startsWith('/blackmarket')) return 'blackmarket';
   return 'gold';
 }

@@ -13,16 +13,15 @@ export const PERMISSIONS = {
   manageSettings: 'Edit gang settings',
   postAnnouncements: 'Post the Word from the Top',
   confirmRep: 'Confirm petty rep sent to the family',
+  manageOps: 'Add and edit stash houses and grows',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;
 
 /** Pages that can be shown or hidden per rank and per crew role. The Dashboard is always open. */
 export const PAGES = {
+  narcotics: 'Narcotics',
   stash: 'Stash',
-  timers: 'Timers',
-  meth: 'Meth',
-  coke: 'Coke',
   blackmarket: 'BlackMarket',
   blacksites: 'Blacksites',
   gear: 'Gear & Loadouts',
@@ -162,7 +161,7 @@ export const DEFAULT_RANKS: Omit<Rank, 'order'>[] = [
   {
     id: 'caporegime',
     name: 'Caporegime',
-    permissions: { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true },
+    permissions: { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true, manageOps: true },
     pages: ALL_PAGES,
   },
   { id: 'lieutenant', name: 'Lieutenant', permissions: { approveMembers: true, confirmRep: true }, pages: ALL_PAGES },

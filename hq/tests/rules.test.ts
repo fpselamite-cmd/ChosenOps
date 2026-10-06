@@ -279,3 +279,47 @@ describe('petty crime', () => {
     await assertFails(c.commit());
   });
 });
+
+describe('ops: narcotics and stash', () => {
+  const sign = (uid: string, via: string) => ({ _by: uid, _via: via });
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, 'ranks/capo'), { pages: { narcotics: true, stash: true } });
+      await updateDoc(doc(db, 'crews/grow'), { pages: { narcotics: true } });
+      await setDoc(doc(db, 'locations/main'), { kind: 'stash', name: 'Main Stash', crewId: null });
+      await setDoc(doc(db, 'locations/g1'), { kind: 'grow', name: 'Docks', postal: '7078', crewId: 'grow', pots: 10, startTime: null });
+    });
+  });
+
+  it('lets a rank with the page change stock', async () => {
+    await assertSucceeds(setDoc(doc(as('capo'), 'stock/main'), { meth: 3, ...sign('capo', 'rank') }, { merge: true }));
+  });
+
+  it('lets a crew role open the page for a low rank', async () => {
+    // sol is a Soldier (no Narcotics by rank) but is in the grow crew, whose role opens it
+    await assertSucceeds(setDoc(doc(as('sol'), 'stock/main'), { meth: 3, ...sign('sol', 'grow') }, { merge: true }));
+  });
+
+  it('rejects false claims about what opened the page', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'stock/main'), { meth: 3, ...sign('sol', 'rank') }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol2'), 'stock/main'), { meth: 3, ...sign('sol2', 'grow') }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'stock/main'), { meth: 3, ...sign('capo', 'grow') }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'stock/main'), { meth: 3 }, { merge: true }));
+  });
+
+  it('lets workers start timers but only Manage ops add or remove places', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol'), 'locations/g1'), { startTime: serverTimestamp(), alertSent: false, ...sign('sol', 'grow') }));
+    await assertFails(updateDoc(doc(as('sol'), 'locations/g1'), { name: 'Mine now', ...sign('sol', 'grow') }));
+    await assertFails(setDoc(doc(as('sol'), 'locations/new'), { kind: 'stash', name: 'X', crewId: null, ...sign('sol', 'grow') }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/underboss'), { 'permissions.manageOps': true }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'locations/new'), { kind: 'stash', name: 'Docks House', crewId: null }));
+    await assertFails(deleteDoc(doc(as('ub'), 'locations/main')));
+  });
+
+  it('only lets narcotics workers put cooks down', async () => {
+    const cook = { by: 'x', size: 5, mins: 1440, at: serverTimestamp(), done: false, told: false };
+    await assertSucceeds(setDoc(doc(as('capo'), 'cooks/c1'), { ...cook, ...sign('capo', 'rank') }));
+    await assertFails(setDoc(doc(as('sol2'), 'cooks/c2'), { ...cook, ...sign('sol2', 'rank') }));
+  });
+});

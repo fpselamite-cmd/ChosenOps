@@ -170,7 +170,10 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="page-theme min-h-[calc(100dvh-57px)]" data-theme={themeFor(pathname)}>
+      <div
+        className={`min-h-[calc(100dvh-57px)] ${themeFor(pathname) === 'noel' ? 'noel' : 'page-theme'}`}
+        data-theme={themeFor(pathname)}
+      >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
           <Outlet />
         </main>

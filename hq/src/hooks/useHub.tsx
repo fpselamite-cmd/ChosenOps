@@ -34,6 +34,11 @@ interface Hub {
   can: (p: Permission) => boolean;
   /** Whether my rank or one of my crew roles opens this page. */
   canSee: (page: PageId) => boolean;
+  /**
+   * What opened a page for me: 'rank', or the id of a crew whose role grants it.
+   * Every ops write carries it as `_via` so the security rules can check it.
+   */
+  viaFor: (page: PageId) => string | null;
 }
 
 const Ctx = createContext<Hub | null>(null);
@@ -107,6 +112,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
       familyRep: familyRep?.total ?? 0,
       can: (p) => rankCan(myRank, p),
       canSee: (page) => pageOpen(page, myRank, myCrews),
+      viaFor: (page) =>
+        myRank && (myRank.order === 0 || myRank.pages?.[page]) ? 'rank' : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
     };
   }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep]);
 
