@@ -1,4 +1,4 @@
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { db } from '../lib/firebase';
 import { pageOpen, rankCan } from '../lib/permissions';
@@ -68,6 +68,21 @@ export function HubProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', beat);
     };
   }, [me?.id]);
+
+  // Keep each member's crewIds in step with the crews, so pins and events shared with a crew
+  // reach them. Everyone fixes their own; crew leaders and crew admins fix everyone.
+  useEffect(() => {
+    if (!me || !members || !crews || !ranks) return;
+    const truth = (id: string) => crews.filter((c) => c.memberIds?.includes(id)).map((c) => c.id).sort().slice(0, 5);
+    const myRank = ranks.find((r) => r.id === me.rankId);
+    const fixAll = rankCan(myRank, 'manageCrews') || crews.some((c) => c.leaderId === me.id);
+    for (const m of members) {
+      if (m.status !== 'active' || (!fixAll && m.id !== me.id)) continue;
+      const want = truth(m.id);
+      const have = [...(m.crewIds ?? [])].sort();
+      if (want.join() !== have.join()) updateDoc(doc(db, 'members', m.id), { crewIds: want }).catch(() => {});
+    }
+  }, [me, members, crews, ranks]);
 
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;

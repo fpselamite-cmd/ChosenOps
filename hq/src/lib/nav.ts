@@ -8,6 +8,7 @@ import {
   Map,
   Network,
   ShieldCheck,
+  Trophy,
   Swords,
   Users,
   VenetianMask,
@@ -30,6 +31,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/locker', label: 'My Locker', icon: Lock },
+      { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },
   {

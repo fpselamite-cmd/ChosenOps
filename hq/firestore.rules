@@ -63,6 +63,14 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == resource.data.uid;
     }
 
+    function inCrewAfter(id, l, i) {
+      return l.size() <= i || id in getAfter(/databases/$(database)/documents/crews/$(l[i])).data.memberIds;
+    }
+    function crewIdsTrue(id, l) {
+      return l is list && l.size() <= 5
+        && inCrewAfter(id, l, 0) && inCrewAfter(id, l, 1) && inCrewAfter(id, l, 2) && inCrewAfter(id, l, 3) && inCrewAfter(id, l, 4);
+    }
+
     match /members/{id} {
       allow read: if active() || (bound() && myId() == id);
 
@@ -84,12 +92,13 @@ service cloud.firestore {
         return (!('avatar' in d) || d.avatar == null || str(d.avatar, 200000))
           && (!('alias' in d) || str(d.alias, 30))
           && (!('phone' in d) || str(d.phone, 20))
-          && (!('bio' in d) || str(d.bio, 1000));
+          && (!('bio' in d) || str(d.bio, 1000))
+          && (!('birthday' in d) || d.birthday == null || (d.birthday is string && d.birthday.matches('[01][0-9]-[0-3][0-9]')));
       }
 
       allow update: if
         // Your own profile.
-        (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio']) && validProfile())
+        (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio', 'birthday']) && validProfile())
         // Approving a newcomer into a rank below your own.
         || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status', 'rankId'])
             && request.resource.data.status == 'active' && below(request.resource.data.rankId))
@@ -102,6 +111,9 @@ service cloud.firestore {
             && request.resource.data.rankId is string && below(request.resource.data.rankId)
             && request.resource.data.status in ['active', 'suspended']
             && (request.resource.data.reportsTo == null || request.resource.data.reportsTo is string))
+        // The crews someone is in, copied onto their file so pins and events can be shared by crew.
+        // Anyone may sync it, but every crew listed must really have them (checked after the write).
+        || (active() && onlyChanges(['crewIds']) && crewIdsTrue(id, request.resource.data.crewIds))
         // PIN reset: the new sign-in account claims the member file (code checked on authLinks).
         || (signedIn() && onlyChanges(['authUid']) && request.resource.data.authUid == request.auth.uid
             && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == id);
@@ -273,7 +285,15 @@ service cloud.firestore {
       allow create: if active() && request.resource.data.at == request.time && str(request.resource.data.title, 60)
         && ((request.resource.data.kind == 'award' && can('awardTrophies') && mine('by'))
           || (request.resource.data.kind == 'achievement' && mine('memberId') && request.resource.data.by == 'achievement'
-              && id == myId() + '_' + request.resource.data.achId + '_' + string(request.resource.data.tier)));
+              && id == myId() + '_' + request.resource.data.achId + '_' + string(request.resource.data.tier))
+          // Top 3 of a finished month on a leaderboard, handed out by whoever opens the boards first.
+          || (request.resource.data.kind == 'monthly' && request.resource.data.by == 'leaderboard'
+              && request.resource.data.board in ['sales', 'bricks'] && request.resource.data.month is string
+              && monthOver(request.resource.data.month)
+              && request.resource.data.tier in [1, 2, 3]
+              && request.resource.data.get('place', 0) == 4 - request.resource.data.tier
+              && request.resource.data.memberId in get(/databases/$(database)/documents/boards/$(request.resource.data.month)).data.get(request.resource.data.board, {})
+              && id == request.resource.data.memberId + '_top_' + request.resource.data.board + '_' + request.resource.data.month));
       allow delete: if active() && can('awardTrophies');
     }
     // Each member's own work counters (harvests, presses, cooks, runs) for achievements.
@@ -377,6 +397,76 @@ service cloud.firestore {
       // Leadership can correct the total by hand.
       allow create, update: if can('manageSettings') && request.resource.data.total is int
         && request.resource.data.keys().hasOnly(['total', 'lastTransfer']);
+    }
+
+    // ── Leaderboards: one doc per month (ET), e.g. boards/2026-10 ──
+    // sales: dirty $ per seller, bricks: bricks pressed per member. Kept forever for the Hall of Fame.
+    function boardMap(d, k) { return d == null ? {} : d.get(k, {}); }
+    function boardChange(k) {
+      return request.resource.data.get(k, {}).diff(boardMap(resource == null ? null : resource.data, k)).affectedKeys();
+    }
+    match /boards/{ym} {
+      allow read: if active();
+      allow create, update: if active() && ym.matches('[0-9]{4}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['sales', 'bricks', 'awarded', '_by', '_via'])
+        && boardChange('bricks').hasOnly([myId()])
+        && (boardChange('sales').size() == 0 || opens('blackmarket') || can('money'))
+        && (request.resource.data.get('awarded', false) == (resource == null ? false : resource.data.get('awarded', false))
+            || (request.resource.data.awarded == true && monthOver(ym)));
+    }
+    function monthIdx(ym) { return int(ym.split('-')[0]) * 12 + int(ym.split('-')[1]); }
+    // Month over in UTC terms, give or take a few hours against ET: good enough to hand out trophies.
+    function monthOver(ym) { return monthIdx(ym) < request.time.year() * 12 + request.time.month(); }
+
+    // ── Who can see a pin or an event ──
+    // personal: only the owner. gang: everyone. limited: the ranks listed (leadership is always
+    // listed) and anyone in one of the crews listed (checked against their own crewIds).
+    function canSeeIt(d) {
+      return d.get('owner', '') == myId()
+        || (active() && (d.get('scope', '') == 'gang'
+          || (d.get('scope', '') == 'limited'
+              && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))))));
+    }
+    function lead() { return rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0; }
+    function validAudience(d) {
+      return d.scope in ['personal', 'gang', 'limited'] && d.owner == myId()
+        && d.ranks is list && d.ranks.size() <= 20 && d.crewIds is list && d.crewIds.size() <= 10;
+    }
+
+    match /pins/{id} {
+      allow read: if canSeeIt(resource.data);
+      function validPin() {
+        let d = request.resource.data;
+        return validAudience(d) && str(d.name, 40) && d.name.size() > 0 && str(d.type, 20)
+          && d.x is number && d.x >= 0 && d.x <= 1 && d.y is number && d.y >= 0 && d.y <= 1
+          && (!('note' in d) || str(d.note, 300))
+          // Only leadership puts down rank- or crew-limited locations.
+          && (d.scope != 'limited' || lead());
+      }
+      allow create: if active() && validPin();
+      allow update: if active() && validPin() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+      allow delete: if active() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+    }
+
+    match /events/{id} {
+      allow read: if canSeeIt(resource.data);
+      function validEvent() {
+        let d = request.resource.data;
+        return validAudience(d) && str(d.title, 60) && d.title.size() > 0 && str(d.kind, 20)
+          && d.start is timestamp && d.mins is int && d.mins > 0 && d.mins <= 7 * 24 * 60
+          && d.repeat in ['none', 'daily', 'weekly', 'biweekly', 'monthly']
+          && (!('note' in d) || str(d.note, 500)) && (!('place' in d) || str(d.place, 60))
+          && d.rsvp is map;
+      }
+      allow create: if active() && validEvent() && request.resource.data.rsvp.keys().hasOnly([myId()]);
+      allow update: if active() && (
+        // The poster (or leadership, for shared events) edits it.
+        ((resource.data.owner == myId() || (lead() && resource.data.scope != 'personal')) && validEvent())
+        // Anyone who can see it answers for themselves.
+        || (canSeeIt(resource.data) && onlyChanges(['rsvp'])
+            && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([myId()])
+            && request.resource.data.rsvp.get(myId(), 'no') in ['yes', 'maybe', 'no']));
+      allow delete: if active() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
     }
 
     // One-time PIN reset codes. Only the SHA-256 of the code is stored.

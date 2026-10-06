@@ -69,6 +69,10 @@ export interface Member {
   phone?: string;
   bio?: string;
   joinedAt?: Timestamp;
+  /** Crews they're in (kept in sync from the crews, used to share pins and events by crew). */
+  crewIds?: string[];
+  /** Character's birthday, "MM-DD". */
+  birthday?: string | null;
   /** Sign-in account currently bound to this member; absent means the original one. */
   authUid?: string;
 }

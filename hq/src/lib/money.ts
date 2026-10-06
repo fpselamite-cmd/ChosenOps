@@ -4,6 +4,7 @@ import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { PRODUCTS, STRAINS, toCount, type BudField, type RootField, type StrainId } from '../noel/data';
 import { useOps } from '../noel/ops';
+import { countSale } from './boards';
 import { db } from './firebase';
 
 /** What the BlackMarket sells: every strain's bricks, coke bricks and meth bins. */
@@ -199,9 +200,10 @@ export function useMoneyOps() {
         at: serverTimestamp(),
         ...sign,
       });
+      if (p.price) countSale(sign, p.seller.id, p.price);
       return {
         text: `Sold ${p.qty} × ${item.name}${p.price ? ` for ${money(p.price)} dirty` : ''}.`,
-        undo: () => Promise.all([ops.reverse(taken)(), deleteDoc(ref).catch(() => {})]),
+        undo: () => Promise.all([ops.reverse(taken)(), deleteDoc(ref).catch(() => {}), p.price ? countSale(sign, p.seller.id, -p.price) : null]),
       };
     },
     /** Money power: take a sale back out and return the product to where it came from. */
@@ -209,6 +211,7 @@ export function useMoneyOps() {
       const item = saleItem(x.product)!;
       await ops.applyDeltas([{ loc: x.from, strain: item.strain, field: item.field, delta: x.qty }]);
       await deleteDoc(doc(db, 'sales', x.id));
+      if (x.price) await countSale(sign, x.sellerId, -x.price, x.at);
     },
     wash: (w: { memberId: string; memberName: string; dirty: number; pct: number; note: string }) =>
       addDoc(collection(db, 'washes'), { ...w, clean: Math.round((w.dirty * (100 - w.pct)) / 100), byName: me.name, at: serverTimestamp(), ...sign }),

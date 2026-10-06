@@ -95,7 +95,9 @@ export function tierFor(a: Achievement, value: number): 0 | Tier {
 export interface TrophyDoc {
   id: string;
   memberId: string;
-  kind: 'achievement' | 'award';
+  kind: 'achievement' | 'award' | 'monthly';
+  board?: string;
+  month?: string;
   achId?: string;
   tier: Tier;
   design: TrophyDesign;

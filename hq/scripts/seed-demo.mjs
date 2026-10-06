@@ -105,6 +105,19 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.', ['narcotics']);
   await crew('money', 'Counting Room', 'CNT', '#d4af37', 'Lena Russo', ['Lena Russo', 'Mia Santos', 'Don Vito'], '', ['blackmarket']);
 
+  // Crew lists on member files (the app keeps these in sync), birthdays and a couple of old hands.
+  const CREWS = { grow: ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], hit: ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], cook: ['Nico Bruno', 'Jax Holt', 'Mia Santos'], money: ['Lena Russo', 'Mia Santos', 'Don Vito'] };
+  const BDAYS = { 'Don Vito': '10-18', 'Rocco Vale': '10-09', 'Kira Lane': '10-24', 'Ghost': '11-02', 'Lena Russo': '03-14' };
+  const etParts = (ms) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(ms).map((x) => [x.type, +x.value || x.value]));
+  for (const [name] of PEOPLE) {
+    const patch = { crewIds: Object.entries(CREWS).filter(([, l]) => l.includes(name)).map(([c]) => c).sort() };
+    if (BDAYS[name]) patch.birthday = BDAYS[name];
+    await setDoc(doc(db, 'members', ids[name]), patch, { merge: true });
+  }
+  const t0 = etParts(now);
+  await setDoc(doc(db, 'members', ids['Don Vito']), { joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 2, 9, 12, 16)) }, { merge: true });
+  await setDoc(doc(db, 'members', ids['Sal Moretti']), { joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 1, 9, 9, 16)) }, { merge: true });
+
   // Petty crime
   const REP = { 'Don Vito': 120, 'Rocco Vale': 340, 'Dani Cruz': 210, 'Tommy Reyes': 185, 'Kira Lane': 95, Ghost: 60, 'Jax Holt': 30 };
   for (const [name, rep] of Object.entries(REP)) await setDoc(doc(db, 'petty', ids[name]), { rep });
@@ -238,6 +251,60 @@ await env.withSecurityRulesDisabled(async (ctx) => {
       5: { kind: 'trophy', trophyId: `${vito}_press_2`, label: '50 bricks, one night' },
     },
   });
+
+  // Monthly leaderboards: past months (already handed out) plus this month from the sales above.
+  const ym = (ms) => { const p = etParts(ms); return `${p.year}-${String(p.month).padStart(2, '0')}`; };
+  const boards = {};
+  const add = (k, b, who, v) => { boards[k] ??= { sales: {}, bricks: {} }; boards[k][b][ids[who]] = (boards[k][b][ids[who]] ?? 0) + v; };
+  for (const [, , , , who, , price, hoursAgo] of sales) if (price) add(ym(now - hoursAgo * H), 'sales', who, price);
+  const back = (n) => { const p = etParts(now); const d = new Date(Date.UTC(p.year, p.month - 1 - n, 15)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+  const PAST = [
+    [3, { 'Lena Russo': 182000, 'Marco Gallo': 141000, 'Rocco Vale': 96000, 'Kira Lane': 52000 }, { 'Marco Gallo': 46, 'Jax Holt': 31, Ghost: 22, 'Kira Lane': 9 }],
+    [2, { 'Marco Gallo': 214000, 'Lena Russo': 160500, 'Don Vito': 122000, 'Jax Holt': 70000, 'Nico Bruno': 26000 }, { 'Jax Holt': 52, 'Marco Gallo': 49, Ghost: 30 }],
+    [1, { 'Rocco Vale': 233000, 'Marco Gallo': 198000, 'Lena Russo': 175000, 'Kira Lane': 88000 }, { 'Marco Gallo': 61, Ghost: 44, 'Jax Holt': 38, 'Kira Lane': 12 }],
+  ];
+  for (const [n, s, b] of PAST) {
+    const k = back(n);
+    for (const [who, v] of Object.entries(s)) add(k, 'sales', who, v);
+    for (const [who, v] of Object.entries(b)) add(k, 'bricks', who, v);
+    boards[k].awarded = true;
+    const BD = [['sales', 'Top Seller', 'moneybag', s, (v) => `$${v.toLocaleString('en-US')}`], ['bricks', 'Top Presser', 'brick', b, (v) => `${v} bricks`]];
+    for (const [board, title, design, table, unit] of BD)
+      for (const [i, [who, v]] of Object.entries(table).sort((a, c) => c[1] - a[1]).slice(0, 3).entries())
+        await setDoc(doc(db, 'trophies', `${ids[who]}_top_${board}_${k}`), {
+          kind: 'monthly', by: 'leaderboard', board, month: k, place: i + 1, tier: 3 - i, memberId: ids[who], design,
+          title: `${title} #${i + 1} · ${new Date(`${k}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}`, note: unit(v), at: Timestamp.fromMillis(now - (n - 1) * 30 * D - 5 * D),
+        });
+  }
+  for (const [who, v] of Object.entries({ 'Marco Gallo': 14, 'Jax Holt': 9, Ghost: 6, 'Don Vito': 3 })) add(ym(now), 'bricks', who, v);
+  for (const [k, v] of Object.entries(boards)) await setDoc(doc(db, 'boards', k), v);
+
+  // Map pins
+  const pin = (id, owner, name, type, x, y, scope, extra = {}) =>
+    setDoc(doc(db, 'pins', id), { owner: ids[owner], ownerName: owner, name, type, x, y, scope, ranks: [], crewIds: [], minRank: null, note: '', at: Timestamp.fromMillis(now - 3 * D), ...extra });
+  const LEAD = ['boss', 'consigliere', 'underboss', 'treasurer'];
+  await pin('p1', 'Marco Gallo', 'Leon VW grow', 'grow', 0.52, 0.71, 'gang', { note: 'Postal 7078. Knock twice.' });
+  await pin('p2', 'Marco Gallo', 'Leon JT grow', 'grow', 0.61, 0.66, 'gang', { note: 'Postal 9182' });
+  await pin('p3', 'Don Vito', 'Main Stash', 'stash', 0.44, 0.78, 'limited', { ranks: [...LEAD, 'caporegime', 'lieutenant'], minRank: 'lieutenant', note: 'Lieutenant and up only.' });
+  await pin('p4', 'Nico Bruno', 'Blue Kitchen lab', 'lab', 0.70, 0.40, 'limited', { ranks: LEAD, crewIds: ['cook'], note: 'Cook crew + leadership.' });
+  await pin('p5', 'Rocco Vale', 'Docks blacksite', 'blacksite', 0.38, 0.88, 'gang', { note: 'King of the Hill zone. Friday 9PM.' });
+  await pin('p6', 'Rocco Vale', 'Ballas block', 'rival', 0.56, 0.84, 'gang', { note: 'Stay off after dark.' });
+  await pin('p7', 'Don Vito', 'Our corner', 'turf', 0.48, 0.74, 'gang');
+  await pin('p8', 'Don Vito', 'Pier meet', 'meet', 0.31, 0.80, 'gang', { note: 'Buyers meet here.' });
+  await pin('p9', 'Don Vito', 'My safehouse', 'other', 0.66, 0.22, 'personal', { note: 'Only I see this one.' });
+  await pin('p10', 'Lena Russo', 'Laundromat', 'shop', 0.53, 0.77, 'limited', { ranks: LEAD, crewIds: ['money'], note: 'Washes at 50%.' });
+
+  // Calendar
+  const at = (daysFromNow, h, m = 0) => { const p = etParts(now + daysFromNow * D); return Timestamp.fromMillis(Date.UTC(p.year, p.month - 1, p.day, h + 4, m)); };
+  const ev = (id, owner, title, kind, start, mins, repeat, scope, extra = {}) =>
+    setDoc(doc(db, 'events', id), { owner: ids[owner], ownerName: owner, title, kind, start, mins, repeat, scope, ranks: [], crewIds: [], minRank: null, place: '', note: '', rsvp: { [ids[owner]]: 'yes' }, ...extra });
+  await ev('e1', 'Don Vito', 'Family sit-down', 'meeting', at(-6, 20), 60, 'weekly', 'gang', { place: 'The Yacht', note: 'Weekly. Bring numbers.', rsvp: { [ids['Don Vito']]: 'yes', [ids['Sal Moretti']]: 'yes', [ids['Lena Russo']]: 'yes', [ids['Rocco Vale']]: 'maybe', [ids['Ghost']]: 'no' } });
+  await ev('e2', 'Rocco Vale', 'Docks blacksite', 'blacksite', at(3, 21), 120, 'none', 'gang', { place: 'Docks blacksite', note: 'Hit Squad leads, everyone else on standby. Bring armor.', rsvp: { [ids['Rocco Vale']]: 'yes', [ids['Dani Cruz']]: 'yes', [ids['Tommy Reyes']]: 'yes', [ids['Kira Lane']]: 'maybe' } });
+  await ev('e3', 'Don Vito', 'Leadership: territory talk', 'meeting', at(1, 19), 60, 'none', 'limited', { ranks: LEAD, note: 'Leadership only.' });
+  await ev('e4', 'Marco Gallo', 'Coca leaves harvest', 'op', at(-2, 18), 60, 'weekly', 'limited', { ranks: LEAD, crewIds: ['grow'] });
+  await ev('e5', 'Lena Russo', 'Payout day', 'other', at(-5, 17), 30, 'biweekly', 'gang', { place: 'Laundromat' });
+  await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD, crewIds: ['hit'] });
+  await ev('e7', 'Mia Santos', 'Rooftop party', 'party', at(10, 23), 240, 'none', 'gang', { place: 'Vinewood rooftop' });
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {

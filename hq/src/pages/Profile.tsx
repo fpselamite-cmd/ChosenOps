@@ -14,15 +14,20 @@ import { squareImage } from '../lib/image';
 import { setPresenceStatus, updateProfile } from '../lib/members';
 import { PRESENCE_STATUSES, type Member } from '../lib/types';
 
+const BMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 function EditProfile({ m, onClose }: { m: Member; onClose: () => void }) {
   const [alias, setAlias] = useState(m.alias ?? '');
   const [phone, setPhone] = useState(m.phone ?? '');
   const [bio, setBio] = useState(m.bio ?? '');
+  const [bMonth, setBMonth] = useState(m.birthday ? +m.birthday.slice(0, 2) : 0);
+  const [bDay, setBDay] = useState(m.birthday ? +m.birthday.slice(3) : 0);
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    await updateProfile(m.id, { alias: alias.trim(), phone: phone.trim(), bio: bio.trim() });
+    const birthday = bMonth && bDay ? `${String(bMonth).padStart(2, '0')}-${String(bDay).padStart(2, '0')}` : null;
+    await updateProfile(m.id, { alias: alias.trim(), phone: phone.trim(), bio: bio.trim(), birthday });
     onClose();
   }
   return (
@@ -30,6 +35,26 @@ function EditProfile({ m, onClose }: { m: Member; onClose: () => void }) {
       <form onSubmit={submit} className="space-y-4">
         <Field label="Alias / street name">
           <input className="input" value={alias} onChange={(e) => setAlias(e.target.value)} maxLength={30} />
+        </Field>
+        <Field label="Character birthday" hint="Shows on the family calendar.">
+          <div className="grid grid-cols-2 gap-2">
+            <select className="input" value={bMonth} onChange={(e) => setBMonth(+e.target.value)}>
+              <option value={0}>Month</option>
+              {BMONTHS.map((n, i) => (
+                <option key={n} value={i + 1}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <select className="input" value={bDay} onChange={(e) => setBDay(+e.target.value)}>
+              <option value={0}>Day</option>
+              {Array.from({ length: 31 }, (_, i) => (
+                <option key={i} value={i + 1}>
+                  {i + 1}
+                </option>
+              ))}
+            </select>
+          </div>
         </Field>
         <Field label="In-city phone">
           <input className="input font-mono" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
@@ -226,6 +251,10 @@ export default function Profile() {
               <div>
                 <dt className="label">In-city phone</dt>
                 <dd className="mt-1 font-mono">{m.phone || <span className="text-smoke">—</span>}</dd>
+              </div>
+              <div>
+                <dt className="label">Birthday</dt>
+                <dd className="mt-1">{m.birthday ? `${BMONTHS[+m.birthday.slice(0, 2) - 1]} ${+m.birthday.slice(3)}` : <span className="text-smoke">—</span>}</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="label">Runs</dt>

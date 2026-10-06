@@ -16,6 +16,9 @@ import Narcotics from './pages/Narcotics';
 import Stash from './pages/Stash';
 import PettyCrime from './pages/PettyCrime';
 import Locker from './pages/Locker';
+import HallOfFame from './pages/HallOfFame';
+import MapPage from './pages/MapPage';
+import CalendarPage from './pages/CalendarPage';
 import Login from './pages/Login';
 import Pending from './pages/Pending';
 import Profile from './pages/Profile';
@@ -68,6 +71,7 @@ function MemberRoutes() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
+        <Route path="hall-of-fame" element={<HallOfFame />} />
         <Route
           path="narcotics"
           element={
@@ -102,8 +106,22 @@ function MemberRoutes() {
         <Route path="locker" element={<Locker />} />
         <Route path="members/:id" element={<Profile />} />
         <Route path="family" element={<Gate page="family"><Family /></Gate>} />
-        <Route path="map" element={placeholder('map')} />
-        <Route path="calendar" element={placeholder('calendar')} />
+        <Route
+          path="map"
+          element={
+            <Gate page="map">
+              <MapPage />
+            </Gate>
+          }
+        />
+        <Route
+          path="calendar"
+          element={
+            <Gate page="calendar">
+              <CalendarPage />
+            </Gate>
+          }
+        />
         <Route path="admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

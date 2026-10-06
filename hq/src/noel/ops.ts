@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { useMemo } from 'react';
 import { useHub } from '../hooks/useHub';
+import { countBricks } from '../lib/boards';
 import { db } from '../lib/firebase';
 import type { PageId } from '../lib/types';
 import {
@@ -133,7 +134,12 @@ export function useOps(page: PageId = 'narcotics') {
 
     /** Your own work counters, for achievements. */
     const bump = (field: 'harvests' | 'bud' | 'pressed' | 'cooks' | 'runs', k: number) =>
-      k ? setDoc(doc(db, 'stats', me.id), { [field]: increment(k) }, { merge: true }).catch(() => {}) : Promise.resolve();
+      k
+        ? Promise.all([
+            setDoc(doc(db, 'stats', me.id), { [field]: increment(k) }, { merge: true }).catch(() => {}),
+            field === 'pressed' ? countBricks(me.id, k) : null,
+          ])
+        : Promise.resolve();
 
     const strainName = (id: string) => STRAIN_BY_ID[id as StrainId]?.name ?? ROOT_FIELDS[id as RootField] ?? id;
 

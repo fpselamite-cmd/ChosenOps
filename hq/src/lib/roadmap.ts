@@ -25,18 +25,4 @@ export const ROADMAP: Record<string, { step: number; title: string; kicker: stri
       'Each member’s current loadout on their profile',
     ],
   },
-  map: {
-    step: 4,
-    title: 'Map',
-    kicker: 'People',
-    sub: 'The city map with pins for every op.',
-    features: ['Upload the map once', 'Pins for grows, stash houses, labs, warehouses and blacksite zones', 'Click a pin for live timers and stock'],
-  },
-  calendar: {
-    step: 4,
-    title: 'Calendar',
-    kicker: 'People',
-    sub: 'The week ahead, in Eastern time.',
-    features: ['Events with weekly repeats (like the coca leaves harvest)', 'Crew-only events', 'Today’s events in the dashboard ticker'],
-  },
 };

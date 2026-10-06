@@ -1,5 +1,5 @@
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { arrayRemove, arrayUnion, deleteDoc, doc, getDoc, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, increment, query, serverTimestamp, setDoc, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -394,5 +394,89 @@ describe('money', () => {
     await assertSucceeds(setDoc(doc(as('ub'), 'ledger/l1'), { type: 'payout', amount: 10, toId: 'sol' }));
     await assertSucceeds(getDoc(doc(as('sol'), 'ledger/l1')));
     await assertFails(getDoc(doc(as('sol2'), 'ledger/l1')));
+  });
+});
+
+describe('crew list on member files', () => {
+  it('lets anyone sync crewIds, but only to crews that really have the member', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { crewIds: ['grow'] }));
+    await assertFails(updateDoc(doc(as('sol2'), 'members/sol2'), { crewIds: ['grow'] }));
+    // Dropping a crew they've left is fine.
+    await assertSucceeds(updateDoc(doc(as('capo'), 'members/sol'), { crewIds: [] }));
+  });
+  it('a crew leader removes someone and clears their crewIds in one go', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/sol'), { crewIds: ['grow'] }));
+    const db = as('capo');
+    const b = writeBatch(db);
+    b.update(doc(db, 'crews/grow'), { memberIds: arrayRemove('sol') });
+    b.update(doc(db, 'members/sol'), { crewIds: [] });
+    await assertSucceeds(b.commit());
+  });
+});
+
+describe('pins and events', () => {
+  const aud = (owner: string, scope: string, ranks: string[] = [], crewIds: string[] = []) => ({ owner, scope, ranks, crewIds });
+  const pin = (owner: string, scope: string, ranks: string[] = [], crewIds: string[] = []) => ({ ...aud(owner, scope, ranks, crewIds), name: 'Spot', type: 'meet', x: 0.5, y: 0.5 });
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, 'members/sol'), { crewIds: ['grow'] });
+      await setDoc(doc(db, 'pins/mine'), pin('sol2', 'personal'));
+      await setDoc(doc(db, 'pins/gang'), pin('sol2', 'gang'));
+      await setDoc(doc(db, 'pins/top'), pin('boss', 'limited', ['boss', 'underboss']));
+      await setDoc(doc(db, 'pins/growers'), pin('boss', 'limited', ['boss'], ['grow']));
+    });
+  });
+  it('keeps personal pins to their owner', async () => {
+    await assertSucceeds(getDoc(doc(as('sol2'), 'pins/mine')));
+    await assertFails(getDoc(doc(as('sol'), 'pins/mine')));
+    await assertFails(getDoc(doc(as('boss'), 'pins/mine')));
+  });
+  it('shows limited pins only to the listed ranks and crews, through queries too', async () => {
+    await assertSucceeds(getDoc(doc(as('ub'), 'pins/top')));
+    await assertFails(getDoc(doc(as('sol'), 'pins/top')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'pins/growers')));
+    await assertFails(getDoc(doc(as('sol2'), 'pins/growers')));
+    const db = as('sol');
+    await assertSucceeds(getDocs(query(collection(db, 'pins'), where('scope', '==', 'gang'))));
+    await assertSucceeds(getDocs(query(collection(db, 'pins'), where('owner', '==', 'sol'))));
+    await assertSucceeds(getDocs(query(collection(db, 'pins'), where('scope', '==', 'limited'), where('ranks', 'array-contains', 'soldier'))));
+    await assertSucceeds(getDocs(query(collection(db, 'pins'), where('scope', '==', 'limited'), where('crewIds', 'array-contains-any', ['grow']))));
+    await assertFails(getDocs(query(collection(db, 'pins'), where('scope', '==', 'limited'), where('crewIds', 'array-contains-any', ['hit']))));
+  });
+  it('lets anyone drop personal or gang pins, but only leadership limit them', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'pins/a'), pin('sol', 'gang')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'pins/b'), pin('sol', 'personal')));
+    await assertFails(setDoc(doc(as('sol'), 'pins/c'), pin('sol', 'limited', ['soldier'])));
+    await assertSucceeds(setDoc(doc(as('boss'), 'pins/d'), pin('boss', 'limited', ['boss'])));
+    await assertFails(setDoc(doc(as('sol'), 'pins/e'), pin('sol2', 'gang')));
+    await assertFails(deleteDoc(doc(as('sol'), 'pins/gang')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'pins/gang')));
+  });
+  it('lets people RSVP for themselves only', async () => {
+    const ev = { ...aud('boss', 'gang'), title: 'Sit-down', kind: 'meeting', start: Timestamp.now(), mins: 60, repeat: 'weekly', rsvp: {} };
+    await assertSucceeds(setDoc(doc(as('boss'), 'events/e1'), ev));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'events/e1'), { 'rsvp.sol': 'yes' }));
+    await assertFails(updateDoc(doc(as('sol'), 'events/e1'), { 'rsvp.sol2': 'no' }));
+    await assertFails(updateDoc(doc(as('sol'), 'events/e1'), { title: 'Party' }));
+  });
+});
+
+describe('leaderboards', () => {
+  it('lets members count only their own bricks; sales need the BlackMarket', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'boards/2026-10'), { bricks: { sol: increment(3) } }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'boards/2026-10'), { bricks: { sol2: increment(3) } }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'boards/2026-10'), { sales: { sol: increment(9000) } }, { merge: true }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/soldier'), { pages: { blackmarket: true } }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'boards/2026-10'), { sales: { sol2: increment(9000) }, _by: 'sol', _via: 'rank' }, { merge: true }));
+  });
+  it('hands the top 3 of a finished month a trophy, once', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'boards/2020-01'), { sales: { sol: 90000, sol2: 1000 } }));
+    const t = { kind: 'monthly', by: 'leaderboard', board: 'sales', month: '2020-01', tier: 3, place: 1, memberId: 'sol', title: 'Top Seller', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol2'), 'trophies/sol_top_sales_2020-01'), t));
+    await assertFails(setDoc(doc(as('sol2'), 'trophies/x'), t));
+    await assertFails(setDoc(doc(as('sol2'), 'trophies/capo_top_sales_2020-01'), { ...t, memberId: 'capo' }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'boards/2020-01'), { awarded: true }));
+    await assertFails(setDoc(doc(as('sol'), 'boards/2999-01'), { awarded: true }));
   });
 });

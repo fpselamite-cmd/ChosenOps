@@ -15,6 +15,25 @@ import { n, type OpsLocation, type StockDoc } from '../noel/data';
 import { sumStock } from '../noel/store';
 import { db } from '../lib/firebase';
 import { ago } from '../lib/format';
+import { BOARDS, monthKey, monthName, ranked, useBoards } from '../lib/boards';
+import { Podium } from './HallOfFame';
+
+function ThisMonth() {
+  const { byId } = useBoards();
+  const now = monthKey();
+  return (
+    <Panel title={`Leaderboards · ${monthName(now)}`} right={<Link to="/hall-of-fame" className="label hover:text-gold-300">Hall of Fame →</Link>}>
+      <div className="grid gap-6 sm:grid-cols-2">
+        {BOARDS.map((b) => (
+          <div key={b.id}>
+            <p className="label mb-3 text-center">{b.name}</p>
+            <Podium rows={ranked(byId.get(now), b.id).slice(0, 3)} board={b} compact />
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
 
 function WordFromTheTop() {
   const { announcement, can, me } = useHub();
@@ -102,6 +121,7 @@ export default function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <WordFromTheTop />
+          <ThisMonth />
 
           <Panel title="Your crews" right={<Link to="/crews" className="label hover:text-gold-300">All crews →</Link>}>
             {myCrews.length ? (

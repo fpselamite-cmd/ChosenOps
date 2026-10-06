@@ -2,7 +2,7 @@ import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Member, MemberStatus } from './types';
 
-export type ProfilePatch = Partial<Pick<Member, 'avatar' | 'alias' | 'phone' | 'bio'>>;
+export type ProfilePatch = Partial<Pick<Member, 'avatar' | 'alias' | 'phone' | 'bio' | 'birthday'>>;
 
 /** Your own profile fields. Rank, status and chain of command are officer-only. */
 export const updateProfile = (id: string, patch: ProfilePatch) => updateDoc(doc(db, 'members', id), patch);
