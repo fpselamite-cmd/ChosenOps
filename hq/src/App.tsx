@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { logout } from './lib/auth';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { PageId } from './lib/types';
 import { AppShell } from './components/AppShell';
@@ -43,13 +44,39 @@ export default function App() {
 
   if (loading) return <Loading label="Opening HQ…" />;
   if (!me && lockedOut) return <Pending locked />;
-  if (!me) return <Loading label="Setting up your file…" />;
+  if (!me) return <NoFileYet />;
   if (me.status !== 'active') return <Pending />;
 
   return (
     <HubProvider>
       <MemberRoutes />
     </HubProvider>
+  );
+}
+
+/** Signed in, but no member file showed up (yet). After a few seconds, offer a way out. */
+function NoFileYet() {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLate(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <Loading label="Setting up your file…">
+      {late && (
+        <div className="max-w-sm space-y-3 text-center">
+          <p className="text-sm text-ash">This is taking too long. Your sign-in may be from before, or the file didn’t save.</p>
+          <div className="flex justify-center gap-2">
+            <button className="btn-ghost" onClick={() => window.location.reload()}>
+              Try again
+            </button>
+            <button className="btn-gold" onClick={() => logout()}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </Loading>
   );
 }
 

@@ -627,3 +627,10 @@ describe('owners and admins', () => {
     await assertFails(updateDoc(doc(as('boss'), 'members/capo'), { admin: true }));
   });
 });
+
+describe('signing up', () => {
+  it('lets a new sign-in wait for its own file before it exists, but not read anyone else’s', async () => {
+    await assertSucceeds(getDoc(doc(as('brandnew'), 'members/brandnew')));
+    await assertFails(getDoc(doc(as('brandnew'), 'members/sol')));
+  });
+});

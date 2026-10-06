@@ -82,6 +82,8 @@ service cloud.firestore {
 
     match /members/{id} {
       allow read: if active() || (bound() && myId() == id);
+      // Your own file by sign-in id, even before it exists (so the app can wait for it while signing up).
+      allow get: if signedIn() && id == request.auth.uid && resource == null;
 
       function validNew() {
         let d = request.resource.data;
