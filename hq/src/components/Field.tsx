@@ -16,13 +16,22 @@ export function ErrorText({ error }: { error?: string | null }) {
   return <p className="border-l-2 border-danger bg-danger/10 px-3 py-2 text-sm text-red-300">{error}</p>;
 }
 
-export function Loading({ label = 'Loading…' }: { label?: string }) {
+/** The Chosen seal, large and slowly turning, with a soft glow. */
+export function Loading({ label = 'Loading…', children }: { label?: string; children?: ReactNode }) {
   return (
-    <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4">
-      <img src="/brand/logo-192.png" alt="" className="size-20 animate-[seal-spin_14s_linear_infinite] opacity-90" />
-      <p className="label flex items-center gap-2">
+    <div className="flex min-h-[80dvh] flex-col items-center justify-center gap-6 px-4">
+      <div className="relative">
+        <div className="absolute inset-0 -m-10 rounded-full bg-[radial-gradient(circle,rgb(var(--acc)/0.22),transparent_65%)] blur-xl" />
+        <img
+          src="/brand/logo.webp"
+          alt=""
+          className="relative size-[min(68vw,340px)] animate-[seal-spin_40s_linear_infinite] rounded-full drop-shadow-[0_0_28px_rgb(var(--acc)/0.35)]"
+        />
+      </div>
+      <p className="label flex items-center gap-2 text-[12px]">
         <Loader2 className="size-3.5 animate-spin" /> {label}
       </p>
+      {children}
     </div>
   );
 }
