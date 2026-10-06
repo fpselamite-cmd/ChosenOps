@@ -1,8 +1,8 @@
 name: Deploy
 
-# Builds the hub and deploys it (plus the Firestore security rules) to
-# https://chosenops.web.app. Runs on every push to main, or manually from the
-# Actions tab ("Run workflow") for any branch.
+# Builds ChosenOps HQ (hq/) and deploys it, with its Firestore rules and indexes, to
+# https://chosenops.web.app. Runs on every push to main, or manually from the Actions
+# tab ("Run workflow") for any branch.
 on:
   push:
     branches: [main]
@@ -15,6 +15,10 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: hq
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -24,6 +28,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: hq/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -42,6 +47,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: hq/package-lock.json
       - run: npm ci
       - run: npm run build
       - name: Check deploy secret
@@ -49,11 +55,11 @@ jobs:
           SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$SA" ]; then
-            echo "::error::Missing FIREBASE_SERVICE_ACCOUNT secret. See 'Going live' in README.md."
+            echo "::error::Missing FIREBASE_SERVICE_ACCOUNT secret. See 'Going live' in hq/README.md."
             exit 1
           fi
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       - name: Deploy to Firebase
-        run: npx firebase deploy --only hosting,firestore:rules --project chosenops --non-interactive
+        run: npx firebase deploy --only hosting,firestore:rules,firestore:indexes --project chosenops --non-interactive

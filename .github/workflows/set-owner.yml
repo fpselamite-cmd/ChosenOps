@@ -1,0 +1,44 @@
+name: Set owner
+
+# Makes a member an owner of ChosenOps HQ, or removes them. Owners alone set the admin
+# password and give or take away admin access (Admin → Admin access). Run it by hand from
+# the Actions tab after the member has registered in the app.
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Member name, exactly as they sign in
+        required: true
+      remove:
+        description: Remove them as owner instead
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  set-owner:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hq/package-lock.json
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Set owner
+        env:
+          NAME: ${{ inputs.name }}
+          REMOVE: ${{ inputs.remove }}
+        run: |
+          ARGS=(--name "$NAME" --live)
+          [ "$REMOVE" = "true" ] && ARGS+=(--remove)
+          node scripts/set-owner.mjs "${ARGS[@]}"

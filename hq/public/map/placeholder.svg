@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 2400" width="1600" height="2400">
+  <defs>
+    <pattern id="g" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0V80" fill="none" stroke="#d4af37" stroke-opacity=".07" stroke-width="2"/>
+    </pattern>
+    <radialGradient id="sea" cx=".5" cy=".5" r=".75">
+      <stop offset="0" stop-color="#0d1a22"/><stop offset="1" stop-color="#05090c"/>
+    </radialGradient>
+    <linearGradient id="land" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1a14"/><stop offset="1" stop-color="#15140f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="2400" fill="url(#sea)"/>
+  <path d="M520 180 C760 90 1080 120 1240 260 C1380 380 1330 560 1420 720 C1500 880 1380 1040 1300 1180 C1220 1320 1290 1480 1220 1640 C1150 1800 1180 1960 1020 2120 C880 2260 640 2280 480 2180 C330 2090 300 1900 330 1760 C360 1600 250 1480 230 1320 C210 1140 330 1010 300 860 C270 700 180 560 260 420 C330 300 400 230 520 180 Z" fill="url(#land)" stroke="#d4af37" stroke-opacity=".35" stroke-width="4"/>
+  <rect width="1600" height="2400" fill="url(#g)"/>
+  <g fill="none" stroke="#d4af37" stroke-opacity=".18" stroke-width="6" stroke-linecap="round">
+    <path d="M420 1900 C620 1700 780 1500 820 1240 C860 980 900 700 1100 420"/>
+    <path d="M360 1500 C600 1480 900 1520 1260 1420"/>
+    <path d="M520 2080 C700 1960 900 1900 1080 1980"/>
+    <path d="M300 900 C520 960 760 900 1360 820"/>
+  </g>
+  <g font-family="Georgia, serif" fill="#d4af37" text-anchor="middle">
+    <text x="800" y="1720" font-size="64" fill-opacity=".55" letter-spacing="10">LOS SANTOS</text>
+    <text x="820" y="1040" font-size="44" fill-opacity=".4" letter-spacing="8">SANDY SHORES</text>
+    <text x="840" y="520" font-size="44" fill-opacity=".4" letter-spacing="8">PALETO BAY</text>
+    <text x="800" y="2340" font-size="34" fill-opacity=".35" letter-spacing="6" font-family="monospace">PLACEHOLDER MAP · SEND YOURS</text>
+  </g>
+</svg>

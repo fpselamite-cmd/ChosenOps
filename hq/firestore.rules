@@ -1,0 +1,658 @@
+rules_version = '2';
+
+// ChosenOps HQ security rules.
+// - Everyone signs in with a name + PIN (Firebase email/password behind the scenes).
+// - Ranks grant gang-wide permissions; the top rank (order 0) has them all.
+// - Officers only act on members and ranks strictly below their own rank.
+// - Crew leaders manage their own crew's members, motto, color and emblem.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+
+    // After a PIN reset, the sign-in account is linked back to the original member file.
+    function myId() {
+      return exists(/databases/$(database)/documents/authLinks/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId
+        : request.auth.uid;
+    }
+    function memberOf(id) { return get(/databases/$(database)/documents/members/$(id)).data; }
+    function me() { return memberOf(myId()); }
+
+    // Signed in with the account currently bound to the member file (a reset retires the old one).
+    function bound() {
+      let id = myId();
+      return signedIn() && exists(/databases/$(database)/documents/members/$(id)) && memberOf(id).get('authUid', id) == request.auth.uid;
+    }
+    function active() { return bound() && me().status == 'active'; }
+
+    function rankOf(rankId) { return get(/databases/$(database)/documents/hqRanks/$(rankId)).data; }
+    function myOrder() { return rankOf(me().rankId).order; }
+    // Unranked (pending) members sit below everyone.
+    function orderOf(rankId) { return rankId == null ? 1000000 : rankOf(rankId).order; }
+
+    // Owners: set only from GitHub (the 'Set owner' workflow, with the deploy service account),
+    // which also makes them admin. They alone hand out admin. Admins: members who entered the
+    // admin password or were made admin by an owner. They can do everything except act on the
+    // top rank.
+    function isOwner() {
+      return exists(/databases/$(database)/documents/meta/owners)
+        && myId() in get(/databases/$(database)/documents/meta/owners).data.get('ids', []);
+    }
+    function isAdmin() { return me().get('admin', false) == true; }
+    function can(p) {
+      let r = rankOf(me().rankId);
+      return active() && (isAdmin() || r.order == 0 || r.permissions.get(p, false) == true);
+    }
+    function below(rankId) { return orderOf(rankId) > (isAdmin() ? 0 : myOrder()); }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+
+    function founding() {
+      return !exists(/databases/$(database)/documents/meta/hqFounding) && getAfter(/databases/$(database)/documents/meta/hqFounding).data.uid == request.auth.uid;
+    }
+
+    match /meta/hqFounding {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // name key → member id, plus a version that bumps on each PIN reset. Read before sign-in.
+    match /names/{key} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'v'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.v == 0
+        && getAfter(/databases/$(database)/documents/members/$(request.auth.uid)).data.nameLower == key;
+      // The PIN-reset flow bumps the version from the new sign-in account.
+      allow update: if signedIn() && onlyChanges(['v']) && request.resource.data.v == resource.data.get('v', 0) + 1
+        && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == resource.data.uid;
+    }
+
+    function inCrewAfter(id, l, i) {
+      return l.size() <= i || id in getAfter(/databases/$(database)/documents/crews/$(l[i])).data.memberIds;
+    }
+    function crewIdsTrue(id, l) {
+      return l is list && l.size() <= 5
+        && inCrewAfter(id, l, 0) && inCrewAfter(id, l, 1) && inCrewAfter(id, l, 2) && inCrewAfter(id, l, 3) && inCrewAfter(id, l, 4);
+    }
+
+    match /members/{id} {
+      allow read: if active() || (bound() && myId() == id);
+
+      function validNew() {
+        let d = request.resource.data;
+        return id == request.auth.uid
+          && d.keys().hasOnly(['name', 'nameLower', 'status', 'rankId', 'reportsTo', 'joinedAt', 'avatar'])
+          && str(d.name, 20) && d.name.size() >= 3 && str(d.nameLower, 20)
+          && d.reportsTo == null && d.joinedAt == request.time && d.avatar == null
+          && getAfter(/databases/$(database)/documents/names/$(d.nameLower)).data.uid == id;
+      }
+      allow create: if signedIn() && validNew() && (
+        (request.resource.data.status == 'pending' && request.resource.data.rankId == null)
+        || (founding() && request.resource.data.status == 'active' && request.resource.data.rankId == 'boss')
+      );
+
+      function validProfile() {
+        let d = request.resource.data;
+        return (!('avatar' in d) || d.avatar == null || str(d.avatar, 200000))
+          && (!('alias' in d) || str(d.alias, 30))
+          && (!('phone' in d) || str(d.phone, 20))
+          && (!('bio' in d) || str(d.bio, 1000))
+          && (!('prefs' in d) || (d.prefs is map && d.prefs.size() <= 10))
+          && (!('birthday' in d) || d.birthday == null || (d.birthday is string && d.birthday.matches('[01][0-9]-[0-3][0-9]')));
+      }
+
+      // Admin access, on its own (only the 'admin' field changes).
+      // Becoming an admin with the admin password, written to your own claim in the same go:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin == true && active() && myId() == id
+        && hashing.sha256('chosenops-admin:' + getAfter(/databases/$(database)/documents/adminClaims/$(id)).data.code).toHexString().lower()
+           == get(/databases/$(database)/documents/settings/adminKey).data.hash;
+      // Stepping down yourself:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin == false && active() && myId() == id;
+      // An owner granting or taking it away:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
+
+      allow update: if
+        // Your own profile.
+        (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio', 'birthday', 'prefs']) && validProfile())
+        // Approving a newcomer into a rank below your own.
+        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status', 'rankId'])
+            && request.resource.data.status == 'active' && below(request.resource.data.rankId))
+        // Turning a newcomer away.
+        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status'])
+            && request.resource.data.status == 'suspended')
+        // Rank, status and chain of command for members below you, into ranks below you.
+        || (can('manageMembers') && id != myId() && resource.data.status != 'pending' && below(resource.data.rankId)
+            && onlyChanges(['rankId', 'status', 'reportsTo'])
+            && request.resource.data.rankId is string && below(request.resource.data.rankId)
+            && request.resource.data.status in ['active', 'suspended']
+            && (request.resource.data.reportsTo == null || request.resource.data.reportsTo is string))
+        // The crews someone is in, copied onto their file so pins and events can be shared by crew.
+        // Anyone may sync it, but every crew listed must really have them (checked after the write).
+        || (active() && onlyChanges(['crewIds']) && crewIdsTrue(id, request.resource.data.crewIds))
+        // PIN reset: the new sign-in account claims the member file (code checked on authLinks).
+        || (signedIn() && onlyChanges(['authUid']) && request.resource.data.authUid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == id);
+    }
+
+    // Online check-ins and custom statuses. Each member writes only their own.
+    match /presence/{id} {
+      allow read: if active();
+      allow write: if active() && myId() == id
+        && request.resource.data.keys().hasOnly(['at', 'status'])
+        && request.resource.data.at == request.time
+        && (!('status' in request.resource.data) || str(request.resource.data.status, 24));
+    }
+
+    match /hqRanks/{rankId} {
+      allow read: if active();
+      allow create: if (founding() && request.resource.data.order is int)
+        || (can('manageRanks') && request.resource.data.order > myOrder());
+      allow update: if can('manageRanks') && below(rankId) && request.resource.data.order > myOrder();
+      allow delete: if can('manageRanks') && below(rankId);
+    }
+
+    match /crews/{crewId} {
+      allow read: if active();
+
+      function validCrew() {
+        let d = request.resource.data;
+        return str(d.name, 30) && d.name.size() > 0 && str(d.tag, 4) && d.tag.size() > 0
+          && str(d.color, 9) && d.memberIds is list && d.memberIds.size() <= 200
+          && (!('motto' in d) || str(d.motto, 80))
+          && (!('emblem' in d) || d.emblem == null || str(d.emblem, 200000))
+          && (d.leaderId == null || d.leaderId in d.memberIds);
+      }
+      allow create, update: if can('manageCrews') && validCrew();
+      allow delete: if can('manageCrews');
+      // Crew leaders run their own roster and look; the leader stays in the crew.
+      allow update: if active() && resource.data.leaderId == myId() && validCrew()
+        && onlyChanges(['memberIds', 'motto', 'color', 'emblem'])
+        && myId() in request.resource.data.memberIds;
+    }
+
+    // Who owns the HQ. Written only from GitHub; an owner can see their own entry, nobody else.
+    match /meta/owners {
+      allow get: if signedIn() && myId() in resource.data.get('ids', []);
+      allow write: if false;
+    }
+    // The admin password, stored as a hash. Nobody reads it; only owners set it.
+    match /settings/adminKey {
+      allow read: if false;
+      allow write: if active() && isOwner()
+        && request.resource.data.keys().hasOnly(['hash', 'by', 'at'])
+        && request.resource.data.hash is string && request.resource.data.hash.size() == 64
+        && request.resource.data.by == myId();
+    }
+    // What a member typed as the admin password (checked by the members rule above).
+    match /adminClaims/{uid} {
+      allow read: if false;
+      allow write: if active() && myId() == uid && request.resource.data.keys().hasOnly(['code', 'at'])
+        && request.resource.data.code is string && request.resource.data.code.size() <= 100;
+    }
+
+    match /settings/gang {
+      allow read: if active();
+      allow create: if founding();
+      allow update: if can('manageSettings') && str(request.resource.data.name, 40) && str(request.resource.data.motto, 80);
+    }
+    match /settings/announcement {
+      allow read: if active();
+      allow create: if founding() || can('postAnnouncements');
+      allow update: if can('postAnnouncements') && str(request.resource.data.text, 500)
+        && request.resource.data.by == myId() && request.resource.data.at == request.time;
+    }
+
+    // ── Ops: Narcotics and Stash ─────────────────────────────────
+    // A page opens through your rank, or through a crew whose role grants it. Every ops write is
+    // signed with _by (you) and _via ('rank' or that crew's id), and the rules check the claim.
+    function rankPage(page) {
+      let r = rankOf(me().rankId);
+      return isAdmin() || r.order == 0 || r.get('pages', {}).get(page, false) == true;
+    }
+    function crewPage(page, crewId) {
+      let c = get(/databases/$(database)/documents/crews/$(crewId)).data;
+      return myId() in c.memberIds && c.get('pages', {}).get(page, false) == true;
+    }
+    function opens(page) {
+      let v = request.resource.data.get('_via', null);
+      return active() && request.resource.data.get('_by', null) == myId()
+        && ((v == 'rank' && rankPage(page))
+          || (v is string && v != 'rank' && exists(/databases/$(database)/documents/crews/$(v)) && crewPage(page, v)));
+    }
+    function opsWrite() { return opens('narcotics') || opens('stash') || opens('blackmarket'); }
+
+    match /locations/{locId} {
+      allow read: if active();
+      // Anyone working the ops runs timers, pot plans and the totals switch.
+      allow update: if opsWrite()
+        && onlyChanges(['startTime', 'alertSent', 'strainPots', 'pots', 'excludeTotals', '_by', '_via']);
+      // Adding, renaming and removing places needs the Manage ops power. The Main Stash stays.
+      allow create, update: if can('manageOps') && request.resource.data.kind in ['stash', 'grow']
+        && str(request.resource.data.name, 40);
+      allow delete: if can('manageOps') && locId != 'main';
+    }
+
+    match /stock/{locId} {
+      allow read: if active();
+      allow create, update: if opsWrite();
+      allow delete: if can('manageOps') && locId != 'main';
+    }
+
+    match /cooks/{id} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /runs/{id} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /supplies/lab {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /yields/{strain} {
+      allow read: if active();
+      allow create, update: if opens('narcotics');
+    }
+    match /history/{day} {
+      allow read: if active();
+      allow create, update: if opsWrite();
+    }
+    match /activity/{id} {
+      allow read: if active();
+      allow create: if opsWrite() && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['who', 'kind', 'pre', 'hi', 'post', 'at', '_by', '_via']);
+    }
+    // The item catalog: guns, attachments, ammo, gear and anything else. Anyone can add a
+    // new item when they need it; Manage ops edits, removes and bulk-imports.
+    match /itemTypes/{id} {
+      allow read: if active();
+      // Custom names (a member's own variant of an item) carry their owner.
+      allow create: if active() && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0
+        && request.resource.data.get('owner', myId()) == myId();
+      allow update, delete: if can('manageOps');
+      allow update: if active() && resource.data.get('owner', '') == myId() && onlyChanges(['name'])
+        && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0;
+    }
+    match /settings/narcotics {
+      allow read: if active();
+      allow create, update: if can('manageOps');
+    }
+
+    // ── My Locker: private to each member ───────────────────────
+    function mine(field) { return request.resource.data[field] == myId(); }
+    function wasMine(field) { return resource.data[field] == myId(); }
+
+    match /lockers/{memberId} {
+      allow read, write: if active() && myId() == memberId;
+    }
+    // One doc per storage: "<memberId>__<storageId>". Same shape as a stash's stock.
+    match /lockerStock/{id} {
+      allow read: if active() && wasMine('owner');
+      allow create: if active() && mine('owner') && id.matches(myId() + '__.+');
+      allow update: if active() && wasMine('owner') && mine('owner');
+      allow delete: if active() && wasMine('owner');
+    }
+    // Gang property taken into a locker. The member and leadership see these.
+    match /signouts/{id} {
+      allow read: if active() && (wasMine('memberId') || can('money') || can('manageOps'));
+      allow create: if active() && mine('memberId') && request.resource.data.status == 'out' && request.resource.data.at == request.time;
+      allow update: if active() && onlyChanges(['status', 'closedAt', 'closedBy'])
+        && request.resource.data.status in ['returned', 'lost', 'seized'] && resource.data.status == 'out'
+        && (wasMine('memberId') || can('manageOps'));
+    }
+    // Member-to-member trades. The giver's items are held until the other person accepts.
+    match /trades/{id} {
+      allow read: if active() && (wasMine('from') || wasMine('to'));
+      allow create: if active() && mine('from') && request.resource.data.to != myId()
+        && request.resource.data.status == 'pending' && request.resource.data.at == request.time;
+      allow update: if active() && onlyChanges(['status', 'closedAt']) && (
+        (wasMine('to') && resource.data.status == 'pending' && request.resource.data.status in ['accepted', 'declined'])
+        || (wasMine('from') && resource.data.status == 'pending' && request.resource.data.status == 'cancelled')
+        || (wasMine('from') && resource.data.status == 'declined' && request.resource.data.status == 'returned'));
+    }
+
+    // ── Keepsake cabinet and trophies (on profiles) ─────────────
+    match /cabinets/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId;
+    }
+    // Trophies come two ways: earned from achievements (the member's own page awards them once,
+    // with a fixed id per achievement tier so they can't stack), or awarded by leadership.
+    match /trophies/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.at == request.time && str(request.resource.data.title, 60)
+        && ((request.resource.data.kind == 'award' && can('awardTrophies') && mine('by'))
+          || (request.resource.data.kind == 'achievement' && mine('memberId') && request.resource.data.by == 'achievement'
+              && id == myId() + '_' + request.resource.data.achId + '_' + string(request.resource.data.tier))
+          // Top 3 of a finished month on a leaderboard, handed out by whoever opens the boards first.
+          || (request.resource.data.kind == 'monthly' && request.resource.data.by == 'leaderboard'
+              && request.resource.data.board in ['sales', 'bricks'] && request.resource.data.month is string
+              && monthOver(request.resource.data.month)
+              && request.resource.data.tier in [1, 2, 3]
+              && request.resource.data.get('place', 0) == 4 - request.resource.data.tier
+              && request.resource.data.memberId in get(/databases/$(database)/documents/boards/$(request.resource.data.month)).data.get(request.resource.data.board, {})
+              && id == request.resource.data.memberId + '_top_' + request.resource.data.board + '_' + request.resource.data.month));
+      allow delete: if active() && can('awardTrophies');
+    }
+    // Each member's own work counters (harvests, presses, cooks, runs) for achievements.
+    match /stats/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId;
+    }
+
+    // ── BlackMarket: drugs sell for dirty money ─────────────────
+    match /sales/{id} {
+      allow read: if active() && (can('money') || wasMine('sellerId'));
+      allow create: if opens('blackmarket') && request.resource.data.at == request.time
+        && (mine('sellerId') || can('money'))
+        && request.resource.data.qty is int && request.resource.data.qty > 0;
+      allow delete: if can('money');
+    }
+    match /washes/{id} {
+      allow read: if active() && (can('money') || wasMine('memberId'));
+      allow create: if active() && request.resource.data.at == request.time
+        && ((mine('memberId') && opens('blackmarket')) || can('money'));
+      allow delete: if can('money');
+    }
+    // Payouts and expenses. A member can see payouts made to them.
+    match /ledger/{id} {
+      allow read: if active() && (can('money') || resource.data.get('toId', null) == myId());
+      allow create, delete: if can('money');
+    }
+    match /wishes/{id} {
+      allow read: if active();
+      allow create: if active() && mine('byId') && request.resource.data.status == 'open';
+      allow update: if active();
+    }
+    match /settings/blackmarket {
+      allow read: if active();
+      allow write: if can('money');
+    }
+
+    // ── Petty crime ──────────────────────────────────────────────
+    function transfer(tid) { return get(/databases/$(database)/documents/repTransfers/$(tid)).data; }
+    function transferAfter(tid) { return getAfter(/databases/$(database)/documents/repTransfers/$(tid)).data; }
+
+    // Each member's own petty rep. Self-reported, so members set their own (never below zero).
+    // A confirmer may only add back the exact amount of a transfer they're rejecting.
+    match /petty/{id} {
+      allow read: if active();
+      allow create, update: if active() && myId() == id
+        && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
+        && request.resource.data.rep is int && request.resource.data.rep >= 0
+        && (resource == null || request.resource.data.get('refundOf', null) == resource.data.get('refundOf', null));
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
+        && transfer(request.resource.data.refundOf).memberId == id
+        && transfer(request.resource.data.refundOf).status == 'pending'
+        && transferAfter(request.resource.data.refundOf).status == 'rejected'
+        && request.resource.data.rep
+           == (resource == null ? 0 : resource.data.rep) + transfer(request.resource.data.refundOf).amount;
+    }
+
+    match /pettyLog/{logId} {
+      allow read: if active();
+      allow create: if active()
+        && request.resource.data.keys().hasOnly(['memberId', 'crime', 'rep', 'cash', 'notes', 'at'])
+        && request.resource.data.memberId == myId() && request.resource.data.at == request.time
+        && str(request.resource.data.crime, 40) && str(request.resource.data.notes, 140)
+        && request.resource.data.rep is int && request.resource.data.rep >= 0 && request.resource.data.rep <= 1000000
+        && request.resource.data.cash is int && request.resource.data.cash >= 0;
+      allow delete: if active() && (resource.data.memberId == myId() || can('confirmRep'));
+    }
+
+    // Rep a member sends to the family, confirmed (or turned down) by Lieutenant+.
+    match /repTransfers/{tid} {
+      allow read: if active();
+      allow create: if active()
+        && request.resource.data.keys().hasOnly(['memberId', 'amount', 'status', 'at'])
+        && request.resource.data.memberId == myId() && request.resource.data.status == 'pending'
+        && request.resource.data.amount is int && request.resource.data.amount > 0
+        && request.resource.data.at == request.time;
+      // Nobody confirms their own, except the top rank. Confirming must add it to the family
+      // total in the same write; rejecting must give it back to the member.
+      allow update: if can('confirmRep') && resource.data.status == 'pending'
+        && (resource.data.memberId != myId() || myOrder() == 0)
+        && onlyChanges(['status', 'decidedBy', 'decidedAt'])
+        && request.resource.data.decidedBy == myId() && request.resource.data.decidedAt == request.time
+        && (
+          (request.resource.data.status == 'confirmed'
+            && getAfter(/databases/$(database)/documents/stats/familyRep).data.lastTransfer == tid)
+          || (request.resource.data.status == 'rejected'
+            && getAfter(/databases/$(database)/documents/petty/$(resource.data.memberId)).data.get('refundOf', null) == tid)
+        );
+    }
+
+    // The family's gang rep. Grows by exactly the amount of each confirmed transfer.
+    match /stats/familyRep {
+      allow read: if active();
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite'])
+        && request.resource.data.get('lastBlacksite', null) == (resource == null ? null : resource.data.get('lastBlacksite', null))
+        && transfer(request.resource.data.lastTransfer).status == 'pending'
+        && transferAfter(request.resource.data.lastTransfer).status == 'confirmed'
+        && request.resource.data.total
+           == (resource == null ? 0 : resource.data.total) + transfer(request.resource.data.lastTransfer).amount;
+      // A blacksite's rep, added once, when Lieutenant+ confirms the fight.
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite'])
+        && request.resource.data.get('lastTransfer', null) == (resource == null ? null : resource.data.get('lastTransfer', null))
+        && site(request.resource.data.lastBlacksite).repStatus == 'pending'
+        && siteAfter(request.resource.data.lastBlacksite).repStatus == 'confirmed'
+        && request.resource.data.total
+           == (resource == null ? 0 : resource.data.total) + site(request.resource.data.lastBlacksite).rep;
+      // Leadership can correct the total by hand.
+      allow create, update: if can('manageSettings') && request.resource.data.total is int
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite']);
+    }
+
+    // ── Blacksites: King of the Hill fights ─────────────────────
+    function site(id) { return get(/databases/$(database)/documents/blacksites/$(id)).data; }
+    function siteAfter(id) { return getAfter(/databases/$(database)/documents/blacksites/$(id)).data; }
+    function mapOnlyMine(after, before) {
+      return after.diff(before).affectedKeys().hasOnly([myId()]);
+    }
+    match /blacksites/{bid} {
+      allow read: if active();
+      function validSite() {
+        let d = request.resource.data;
+        return str(d.zone, 60) && d.zone.size() > 0 && d.at is timestamp
+          && d.result in ['win', 'loss', 'draw'] && d.rivals is list && d.rivals.size() <= 10
+          && d.holdMins is int && d.holdMins >= 0 && d.rep is int && d.rep >= 0 && d.rep <= 1000000
+          && d.participants is list && d.participants.size() <= 60
+          && d.stats is map && d.stats.keys().hasOnly(d.participants)
+          && d.votes is map && (!('notes' in d) || str(d.notes, 1000))
+          && d.lootStatus in ['open', 'closed'] && str(d.stashTo, 60);
+      }
+      // Anyone logs a fight. Its rep waits for Lieutenant+.
+      allow create: if active() && validSite() && request.resource.data.loggedBy == myId()
+        && request.resource.data.repStatus == 'pending' && request.resource.data.lootStatus == 'open'
+        && request.resource.data.votes.size() == 0;
+      allow update: if active() && (
+        // The logger fixes anything except the rep decision (and can't change the rep once confirmed).
+        (resource.data.loggedBy == myId() && validSite()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['repStatus', 'repBy', 'loggedBy', 'votes'])
+          && (resource.data.repStatus == 'pending' || request.resource.data.rep == resource.data.rep))
+        // Each participant fills in their own line and casts their own MVP vote (for someone else who was there).
+        || (myId() in resource.data.participants && onlyChanges(['stats', 'votes'])
+            && mapOnlyMine(request.resource.data.stats, resource.data.stats)
+            && mapOnlyMine(request.resource.data.votes, resource.data.votes)
+            && (!(myId() in request.resource.data.votes)
+                || (request.resource.data.votes[myId()] in resource.data.participants && request.resource.data.votes[myId()] != myId())))
+        // Lieutenant+ confirms (adding it to the family total in the same write) or turns down the rep.
+        || (can('confirmRep') && resource.data.repStatus == 'pending' && onlyChanges(['repStatus', 'repBy'])
+            && request.resource.data.repBy == myId()
+            && ((request.resource.data.repStatus == 'confirmed'
+                  && getAfter(/databases/$(database)/documents/stats/familyRep).data.lastBlacksite == bid)
+                || request.resource.data.repStatus == 'rejected'))
+        // Closing the loot draw (the leftovers then go into the stash).
+        || (resource.data.lootStatus == 'open' && onlyChanges(['lootStatus', 'closedBy'])
+            && request.resource.data.lootStatus == 'closed' && request.resource.data.closedBy == myId()
+            && (resource.data.loggedBy == myId() || resource.data.closesAt < request.time || can('manageOps')))
+      );
+      allow delete: if active() && (can('manageOps') || (resource.data.loggedBy == myId() && resource.data.repStatus == 'pending'));
+
+      // Loot to share out: participants claim, the rest goes into the stash when the draw closes.
+      match /loot/{lid} {
+        allow read: if active();
+        allow create: if active() && site(bid).loggedBy == myId() && site(bid).lootStatus == 'open'
+          && str(request.resource.data.label, 60) && request.resource.data.qty is int && request.resource.data.qty > 0
+          && request.resource.data.claims is map && request.resource.data.claims.size() == 0;
+        allow update: if active() && (
+          (site(bid).lootStatus == 'open' && myId() in site(bid).participants
+            && onlyChanges(['qty', 'claims']) && mapOnlyMine(request.resource.data.claims, resource.data.claims)
+            && request.resource.data.qty >= 0
+            && request.resource.data.qty - resource.data.qty
+               == resource.data.claims.get(myId(), 0) - request.resource.data.claims.get(myId(), 0))
+          || (site(bid).lootStatus == 'closed' && onlyChanges(['qty', 'dumped'])
+              && request.resource.data.qty == 0 && request.resource.data.dumped == true)
+        );
+        allow delete: if active() && site(bid).loggedBy == myId() && resource.data.claims.size() == 0;
+      }
+      // Loot screenshots, one per doc (they're big).
+      match /photos/{pid} {
+        allow read: if active();
+        allow create: if active() && (site(bid).loggedBy == myId() || myId() in site(bid).participants)
+          && request.resource.data.by == myId() && str(request.resource.data.image, 400000);
+        allow delete: if active() && (resource.data.by == myId() || site(bid).loggedBy == myId());
+      }
+    }
+
+    // ── Leaderboards: one doc per month (ET), e.g. boards/2026-10 ──
+    // sales: dirty $ per seller, bricks: bricks pressed per member. Kept forever for the Hall of Fame.
+    function boardMap(d, k) { return d == null ? {} : d.get(k, {}); }
+    function boardChange(k) {
+      return request.resource.data.get(k, {}).diff(boardMap(resource == null ? null : resource.data, k)).affectedKeys();
+    }
+    match /boards/{ym} {
+      allow read: if active();
+      allow create, update: if active() && ym.matches('[0-9]{4}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['sales', 'bricks', 'awarded', '_by', '_via'])
+        && boardChange('bricks').hasOnly([myId()])
+        && (boardChange('sales').size() == 0 || opens('blackmarket') || can('money'))
+        && (request.resource.data.get('awarded', false) == (resource == null ? false : resource.data.get('awarded', false))
+            || (request.resource.data.awarded == true && monthOver(ym)));
+    }
+    function monthIdx(ym) { return int(ym.split('-')[0]) * 12 + int(ym.split('-')[1]); }
+    // Month over in UTC terms, give or take a few hours against ET: good enough to hand out trophies.
+    function monthOver(ym) { return monthIdx(ym) < request.time.year() * 12 + request.time.month(); }
+
+    // ── Who can see a pin or an event ──
+    // personal: only the owner. gang: everyone. limited: the ranks listed (leadership is always
+    // listed) and anyone in one of the crews listed (checked against their own crewIds).
+    function canSeeIt(d) {
+      return d.get('owner', '') == myId()
+        || (active() && (d.get('scope', '') == 'gang'
+          || (d.get('scope', '') == 'limited'
+              && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))))));
+    }
+    function lead() { return rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0; }
+    function validAudience(d) {
+      return d.scope in ['personal', 'gang', 'limited'] && d.owner == myId()
+        && d.ranks is list && d.ranks.size() <= 20 && d.crewIds is list && d.crewIds.size() <= 10;
+    }
+
+    match /pins/{id} {
+      allow read: if canSeeIt(resource.data);
+      function validPin() {
+        let d = request.resource.data;
+        return validAudience(d) && str(d.name, 40) && d.name.size() > 0 && str(d.type, 20)
+          && d.x is number && d.x >= 0 && d.x <= 1 && d.y is number && d.y >= 0 && d.y <= 1
+          && (!('note' in d) || str(d.note, 300))
+          // Only leadership puts down rank- or crew-limited locations.
+          && (d.scope != 'limited' || lead());
+      }
+      allow create: if active() && validPin();
+      allow update: if active() && validPin() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+      allow delete: if active() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+    }
+
+    match /events/{id} {
+      allow read: if canSeeIt(resource.data);
+      function validEvent() {
+        let d = request.resource.data;
+        return validAudience(d) && str(d.title, 60) && d.title.size() > 0 && str(d.kind, 20)
+          && d.start is timestamp && d.mins is int && d.mins > 0 && d.mins <= 7 * 24 * 60
+          && d.repeat in ['none', 'daily', 'weekly', 'biweekly', 'monthly']
+          && (!('note' in d) || str(d.note, 500)) && (!('place' in d) || str(d.place, 60))
+          && d.rsvp is map;
+      }
+      allow create: if active() && validEvent() && request.resource.data.rsvp.keys().hasOnly([myId()]);
+      allow update: if active() && (
+        // The poster (or leadership, for shared events) edits it.
+        ((resource.data.owner == myId() || (lead() && resource.data.scope != 'personal')) && validEvent())
+        // Anyone who can see it answers for themselves.
+        || (canSeeIt(resource.data) && onlyChanges(['rsvp'])
+            && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([myId()])
+            && request.resource.data.rsvp.get(myId(), 'no') in ['yes', 'maybe', 'no']));
+      allow delete: if active() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+    }
+
+    // ── Gear & Loadouts ─────────────────────────────────────────
+    // Shared weapon builds: anyone makes one; anyone likes (their own like only).
+    match /builds/{id} {
+      allow read: if active();
+      function validBuild() {
+        let d = request.resource.data;
+        return str(d.name, 40) && d.name.size() > 0 && str(d.weaponId, 80) && d.parts is map && d.parts.size() <= 16
+          && (!('notes' in d) || str(d.notes, 500));
+      }
+      allow create: if active() && validBuild() && request.resource.data.by == myId()
+        && request.resource.data.likes is map && request.resource.data.likes.size() == 0;
+      allow update: if active() && (
+        (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes']))
+        || (onlyChanges(['likes']) && mapOnlyMine(request.resource.data.likes, resource.data.get('likes', {}))));
+      allow delete: if active() && (resource.data.by == myId() || can('manageOps'));
+    }
+    // A member's character loadout: only they edit it. Public ones are seen by everyone,
+    // private ones by the member and admins.
+    match /loadouts/{memberId} {
+      allow read: if active() && (myId() == memberId || resource.data.get('public', false) == true || lead() || can('manageMembers'));
+      allow create, update: if active() && myId() == memberId
+        && request.resource.data.keys().hasOnly(['public', 'vest', 'plates', 'primary', 'sidearm', 'melee', 'bag', 'utility', 'at'])
+        && request.resource.data.get('public', false) is bool
+        && request.resource.data.get('utility', []).size() <= 8;
+      allow delete: if active() && myId() == memberId;
+    }
+
+    // Discord webhooks. Members read them (their phones send the alerts); only leadership edits.
+    match /hooks/discord {
+      allow read: if active();
+      allow write: if can('manageSettings');
+    }
+
+    // Family cards: custom card art the Boss (or a rank given 'familyCards') uploads for each member.
+    match /familyCards/{memberId} {
+      allow read: if active();
+      allow write: if can('familyCards')
+        && (request.resource == null || (str(request.resource.data.image, 900000) && request.resource.data.by == myId()));
+    }
+
+    // One-time PIN reset codes. Only the SHA-256 of the code is stored.
+    match /pinResets/{memberId} {
+      allow create, update: if can('resetPins') && memberId != myId() && below(memberOf(memberId).rankId)
+        && request.resource.data.keys().hasOnly(['codeHash', 'by', 'expiresAt', 'at'])
+        && request.resource.data.by == myId() && request.resource.data.at == request.time;
+      allow delete: if can('resetPins')
+        || (signedIn() && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == memberId);
+    }
+
+    // A fresh sign-in account made by redeeming a reset code, pointing at the member file.
+    match /authLinks/{authUid} {
+      allow read: if signedIn() && request.auth.uid == authUid;
+      allow create: if signedIn() && request.auth.uid == authUid
+        && request.resource.data.keys().hasOnly(['memberId', 'code'])
+        && exists(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId))
+        && get(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId)).data.expiresAt > request.time
+        && hashing.sha256(request.resource.data.code).toHexString().lower()
+           == get(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId)).data.codeHash
+        && !existsAfter(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId));
+    }
+  }
+}

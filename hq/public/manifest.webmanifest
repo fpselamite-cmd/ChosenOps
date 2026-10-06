@@ -1,0 +1,13 @@
+{
+  "name": "ChosenOps HQ",
+  "short_name": "ChosenOps",
+  "description": "The Chosen's headquarters: crews, ops, money, blacksites and gear.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    { "src": "/brand/logo-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

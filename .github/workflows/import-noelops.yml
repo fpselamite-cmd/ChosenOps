@@ -1,0 +1,51 @@
+name: Import NoelOps
+
+# Copies NoelOps data (grows, stashes, stock, sales, history, yields, activity, work counters)
+# into ChosenOps HQ. Run it by hand from the Actions tab. Leave "dry run" ticked first to see
+# what it would write; untick it to write. Safe to run again (fixed document ids).
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: NoelOps data (database URL, or the nightly backup's raw URL)
+        default: https://noelops-default-rtdb.firebaseio.com/.json
+        required: true
+      only:
+        description: "Sections, comma-separated (blank = all): places,stock,sales,history,yields,activity,stats"
+        default: ""
+        required: false
+      dry_run:
+        description: Dry run (write nothing)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hq/package-lock.json
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Import
+        env:
+          SOURCE: ${{ inputs.source }}
+          ONLY: ${{ inputs.only }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          ARGS=(--from "$SOURCE" --live)
+          [ -n "$ONLY" ] && ARGS+=("--only=$ONLY")
+          [ "$DRY" = "true" ] && ARGS+=(--dry-run)
+          node scripts/import-noelops.mjs "${ARGS[@]}"
