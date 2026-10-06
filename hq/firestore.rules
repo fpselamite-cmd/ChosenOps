@@ -1,0 +1,179 @@
+rules_version = '2';
+
+// ChosenOps HQ security rules.
+// - Everyone signs in with a name + PIN (Firebase email/password behind the scenes).
+// - Ranks grant gang-wide permissions; the top rank (order 0) has them all.
+// - Officers only act on members and ranks strictly below their own rank.
+// - Crew leaders manage their own crew's members, motto, color and emblem.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+
+    // After a PIN reset, the sign-in account is linked back to the original member file.
+    function myId() {
+      return exists(/databases/$(database)/documents/authLinks/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId
+        : request.auth.uid;
+    }
+    function memberOf(id) { return get(/databases/$(database)/documents/members/$(id)).data; }
+    function me() { return memberOf(myId()); }
+
+    // Signed in with the account currently bound to the member file (a reset retires the old one).
+    function bound() {
+      let id = myId();
+      return signedIn() && exists(/databases/$(database)/documents/members/$(id)) && memberOf(id).get('authUid', id) == request.auth.uid;
+    }
+    function active() { return bound() && me().status == 'active'; }
+
+    function rankOf(rankId) { return get(/databases/$(database)/documents/ranks/$(rankId)).data; }
+    function myOrder() { return rankOf(me().rankId).order; }
+    // Unranked (pending) members sit below everyone.
+    function orderOf(rankId) { return rankId == null ? 1000000 : rankOf(rankId).order; }
+
+    function can(p) {
+      let r = rankOf(me().rankId);
+      return active() && (r.order == 0 || r.permissions.get(p, false) == true);
+    }
+    function below(rankId) { return orderOf(rankId) > myOrder(); }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+
+    function founding() {
+      return !exists(/databases/$(database)/documents/meta/hqFounding) && getAfter(/databases/$(database)/documents/meta/hqFounding).data.uid == request.auth.uid;
+    }
+
+    match /meta/hqFounding {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // name key → member id, plus a version that bumps on each PIN reset. Read before sign-in.
+    match /names/{key} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'v'])
+        && request.resource.data.uid == request.auth.uid && request.resource.data.v == 0
+        && getAfter(/databases/$(database)/documents/members/$(request.auth.uid)).data.nameLower == key;
+      // The PIN-reset flow bumps the version from the new sign-in account.
+      allow update: if signedIn() && onlyChanges(['v']) && request.resource.data.v == resource.data.get('v', 0) + 1
+        && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == resource.data.uid;
+    }
+
+    match /members/{id} {
+      allow read: if active() || (bound() && myId() == id);
+
+      function validNew() {
+        let d = request.resource.data;
+        return id == request.auth.uid
+          && d.keys().hasOnly(['name', 'nameLower', 'status', 'rankId', 'reportsTo', 'joinedAt', 'avatar'])
+          && str(d.name, 20) && d.name.size() >= 3 && str(d.nameLower, 20)
+          && d.reportsTo == null && d.joinedAt == request.time && d.avatar == null
+          && getAfter(/databases/$(database)/documents/names/$(d.nameLower)).data.uid == id;
+      }
+      allow create: if signedIn() && validNew() && (
+        (request.resource.data.status == 'pending' && request.resource.data.rankId == null)
+        || (founding() && request.resource.data.status == 'active' && request.resource.data.rankId == 'boss')
+      );
+
+      function validProfile() {
+        let d = request.resource.data;
+        return (!('avatar' in d) || d.avatar == null || str(d.avatar, 200000))
+          && (!('alias' in d) || str(d.alias, 30))
+          && (!('phone' in d) || str(d.phone, 20))
+          && (!('bio' in d) || str(d.bio, 1000));
+      }
+
+      allow update: if
+        // Your own profile.
+        (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio']) && validProfile())
+        // Approving a newcomer into a rank below your own.
+        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status', 'rankId'])
+            && request.resource.data.status == 'active' && below(request.resource.data.rankId))
+        // Turning a newcomer away.
+        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status'])
+            && request.resource.data.status == 'suspended')
+        // Rank, status and chain of command for members below you, into ranks below you.
+        || (can('manageMembers') && id != myId() && resource.data.status != 'pending' && below(resource.data.rankId)
+            && onlyChanges(['rankId', 'status', 'reportsTo'])
+            && request.resource.data.rankId is string && below(request.resource.data.rankId)
+            && request.resource.data.status in ['active', 'suspended']
+            && (request.resource.data.reportsTo == null || request.resource.data.reportsTo is string))
+        // PIN reset: the new sign-in account claims the member file (code checked on authLinks).
+        || (signedIn() && onlyChanges(['authUid']) && request.resource.data.authUid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == id);
+    }
+
+    // Online check-ins and custom statuses. Each member writes only their own.
+    match /presence/{id} {
+      allow read: if active();
+      allow write: if active() && myId() == id
+        && request.resource.data.keys().hasOnly(['at', 'status'])
+        && request.resource.data.at == request.time
+        && (!('status' in request.resource.data) || str(request.resource.data.status, 24));
+    }
+
+    match /ranks/{rankId} {
+      allow read: if active();
+      allow create: if (founding() && request.resource.data.order is int)
+        || (can('manageRanks') && request.resource.data.order > myOrder());
+      allow update: if can('manageRanks') && below(rankId) && request.resource.data.order > myOrder();
+      allow delete: if can('manageRanks') && below(rankId);
+    }
+
+    match /crews/{crewId} {
+      allow read: if active();
+
+      function validCrew() {
+        let d = request.resource.data;
+        return str(d.name, 30) && d.name.size() > 0 && str(d.tag, 4) && d.tag.size() > 0
+          && str(d.color, 9) && d.memberIds is list && d.memberIds.size() <= 200
+          && (!('motto' in d) || str(d.motto, 80))
+          && (!('emblem' in d) || d.emblem == null || str(d.emblem, 200000))
+          && (d.leaderId == null || d.leaderId in d.memberIds);
+      }
+      allow create, update: if can('manageCrews') && validCrew();
+      allow delete: if can('manageCrews');
+      // Crew leaders run their own roster and look; the leader stays in the crew.
+      allow update: if active() && resource.data.leaderId == myId() && validCrew()
+        && onlyChanges(['memberIds', 'motto', 'color', 'emblem'])
+        && myId() in request.resource.data.memberIds;
+    }
+
+    match /settings/gang {
+      allow read: if active();
+      allow create: if founding();
+      allow update: if can('manageSettings') && str(request.resource.data.name, 40) && str(request.resource.data.motto, 80);
+    }
+    match /settings/announcement {
+      allow read: if active();
+      allow create: if founding() || can('postAnnouncements');
+      allow update: if can('postAnnouncements') && str(request.resource.data.text, 500)
+        && request.resource.data.by == myId() && request.resource.data.at == request.time;
+    }
+
+    // One-time PIN reset codes. Only the SHA-256 of the code is stored.
+    match /pinResets/{memberId} {
+      allow create, update: if can('resetPins') && memberId != myId() && below(memberOf(memberId).rankId)
+        && request.resource.data.keys().hasOnly(['codeHash', 'by', 'expiresAt', 'at'])
+        && request.resource.data.by == myId() && request.resource.data.at == request.time;
+      allow delete: if can('resetPins')
+        || (signedIn() && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == memberId);
+    }
+
+    // A fresh sign-in account made by redeeming a reset code, pointing at the member file.
+    match /authLinks/{authUid} {
+      allow read: if signedIn() && request.auth.uid == authUid;
+      allow create: if signedIn() && request.auth.uid == authUid
+        && request.resource.data.keys().hasOnly(['memberId', 'code'])
+        && exists(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId))
+        && get(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId)).data.expiresAt > request.time
+        && hashing.sha256(request.resource.data.code).toHexString().lower()
+           == get(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId)).data.codeHash
+        && !existsAfter(/databases/$(database)/documents/pinResets/$(request.resource.data.memberId));
+    }
+  }
+}

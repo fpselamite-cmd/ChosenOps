@@ -1,0 +1,252 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-hud: 'Rajdhani', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --color-void: #050505;
+  --color-coal: #0b0b0c;
+  --color-panel: #111112;
+  --color-raised: #18181a;
+  --color-line: #2a2618;
+  --color-line-soft: #1e1c14;
+  --color-smoke: #8f8a7c;
+  --color-ash: #b9b3a3;
+  --color-bone: #ece6d6;
+
+  --color-gold-50: #fdf6dd;
+  --color-gold-100: #f8e7a8;
+  --color-gold-200: #f3d27a;
+  --color-gold-300: #e6c35c;
+  --color-gold-400: #d4af37;
+  --color-gold-500: #b8932a;
+  --color-gold-600: #94741f;
+  --color-gold-700: #6e5516;
+  --color-gold-900: #2a2009;
+
+  --color-ok: #4ade80;
+  --color-warn: #f59e0b;
+  --color-danger: #e5484d;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-void text-bone font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 700px at 100% -20%, rgba(212, 175, 55, 0.08), transparent 60%),
+      radial-gradient(900px 600px at -20% 120%, rgba(212, 175, 55, 0.05), transparent 60%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+  }
+  /* A faint tactical grid behind everything. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(212, 175, 55, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212, 175, 55, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 85%);
+  }
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+  ::selection {
+    background: rgba(212, 175, 55, 0.35);
+  }
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+/* Angled-corner shape used on buttons and chips. */
+@utility notch {
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+@utility notch-sm {
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+@utility btn {
+  @apply notch inline-flex items-center justify-center gap-2 px-4 py-2 font-hud text-sm font-bold tracking-[0.12em] uppercase transition select-none disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+@layer components {
+  /* Gold foil text for the brand and page titles. */
+  .foil {
+    background: linear-gradient(100deg, #94741f 0%, #f8e7a8 22%, #d4af37 45%, #fdf6dd 55%, #b8932a 78%, #f3d27a 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* HUD panel: black glass with gold corner brackets. */
+  .hud {
+    position: relative;
+    background: linear-gradient(180deg, rgba(24, 24, 26, 0.92), rgba(14, 14, 15, 0.92));
+    border: 1px solid var(--color-line);
+  }
+  .hud::before,
+  .hud::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    border-color: var(--color-gold-400);
+  }
+  .hud::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+  }
+  .hud::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 2px solid;
+    border-right: 2px solid;
+  }
+
+
+  .label {
+    @apply font-hud text-[11px] font-semibold tracking-[0.18em] text-smoke uppercase;
+  }
+
+  .btn-gold {
+    @apply btn text-void;
+    background: linear-gradient(180deg, #f3d27a, #d4af37 55%, #b8932a);
+    box-shadow: 0 0 18px rgba(212, 175, 55, 0.25);
+  }
+  .btn-gold:not(:disabled):hover {
+    filter: brightness(1.08);
+    box-shadow: 0 0 26px rgba(212, 175, 55, 0.45);
+  }
+  .btn-ghost {
+    @apply btn bg-raised text-gold-200 ring-1 ring-line ring-inset hover:bg-gold-900/60 hover:text-gold-100;
+  }
+  .btn-danger {
+    @apply btn bg-danger/15 text-red-300 ring-1 ring-danger/40 ring-inset hover:bg-danger/25;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  .input {
+    @apply w-full border border-line bg-coal px-3 py-2 text-sm text-bone placeholder:text-smoke/60 outline-none transition focus:border-gold-400 focus:shadow-[0_0_0_3px_rgba(212,175,55,0.15)];
+  }
+
+  .chip {
+    @apply notch-sm inline-flex items-center gap-1 px-2 py-0.5 font-hud text-[11px] font-bold tracking-[0.12em] uppercase;
+  }
+
+  .scanlines {
+    background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(74, 222, 128, 0);
+  }
+}
+.online-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes foil-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.foil-animate {
+  animation: foil-sweep 9s linear infinite;
+}
+
+@keyframes seal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online-dot,
+  .foil-animate {
+    animation: none;
+  }
+}
+
+/* Family org chart: nested lists joined by gold connector lines. */
+.orgtree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 22px;
+}
+.orgtree li {
+  position: relative;
+  list-style: none;
+  padding: 22px 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.orgtree li::before,
+.orgtree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 22px;
+  border-top: 1px solid rgba(212, 175, 55, 0.45);
+}
+.orgtree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid rgba(212, 175, 55, 0.45);
+}
+.orgtree li:only-child::before,
+.orgtree li:only-child::after {
+  display: none;
+}
+.orgtree li:only-child {
+  padding-top: 0;
+}
+.orgtree li:first-child::before,
+.orgtree li:last-child::after {
+  border: 0 none;
+}
+.orgtree li:last-child::before {
+  border-right: 1px solid rgba(212, 175, 55, 0.45);
+}
+.orgtree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 22px;
+  border-left: 1px solid rgba(212, 175, 55, 0.45);
+}
+.orgtree > ul {
+  padding-top: 0;
+}
