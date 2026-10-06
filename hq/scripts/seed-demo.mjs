@@ -2,7 +2,8 @@
 // Usage: npm run emulators   (terminal 1)
 //        npm run seed:demo   (terminal 2), then npm run dev:emu and sign in as "Don Vito" / PIN 1234.
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
+import { readFileSync } from 'node:fs';
 
 const PROJECT = 'demo-chosenops';
 const AUTH = 'http://127.0.0.1:9099';
@@ -164,17 +165,20 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     acapulco: bud(4, 8750, 2856), columbian: bud(1, 1750, 1290), dosidos: bud(9, 20500, 3894), skunk1: bud(2, 1250, 1649), ogkush: bud(3, 6500, 1356),
     afghani: bud(1, 1250, 1144), rainbow: bud(8, 1750, 1596), nl: bud(3, 18500, 3628), lemonskunk: bud(5, 1750, 1457), gelato41: bud(2, 9500, 2926),
     coca: 6200, cokeSmall: 3, cokeLarge: 1, meth: 4,
-    items: { pistol50: 6, carbine: 3, extmag: 8, suppressor: 4, ammo556: 1200, armor: 10, lockpick: 15 },
+    items: { g_50_pistol: 6, g_carbine_rifle: 3, w_mk18_rifle: 2, w_m700_rifle: 1, a_block_17_pistol__b17_20rd_extended: 8, a_mk18_rifle__mk18_ta02_acog: 4, ammo_5_56x45mm_box: 6, ammo_5_56x45mm_rnd: 1200, ammo_9x19mm_box: 10, ammo_12_gauge_box: 4, ar_class_iii_armor: 10, ar_armor_plate: 24, s_weapon_repair_kit: 5, m_knife: 3, lockpick: 15 },
     ...sign,
   });
-  await setDoc(doc(db, 'stock', 'basement'), { meth: 3, coca: 0, items: { pistol50: 2, armor: 4 }, ...sign });
-  await setDoc(doc(db, 'stock', 'lockup'), { cokeSmall: 2, items: { carbine: 4, smg: 2, ammo556: 800, extmag: 6 }, nl: bud(2, 0, 0), ...sign });
+  await setDoc(doc(db, 'stock', 'basement'), { meth: 3, coca: 0, items: { g_50_pistol: 2, ar_class_iii_armor: 4 }, ...sign });
+  await setDoc(doc(db, 'stock', 'lockup'), { cokeSmall: 2, items: { g_carbine_rifle: 4, g_smg: 2, ammo_5_56x45mm_rnd: 800, a_block_17_pistol__b17_20rd_extended: 6 }, nl: bud(2, 0, 0), ...sign });
   await setDoc(doc(db, 'stock', 'g9043'), { lemonskunk: bud(0, 0, 1980), ...sign });
-  const types = [
-    ['pistol50', 'Pistol .50', 'gun'], ['carbine', 'Carbine Rifle', 'gun'], ['smg', 'SMG', 'gun'], ['extmag', 'Extended Mag', 'attachment'],
-    ['suppressor', 'Suppressor', 'attachment'], ['ammo556', '5.56 Rounds', 'ammo'], ['armor', 'Heavy Armor', 'gear'], ['lockpick', 'Lockpick', 'other'],
-  ];
-  for (const [id, name, category] of types) await setDoc(doc(db, 'itemTypes', id), { name, category, ...sign });
+  // The family's item catalog (src/data/catalog.json), plus a lockpick that isn't in it.
+  const CATALOG = JSON.parse(readFileSync(new URL('../src/data/catalog.json', import.meta.url), 'utf8'));
+  for (let i = 0; i < CATALOG.length; i += 400) {
+    const b = writeBatch(db);
+    CATALOG.slice(i, i + 400).forEach(({ id, ...it }) => b.set(doc(db, 'itemTypes', id), { ...it, ...sign }));
+    await b.commit();
+  }
+  await setDoc(doc(db, 'itemTypes', 'lockpick'), { name: 'Lockpick', category: 'tool', ...sign });
   await setDoc(doc(db, 'supplies', 'lab'), { sodium: 14, ammonia: 6, soda: 40, water: 36, bags: 22, hammers: 5, oil: 12, cement: 30, acid: 8, ...sign });
   await setDoc(doc(db, 'settings', 'narcotics'), { supplyLow: { ammonia: 10, acid: 20 }, ...sign });
   const cook = (id, who, size, minsAgo, mins) =>
@@ -224,12 +228,22 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   // Don Vito's locker, a sign-out and a trade
   const vito = ids['Don Vito'];
   await setDoc(doc(db, 'lockers', vito), { storages: [{ id: 'onme', name: 'On Me' }, { id: 'home', name: 'Home' }, { id: 'yacht', name: 'The Yacht' }] });
-  await setDoc(doc(db, 'lockerStock', `${vito}__onme`), { owner: vito, items: { pistol50: 1, armor: 2, lockpick: 3 }, ...sign });
-  await setDoc(doc(db, 'lockerStock', `${vito}__home`), { owner: vito, dosidos: bud(2, 0, 0), meth: 1, items: { carbine: 1, suppressor: 1 }, ...sign });
-  await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo556: 400 }, ...sign });
-  await setDoc(doc(db, 'signouts', 'so0'), { memberId: vito, memberName: 'Don Vito', fromLoc: 'main', fromLabel: 'Main Stash', storageId: 'home', thing: { field: 'meth', item: 'carbine', qty: 1, label: 'Carbine Rifle' }, status: 'out', at: Timestamp.fromMillis(now - 3 * H) });
-  await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'lockup', fromLabel: 'The Lockup', storageId: 'onme', thing: { field: 'meth', item: 'smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
-  await setDoc(doc(db, 'trades', 'tr0'), { from: ids['Rocco Vale'], fromName: 'Rocco Vale', fromStorage: 'onme', to: vito, toName: 'Don Vito', thing: { field: 'meth', item: 'extmag', qty: 2, label: 'Extended Mag' }, note: 'For your carbine, boss', status: 'pending', at: Timestamp.fromMillis(now - 40 * 60_000) });
+  // A member's own named variant of a catalog item.
+  await setDoc(doc(db, 'itemTypes', 'v_pumpkin_bat'), { name: 'Pumpkin Bat', category: 'melee', baseId: 'm_bat', owner: vito, ...sign });
+  await setDoc(doc(db, 'lockerStock', `${vito}__onme`), {
+    owner: vito,
+    items: { w_pn905_pistol: 1, a_pn905_pistol__pn_905_17rd: 2, ar_class_iii_armor: 1, ar_armor_plate: 3, v_pumpkin_bat: 1, lockpick: 3, ammo_9x19mm_box: 1, ammo_9x19mm_rnd: 34, ammo_5_56x45mm_box: 2, ammo_5_56x45mm_rnd: 120 },
+    ...sign,
+  });
+  await setDoc(doc(db, 'lockerStock', `${vito}__home`), {
+    owner: vito, dosidos: bud(2, 0, 0), meth: 1,
+    items: { g_carbine_rifle: 1, w_mk18_rifle: 1, a_mk18_rifle__mk18_ta02_acog: 1, a_mk18_rifle__mk18_30rd_std: 3, a_mk18_rifle__mk18_m_lok_mvg_black: 1, a_mk18_rifle__mk18_moe_magpul_black: 1, m_switchblade: 1, s_fire_extinguisher: 1, ammo_12_gauge_rnd: 16 },
+    ...sign,
+  });
+  await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo_5_56x45mm_box: 4, ammo_5_56x45mm_rnd: 400, ammo_50_bmg_box: 1, w_m700_rifle: 1 }, ...sign });
+  await setDoc(doc(db, 'signouts', 'so0'), { memberId: vito, memberName: 'Don Vito', fromLoc: 'main', fromLabel: 'Main Stash', storageId: 'home', thing: { field: 'meth', item: 'g_carbine_rifle', qty: 1, label: 'Carbine Rifle' }, status: 'out', at: Timestamp.fromMillis(now - 3 * H) });
+  await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'lockup', fromLabel: 'The Lockup', storageId: 'onme', thing: { field: 'meth', item: 'g_smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
+  await setDoc(doc(db, 'trades', 'tr0'), { from: ids['Rocco Vale'], fromName: 'Rocco Vale', fromStorage: 'onme', to: vito, toName: 'Don Vito', thing: { field: 'meth', item: 'a_block_17_pistol__b17_20rd_extended', qty: 2, label: 'Extended Mag' }, note: 'For your carbine, boss', status: 'pending', at: Timestamp.fromMillis(now - 40 * 60_000) });
 
   // Trophies and keepsake cabinets
   await setDoc(doc(db, 'stats', vito), { harvests: 31, pressed: 64, cooks: 7, runs: 4 });
@@ -245,7 +259,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     slots: {
       0: { kind: 'trophy', trophyId: 'aw0', label: 'Where it all began' },
       1: { kind: 'trophy', trophyId: 'aw1' },
-      2: { kind: 'item', itemTypeId: 'pistol50', name: 'Pistol .50', label: 'First gun I ever pulled' },
+      2: { kind: 'item', itemTypeId: 'v_pumpkin_bat', name: 'Pumpkin Bat (Bat)', label: 'Halloween ’26 event' },
       3: { kind: 'trophy', trophyId: `${vito}_harvester_2` },
       4: { kind: 'keepsake', name: 'Lucky Dice', label: 'From the first card game', image: null },
       5: { kind: 'trophy', trophyId: `${vito}_press_2`, label: '50 bricks, one night' },

@@ -13,7 +13,8 @@ import { ago } from '../lib/format';
 import type { Signout } from '../lib/locker';
 import { useHub } from '../hooks/useHub';
 import { BRICK_SIZE, COKE_INGREDIENTS, MAIN_STASH, STRAINS, budCell, n, rootOf, toCount, type CokeRecipe, type OpsLocation } from '../noel/data';
-import { ITEM_KINDS } from '../lib/items';
+import { ItemPicker } from '../components/ItemPicker';
+import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { ToastProvider, useToast } from '../noel/ui';
@@ -21,11 +22,6 @@ import { ToastProvider, useToast } from '../noel/ui';
 /** What can be kept besides drugs. */
 const CATEGORIES = ITEM_KINDS;
 
-interface ItemType {
-  id: string;
-  name: string;
-  category: string;
-}
 
 function placeIcon(l: OpsLocation) {
   if (l.id === MAIN_STASH) return Vault;
@@ -158,7 +154,7 @@ function PlaceForm({ place, kind, onClose }: { place?: OpsLocation; kind: 'stash
 function AddItem({ loc, types, onClose }: { loc: OpsLocation; types: ItemType[]; onClose: () => void }) {
   const ops = useOps('stash');
   const toast = useToast();
-  const [typeId, setTypeId] = useState(types[0]?.id ?? 'new');
+  const [typeId, setTypeId] = useState<string>(types.length ? '' : 'new');
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('gun');
   const [count, setCount] = useState('1');
@@ -169,6 +165,7 @@ function AddItem({ loc, types, onClose }: { loc: OpsLocation; types: ItemType[];
     const c = toCount(count);
     if (!c) return setError('How many?');
     let id = typeId;
+    if (!id) return setError('Pick an item.');
     let label = types.find((t) => t.id === id)?.name ?? '';
     try {
       if (id === 'new') {
@@ -185,23 +182,20 @@ function AddItem({ loc, types, onClose }: { loc: OpsLocation; types: ItemType[];
   return (
     <Modal title={`Add to ${loc.name || `Postal ${loc.postal}`}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Item" hint="Gear & Loadouts will bring the full list of guns and attachments.">
-          <select className="input" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
-            {CATEGORIES.map((cat) => {
-              const list = types.filter((t) => t.category === cat.id);
-              return list.length ? (
-                <optgroup key={cat.id} label={cat.label}>
-                  {list.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null;
-            })}
-            <option value="new">+ Something new…</option>
-          </select>
-        </Field>
+        {typeId !== 'new' ? (
+          <div>
+            <ItemPicker types={types} value={typeId || null} onChange={setTypeId} />
+            <button type="button" className="mt-1.5 text-xs text-gold-300 hover:underline" onClick={() => setTypeId('new')}>
+              Not in the list? Add something new
+            </button>
+          </div>
+        ) : (
+          types.length > 0 && (
+            <button type="button" className="text-xs text-gold-300 hover:underline" onClick={() => setTypeId('')}>
+              ← Back to the list
+            </button>
+          )
+        )}
         {typeId === 'new' && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name">
@@ -218,7 +212,7 @@ function AddItem({ loc, types, onClose }: { loc: OpsLocation; types: ItemType[];
             </Field>
           </div>
         )}
-        <Field label="How many">
+        <Field label={typeId && typeId !== 'new' ? `How many · ${types.find((t) => t.id === typeId)?.name}` : 'How many'}>
           <input className="input font-mono" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} />
         </Field>
         <ErrorText error={error} />
@@ -240,6 +234,7 @@ function Items({ loc, types }: { loc: OpsLocation; types: ItemType[] }) {
   const [adding, setAdding] = useState(false);
   const items = stock.get(loc.id)?.items ?? {};
   const held = types.filter((t) => toCount(items[t.id]) > 0);
+  const byId = new Map(types.map((t) => [t.id, t]));
   return (
     <Panel
       title="Guns, gear & items"
@@ -252,7 +247,7 @@ function Items({ loc, types }: { loc: OpsLocation; types: ItemType[] }) {
       {held.length ? (
         <div className="space-y-4">
           {CATEGORIES.map((cat) => {
-            const list = held.filter((t) => t.category === cat.id);
+            const list = held.filter((t) => kindOf(t, byId) === cat.id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
             if (!list.length) return null;
             return (
               <div key={cat.id}>
@@ -263,7 +258,7 @@ function Items({ loc, types }: { loc: OpsLocation; types: ItemType[] }) {
                     const label = `${t.name} at ${locLabel(loc.id)}`;
                     return (
                       <li key={t.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="flex-1 font-semibold text-gold-100">{t.name}</span>
+                        <span className="flex-1 font-semibold text-gold-100">{itemTitle(t, byId)}</span>
                         <button className="btn-ghost btn-sm px-2" onClick={() => toast.run(ops.adjustItem(loc.id, t.id, -1, label))} aria-label={`One less ${t.name}`}>
                           <Minus className="size-3" />
                         </button>

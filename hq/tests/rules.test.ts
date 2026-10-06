@@ -480,3 +480,13 @@ describe('leaderboards', () => {
     await assertFails(setDoc(doc(as('sol'), 'boards/2999-01'), { awarded: true }));
   });
 });
+
+describe('custom item names', () => {
+  it('lets members name their own variant and rename only their own', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'itemTypes/v1'), { name: 'Pumpkin Bat', category: 'melee', baseId: 'm_bat', owner: 'sol' }));
+    await assertFails(setDoc(doc(as('sol'), 'itemTypes/v2'), { name: 'Fake', category: 'melee', baseId: 'm_bat', owner: 'sol2' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'itemTypes/v1'), { name: 'Spooky Bat' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'itemTypes/v1'), { name: 'Mine now' }));
+    await assertFails(updateDoc(doc(as('sol'), 'itemTypes/v1'), { category: 'gun' }));
+  });
+});

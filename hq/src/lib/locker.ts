@@ -5,6 +5,7 @@ import { useHub } from '../hooks/useHub';
 import { BUD_FIELDS, ROOT_FIELDS, STRAINS, budCell, toCount, type BudField, type RootField, type StockDoc, type StrainId } from '../noel/data';
 import { lockerPath, useOps } from '../noel/ops';
 import { db } from './firebase';
+import type { ItemType } from './items';
 
 export interface Storage {
   id: string;
@@ -144,6 +145,23 @@ export function useLocker() {
       if (taken.length) await ops.applyDeltas(taken.map((d) => ({ ...d, loc: to, delta: -d.delta })));
       return taken;
     },
+
+    /**
+     * Gives some of an item a name of its own (an event variant, an engraved gun): a new item type
+     * that points at the original, and the units swap over in the same storage.
+     */
+    async nameIt(storageId: string, t: Thing, base: ItemType, name: string) {
+      const root = base.baseId ?? base.id;
+      const { id: _id, owner: _o, baseId: _b, ...copy } = base;
+      void _id;
+      void _o;
+      void _b;
+      const ref = await addDoc(collection(db, 'itemTypes'), { ...copy, name: name.trim().slice(0, 40), baseId: root, owner: me.id, _by: me.id, _via: 'rank' });
+      const taken = await ops.applyDeltas([delta(path(storageId), t, -t.qty)]);
+      if (taken.length) await ops.applyDeltas([{ loc: path(storageId), field: t.field, item: ref.id, delta: -taken[0]!.delta }]);
+      return ref.id;
+    },
+    renameVariant: (itemId: string, name: string) => updateDoc(doc(db, 'itemTypes', itemId), { name: name.trim().slice(0, 40) }),
 
     /** Takes gang property from a stash into one of my storages, logged as signed out. */
     async signOut(fromLoc: string, fromLabel: string, storageId: string, t: Thing) {

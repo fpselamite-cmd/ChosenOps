@@ -6,7 +6,7 @@ import { useHub } from '../hooks/useHub';
 import { awardTrophy, useCabinet, useMyAchievementStats } from '../lib/cabinet';
 import { fmtDate } from '../lib/format';
 import { squareImage } from '../lib/image';
-import type { ItemType } from '../lib/items';
+import { itemTitle, kindOf, type ItemType } from '../lib/items';
 import { thingsIn, useLocker } from '../lib/locker';
 import { ACHIEVEMENTS, AWARD_DESIGNS, TIERS, tierFor, type Pedestal, type Tier, type TrophyDesign, type TrophyDoc } from '../lib/trophies';
 import type { Member } from '../lib/types';
@@ -19,7 +19,10 @@ const KIND_ICON: Record<string, string> = {
   gun: 'fa-gun',
   attachment: 'fa-crosshairs',
   ammo: 'fa-boxes-stacked',
-  gear: 'fa-shield-halved',
+  melee: 'fa-baseball-bat-ball',
+  armor: 'fa-shield-halved',
+  safety: 'fa-fire-extinguisher',
+  gear: 'fa-suitcase',
   tool: 'fa-screwdriver-wrench',
   consumable: 'fa-flask-vial',
   other: 'fa-gem',
@@ -40,7 +43,7 @@ function Showpiece({ p, trophy, items }: { p: Pedestal; trophy?: TrophyDoc; item
     if (drug) return <img src={`/noel/logos/${drug}.png`} alt="" className="mb-2 size-24 object-contain drop-shadow-[0_6px_10px_rgba(0,0,0,0.7)]" />;
     return (
       <i
-        className={`fa-solid ${KIND_ICON[t?.category ?? 'other']} mb-3 text-6xl`}
+        className={`fa-solid ${KIND_ICON[kindOf(t, items)] ?? KIND_ICON.other} mb-3 text-6xl`}
         style={{ background: 'linear-gradient(160deg,#fff2b0,#d4af37 45%,#6e5516)', WebkitBackgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.7))' }}
       />
     );
@@ -64,7 +67,7 @@ function PedestalEditor({ memberId, index, current, trophies, onClose }: { membe
   const items = useItemTypes();
   const [kind, setKind] = useState<Pedestal['kind']>(current?.kind ?? (trophies.length ? 'trophy' : 'item'));
   const [trophyId, setTrophyId] = useState(current?.trophyId ?? trophies[0]?.id ?? '');
-  const owned = locker.storages.flatMap((s) => thingsIn(locker.stock.get(s.id), (id) => items.get(id)?.name ?? 'Item'));
+  const owned = locker.storages.flatMap((s) => thingsIn(locker.stock.get(s.id), (id) => itemTitle(items.get(id), items)));
   const ownedOptions = [...new Map(owned.map((t) => [t.item ?? `drug:${t.strain ?? t.field}`, t.item ? t.label : t.label.replace(/ (bricks?|trimmed|untrimmed)$/, '')])).entries()];
   const [itemId, setItemId] = useState(current?.itemTypeId ?? ownedOptions[0]?.[0] ?? '');
   const [name, setName] = useState(current?.name ?? '');

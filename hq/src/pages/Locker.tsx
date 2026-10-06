@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Box, Check, Crosshair, Hammer, Pill, Shield, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
+import { ArrowLeftRight, Backpack, Box, Check, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
@@ -7,7 +7,8 @@ import { PageHeader, Panel, Stat } from '../components/Page';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
-import { ITEM_KINDS, type ItemType } from '../lib/items';
+import { ItemPicker } from '../components/ItemPicker';
+import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { countOf, thingsIn, useLocker, type Locker as LockerApi, type Thing } from '../lib/locker';
 import { money, useMoney } from '../lib/money';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
@@ -18,47 +19,93 @@ import { ToastProvider, useToast } from '../noel/ui';
 function useItemTypes() {
   const types = useCollection<ItemType>('itemTypes') ?? [];
   const byId = new Map(types.map((t) => [t.id, t]));
-  return { types, name: (id: string) => byId.get(id)?.name ?? 'Unknown item', byId };
+  return { types, name: (id: string) => itemTitle(byId.get(id), byId), byId };
 }
 
-const KIND_ICON = { gun: Crosshair, attachment: Wrench, ammo: Zap, gear: Shield, tool: Hammer, consumable: Pill, other: Box } as const;
+const KIND_ICON = {
+  gun: Crosshair,
+  attachment: Wrench,
+  ammo: Zap,
+  melee: Sword,
+  armor: Shield,
+  safety: FireExtinguisher,
+  gear: Backpack,
+  tool: Hammer,
+  consumable: Pill,
+  other: Box,
+} as const;
 
-/** Groups a storage's contents the way people think about them. */
+/** Groups a storage's contents the way people think about them. Ammo shows as pills instead. */
 function groupThings(things: Thing[], byId: Map<string, ItemType>) {
   const groups: { label: string; icon?: (typeof KIND_ICON)[keyof typeof KIND_ICON]; things: Thing[] }[] = [{ label: 'Drugs', things: things.filter((t) => !t.item) }];
-  ITEM_KINDS.forEach((k) => groups.push({ label: k.label, icon: KIND_ICON[k.id], things: things.filter((t) => t.item && (byId.get(t.item)?.category ?? 'other') === k.id) }));
+  ITEM_KINDS.filter((k) => k.id !== 'ammo').forEach((k) =>
+    groups.push({ label: k.label, icon: KIND_ICON[k.id], things: things.filter((t) => t.item && kindOf(byId.get(t.item), byId) === k.id) }),
+  );
   return groups.filter((g) => g.things.length);
 }
 
-/** Pick any drug or catalog item. */
-function ThingPicker({ value, onChange, types }: { value: string; onChange: (v: string) => void; types: ItemType[] }) {
+/** Boxes and loose rounds per caliber, as little counters at the top of a storage. */
+function AmmoPills({ things, byId, bump, onOpen }: { things: Thing[]; byId: Map<string, ItemType>; bump: (t: Thing, d: number) => void; onOpen: (t: Thing) => void }) {
+  const cal = new Map<string, { box?: Thing; round?: Thing }>();
+  things.forEach((t) => {
+    const it = t.item ? byId.get(t.item) : undefined;
+    if (it?.category !== 'ammo') return;
+    const key = it.caliber ?? it.name;
+    cal.set(key, { ...cal.get(key), [it.form === 'round' ? 'round' : 'box']: t });
+  });
+  if (!cal.size) return null;
+  // Both halves of a caliber show, even at 0, so the other can be counted up.
+  const twin = (c: string, form: 'box' | 'round') => {
+    const it = [...byId.values()].find((x) => x.category === 'ammo' && x.caliber === c && x.form === form);
+    return it ? { field: 'meth' as const, item: it.id, qty: 0, label: it.name } : undefined;
+  };
+  return (
+    <div className="mb-3 flex flex-wrap gap-1.5">
+      {[...cal.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+        .map(([c, v]) => (
+          <div key={c} className="inline-flex items-center overflow-hidden rounded-full border border-gold-700/60 bg-raised/60 text-xs">
+            <span className="flex items-center gap-1 bg-gold-400/15 px-2.5 py-1 font-bold text-gold-200">
+              <Zap className="size-3" /> {c}
+            </span>
+            {(['box', 'round'] as const).map((f) => {
+              const t = v[f] ?? twin(c, f);
+              if (!t) return null;
+              return (
+                <span key={f} className="flex items-center gap-0.5 border-l border-gold-700/40 px-1">
+                  <button className="px-1 text-smoke hover:text-gold-200 disabled:opacity-30" disabled={!t.qty} onClick={() => bump(t, -1)} aria-label={`One less ${t.label}`}>
+                    −
+                  </button>
+                  <button className="font-mono text-gold-100 hover:underline" onClick={() => t.qty && onOpen(t)} title={t.qty ? 'Move, stash or give' : undefined}>
+                    {t.qty.toLocaleString()} {f === 'box' ? (t.qty === 1 ? 'box' : 'boxes') : 'rds'}
+                  </button>
+                  <button className="px-1 text-smoke hover:text-gold-200" onClick={() => bump(t, 1)} aria-label={`One more ${t.label}`}>
+                    +
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/** Pick a drug. */
+function DrugPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-      <optgroup label="Drugs">
-        {STRAINS.map((s) => (
-          <option key={s.id} value={`bud:${s.id}:bricks`}>
-            {s.name} bricks
-          </option>
-        ))}
-        {PRODUCTS.map((p) => (
-          <option key={p.id} value={`root:${p.id}`}>
-            {p.name}s
-          </option>
-        ))}
-        <option value="root:coca">Coca leaves</option>
-      </optgroup>
-      {ITEM_KINDS.map((k) => {
-        const list = types.filter((t) => t.category === k.id);
-        return list.length ? (
-          <optgroup key={k.id} label={k.label}>
-            {list.map((t) => (
-              <option key={t.id} value={`item:${t.id}`}>
-                {t.name}
-              </option>
-            ))}
-          </optgroup>
-        ) : null;
-      })}
+      {STRAINS.map((s) => (
+        <option key={s.id} value={`bud:${s.id}:bricks`}>
+          {s.name} bricks
+        </option>
+      ))}
+      {PRODUCTS.map((p) => (
+        <option key={p.id} value={`root:${p.id}`}>
+          {p.name}s
+        </option>
+      ))}
+      <option value="root:coca">Coca leaves</option>
     </select>
   );
 }
@@ -79,7 +126,10 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
   const { types, name } = useItemTypes();
   const ops = useOps('stash');
   const toast = useToast();
-  const [key, setKey] = useState(types[0] ? `item:${types[0].id}` : `bud:${STRAINS[0].id}:bricks`);
+  const [tab, setTab] = useState<'item' | 'drug'>('item');
+  const [itemId, setItemId] = useState<string | null>(null);
+  const [drug, setDrug] = useState(`bud:${STRAINS[0].id}:bricks`);
+  const key = tab === 'item' ? (itemId ? `item:${itemId}` : '') : drug;
   const [qty, setQty] = useState('1');
   return (
     <Modal title="Add to your locker" onClose={onClose}>
@@ -87,6 +137,7 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!key) return;
           const t = thingFrom(key, toCount(qty), name);
           if (!t.qty) return;
           await toast.run(ops.applyDeltas([{ loc: locker.path(storageId), strain: t.strain, field: t.field, item: t.item, delta: t.qty }]).then(() => ({ text: `Added ${t.qty} × ${t.label}.` })));
@@ -94,17 +145,28 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
         }}
       >
         <p className="text-sm text-ash">For things you got yourself in the city. Taking gang property? Use “Take from a stash” so it’s signed out.</p>
-        <Field label="What">
-          <ThingPicker value={key} onChange={setKey} types={types} />
-        </Field>
-        <Field label="How many">
+        <div className="flex gap-1">
+          {(['item', 'drug'] as const).map((x) => (
+            <button key={x} type="button" onClick={() => setTab(x)} className={`chip px-3 py-1.5 text-xs ${tab === x ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+              {x === 'item' ? 'Guns, ammo & items' : 'Drugs'}
+            </button>
+          ))}
+        </div>
+        {tab === 'item' ? (
+          <ItemPicker types={types} value={itemId} onChange={setItemId} />
+        ) : (
+          <DrugPicker value={drug} onChange={setDrug} />
+        )}
+        <Field label={itemId && tab === 'item' ? `How many · ${name(itemId)}` : 'How many'}>
           <input className="input font-mono" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} />
         </Field>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-gold">Add</button>
+          <button className="btn-gold" disabled={!key}>
+            Add
+          </button>
         </div>
       </form>
     </Modal>
@@ -203,7 +265,12 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
   const { roster, me, canSee } = useHub();
   const { storage, locLabel } = useNarcotics();
   const toast = useToast();
-  const [mode, setMode] = useState<'move' | 'stash' | 'give'>('move');
+  const { byId } = useItemTypes();
+  const item = thing.item ? byId.get(thing.item) : undefined;
+  const nameable = !!item && item.category !== 'ammo';
+  const myVariant = !!item?.baseId && item.owner === me.id;
+  const [mode, setMode] = useState<'move' | 'stash' | 'give' | 'name'>('move');
+  const [custom, setCustom] = useState(myVariant ? item!.name : '');
   const [qty, setQty] = useState(String(thing.qty));
   const [to, setTo] = useState(locker.storages.find((s) => s.id !== storageId)?.id ?? '');
   const [stashTo, setStashTo] = useState(storage[0]?.id ?? '');
@@ -217,6 +284,18 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
     if (!q) return setError('How many?');
     const t = { ...thing, qty: q };
     try {
+      if (mode === 'name') {
+        const n = custom.trim();
+        if (!n) return setError('Type a name.');
+        if (myVariant && q === thing.qty) {
+          await locker.renameVariant(item!.id, n);
+          toast.done({ text: `Renamed to ${n}.` });
+        } else {
+          await locker.nameIt(storageId, t, item!, n);
+          toast.done({ text: `${q} × ${item!.name} now named “${n}”.` });
+        }
+        return onClose();
+      }
       if (mode === 'move') {
         if (!to) return setError('Make another storage first.');
         await locker.move([t], locker.path(storageId), locker.path(to));
@@ -244,6 +323,7 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
               ['move', 'To another storage', ArrowLeftRight],
               ...(stashOk ? ([['stash', 'Into a gang stash', Warehouse]] as const) : []),
               ['give', 'Give / trade', Gift],
+              ...(nameable ? ([['name', myVariant ? 'Rename' : 'Custom name', Tag]] as const) : []),
             ] as const
           ).map(([id, label, Icon]) => (
             <button key={id} type="button" onClick={() => setMode(id)} className={`chip px-3 py-1.5 text-xs ${mode === id ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
@@ -278,6 +358,14 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
             </select>
           </Field>
         )}
+        {mode === 'name' && (
+          <Field
+            label="Custom name"
+            hint={`Event variants, engraved pieces, a gun with history. It stays a ${byId.get(item?.baseId ?? item?.id ?? '')?.name ?? 'item'} underneath, and can be moved, traded and put on display.`}
+          >
+            <input className="input" value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={40} placeholder="e.g. Pumpkin Bat, Vito’s Golden .50" autoFocus />
+          </Field>
+        )}
         {mode === 'give' && (
           <>
             <Field label="To" hint="It leaves your locker now and goes to theirs when they accept.">
@@ -301,7 +389,7 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-gold">{mode === 'give' ? 'Offer' : 'Move'}</button>
+          <button className="btn-gold">{mode === 'give' ? 'Offer' : mode === 'name' ? 'Save name' : 'Move'}</button>
         </div>
       </form>
     </Modal>
@@ -360,6 +448,7 @@ function StoragePanel({ locker, id, name, onOpen }: { locker: LockerApi; id: str
         </span>
       }
     >
+      <AmmoPills things={things} byId={byId} bump={bump} onOpen={onOpen} />
       {groups.length ? (
         <div className="space-y-3">
           {groups.map((g) => (
@@ -394,7 +483,7 @@ function StoragePanel({ locker, id, name, onOpen }: { locker: LockerApi; id: str
             </div>
           ))}
         </div>
-      ) : (
+      ) : things.length ? null : (
         <p className="text-sm text-smoke">Empty.</p>
       )}
       {adding && <AddDialog locker={locker} storageId={id} onClose={() => setAdding(false)} />}

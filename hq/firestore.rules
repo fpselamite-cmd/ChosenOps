@@ -232,8 +232,12 @@ service cloud.firestore {
     // new item when they need it; Manage ops edits, removes and bulk-imports.
     match /itemTypes/{id} {
       allow read: if active();
-      allow create: if active() && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0;
+      // Custom names (a member's own variant of an item) carry their owner.
+      allow create: if active() && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0
+        && request.resource.data.get('owner', myId()) == myId();
       allow update, delete: if can('manageOps');
+      allow update: if active() && resource.data.get('owner', '') == myId() && onlyChanges(['name'])
+        && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0;
     }
     match /settings/narcotics {
       allow read: if active();
