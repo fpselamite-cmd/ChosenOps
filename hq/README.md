@@ -3,7 +3,7 @@
 The Chosen's headquarters: crews, ops, money, blacksites and gear in one site that installs on phones.
 Built fresh with Vite + React + TypeScript + Tailwind, on Firebase (Auth + Firestore, free Spark plan).
 
-This folder is the new app. The old archive in the repo root keeps running until HQ goes live.
+Live at **https://chosenops.web.app**. Pushing to `main` deploys it (see Going live).
 
 ## Try it locally (fake data, nothing touches the live site)
 
@@ -39,12 +39,28 @@ npm run test:rules   # security rule tests
   red on black (BlackMarket).
 - **Family**: the chain of command, by rank or as an org chart (who answers to whom).
 
+## Going live and deploying
+
+- **Deploys**: every push to `main` runs `.github/workflows/deploy.yml`: type check, security-rule tests, build, then
+  `firebase deploy` (hosting, Firestore rules and indexes) to the `chosenops` project. It uses the
+  `FIREBASE_SERVICE_ACCOUNT` repo secret (a service-account JSON key). It can also be run by hand from the Actions tab.
+- **First sign-up**: the first person to register on the live site founds the family and becomes Boss; everyone
+  after that waits for approval. Data from the old archive app doesn't interfere (separate collections and sign-in).
+- **NoelOps import**: Actions tab → **Import NoelOps** → Run workflow. Leave *Dry run* ticked to see what it would
+  write, then run it again unticked. It copies grows, stash houses, stock, sales, history, yields, the activity feed and
+  work counters. Run it again with `sales,stats` once members have signed up, to link sales to them by name.
+  Locally: `node scripts/import-noelops.mjs --from <file or url> [--live] [--only=…] [--dry-run]`.
+- **Discord**: Admin → Discord. Paste a webhook for Blacksites and/or Rep donations, tick the events, Send a test.
+  Everything is off until then. Webhook URLs live in the database, never in the repo.
+- **Map**: `public/map/city.jpg` (the postal map from NoelOps). Replace the file to change it.
+- **Item catalog**: `src/data/catalog.json`; Admin → Item catalog → Load/Refresh pushes it to the database.
+
 ## Build progress
 
 1. ✅ Foundation: sign-in, ranks, page access, crews as roles, Family, Petty Crime, profiles, Admin
 2. ✅ Narcotics (Overview · Weed · Meth · Coke) and Stash
-3. BlackMarket
-4. Titles, MVPs, leaderboards, Map, Calendar
-5. Blacksites
-6. Gear & Loadouts
-7. Discord, NoelOps import, go live
+3. ✅ BlackMarket, My Locker, keepsake cabinet and trophies, item catalog
+4. ✅ Leaderboards and Hall of Fame, Map, Calendar
+5. ✅ Blacksites
+6. ✅ Gear & Loadouts
+7. ✅ Discord editors, NoelOps import, go live

@@ -35,7 +35,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'meta/hqFounding'), { uid: 'boss' });
-    for (const [id, order, permissions] of RANKS) await setDoc(doc(db, 'ranks', id), { name: id, order, permissions });
+    for (const [id, order, permissions] of RANKS) await setDoc(doc(db, 'hqRanks', id), { name: id, order, permissions });
     await setDoc(doc(db, 'members/boss'), member('Boss', 'boss'));
     await setDoc(doc(db, 'members/ub'), member('Ub', 'underboss'));
     await setDoc(doc(db, 'members/capo'), member('Capo', 'capo'));
@@ -70,7 +70,7 @@ describe('sign-up', () => {
     const db = as('founder');
     const batch = writeBatch(db);
     batch.set(doc(db, 'meta/hqFounding'), { uid: 'founder', at: serverTimestamp() });
-    batch.set(doc(db, 'ranks/newrank'), { name: 'Boss2', order: 0, permissions: {} });
+    batch.set(doc(db, 'hqRanks/newrank'), { name: 'Boss2', order: 0, permissions: {} });
     batch.set(doc(db, 'members/founder'), { ...member('Founder', 'boss'), joinedAt: serverTimestamp() });
     batch.set(doc(db, 'names/founder'), { uid: 'founder', v: 0 });
     batch.set(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'x' });
@@ -141,10 +141,10 @@ describe('crews', () => {
 
 describe('ranks', () => {
   it('lets rank managers edit ranks below them only', async () => {
-    await assertSucceeds(updateDoc(doc(as('ub'), 'ranks/soldier'), { name: 'Soldato' }));
-    await assertFails(updateDoc(doc(as('ub'), 'ranks/underboss'), { name: 'Me' }));
-    await assertFails(updateDoc(doc(as('ub'), 'ranks/capo'), { order: 0 }));
-    await assertFails(updateDoc(doc(as('capo'), 'ranks/soldier'), { name: 'x' }));
+    await assertSucceeds(updateDoc(doc(as('ub'), 'hqRanks/soldier'), { name: 'Soldato' }));
+    await assertFails(updateDoc(doc(as('ub'), 'hqRanks/underboss'), { name: 'Me' }));
+    await assertFails(updateDoc(doc(as('ub'), 'hqRanks/capo'), { order: 0 }));
+    await assertFails(updateDoc(doc(as('capo'), 'hqRanks/soldier'), { name: 'x' }));
   });
 });
 
@@ -227,7 +227,7 @@ describe('petty crime', () => {
 
   it('confirms a transfer by adding exactly its amount to the family', async () => {
     await env.withSecurityRulesDisabled((ctx) =>
-      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+      updateDoc(doc(ctx.firestore(), 'hqRanks/capo'), { 'permissions.confirmRep': true }),
     );
     await seedTransfer();
     const db = as('capo');
@@ -239,7 +239,7 @@ describe('petty crime', () => {
 
   it('rejects padding the family total', async () => {
     await env.withSecurityRulesDisabled((ctx) =>
-      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+      updateDoc(doc(ctx.firestore(), 'hqRanks/capo'), { 'permissions.confirmRep': true }),
     );
     await seedTransfer();
     const db = as('capo');
@@ -251,7 +251,7 @@ describe('petty crime', () => {
 
   it('gives the rep back when a transfer is rejected', async () => {
     await env.withSecurityRulesDisabled((ctx) =>
-      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+      updateDoc(doc(ctx.firestore(), 'hqRanks/capo'), { 'permissions.confirmRep': true }),
     );
     await seedTransfer();
     const db = as('capo');
@@ -264,7 +264,7 @@ describe('petty crime', () => {
   it("doesn't let anyone without the power confirm, or confirm their own", async () => {
     await seedTransfer(50, 'capo');
     await env.withSecurityRulesDisabled((ctx) =>
-      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+      updateDoc(doc(ctx.firestore(), 'hqRanks/capo'), { 'permissions.confirmRep': true }),
     );
     const own = as('capo');
     const b = writeBatch(own);
@@ -285,7 +285,7 @@ describe('ops: narcotics and stash', () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      await updateDoc(doc(db, 'ranks/capo'), { pages: { narcotics: true, stash: true } });
+      await updateDoc(doc(db, 'hqRanks/capo'), { pages: { narcotics: true, stash: true } });
       await updateDoc(doc(db, 'crews/grow'), { pages: { narcotics: true } });
       await setDoc(doc(db, 'locations/main'), { kind: 'stash', name: 'Main Stash', crewId: null });
       await setDoc(doc(db, 'locations/g1'), { kind: 'grow', name: 'Docks', postal: '7078', crewId: 'grow', pots: 10, startTime: null });
@@ -312,7 +312,7 @@ describe('ops: narcotics and stash', () => {
     await assertSucceeds(updateDoc(doc(as('sol'), 'locations/g1'), { startTime: serverTimestamp(), alertSent: false, ...sign('sol', 'grow') }));
     await assertFails(updateDoc(doc(as('sol'), 'locations/g1'), { name: 'Mine now', ...sign('sol', 'grow') }));
     await assertFails(setDoc(doc(as('sol'), 'locations/new'), { kind: 'stash', name: 'X', crewId: null, ...sign('sol', 'grow') }));
-    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/underboss'), { 'permissions.manageOps': true }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/underboss'), { 'permissions.manageOps': true }));
     await assertSucceeds(setDoc(doc(as('ub'), 'locations/new'), { kind: 'stash', name: 'Docks House', crewId: null }));
     await assertFails(deleteDoc(doc(as('ub'), 'locations/main')));
   });
@@ -335,7 +335,7 @@ describe('my locker', () => {
   });
 
   it('lets leadership see sign-outs of gang property', async () => {
-    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/underboss'), { 'permissions.money': true }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/underboss'), { 'permissions.money': true }));
     await assertSucceeds(setDoc(doc(as('sol'), 'signouts/s1'), { memberId: 'sol', status: 'out', qty: 1, at: serverTimestamp() }));
     await assertSucceeds(getDoc(doc(as('ub'), 'signouts/s1')));
     await assertFails(getDoc(doc(as('sol2'), 'signouts/s1')));
@@ -374,8 +374,8 @@ describe('money', () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      await updateDoc(doc(db, 'ranks/soldier'), { pages: { blackmarket: true } });
-      await updateDoc(doc(db, 'ranks/underboss'), { 'permissions.money': true });
+      await updateDoc(doc(db, 'hqRanks/soldier'), { pages: { blackmarket: true } });
+      await updateDoc(doc(db, 'hqRanks/underboss'), { 'permissions.money': true });
       await setDoc(doc(db, 'sales/s1'), { sellerId: 'sol', qty: 1, price: 5000 });
     });
   });
@@ -467,7 +467,7 @@ describe('leaderboards', () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'boards/2026-10'), { bricks: { sol: increment(3) } }, { merge: true }));
     await assertFails(setDoc(doc(as('sol'), 'boards/2026-10'), { bricks: { sol2: increment(3) } }, { merge: true }));
     await assertFails(setDoc(doc(as('sol'), 'boards/2026-10'), { sales: { sol: increment(9000) } }, { merge: true }));
-    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/soldier'), { pages: { blackmarket: true } }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/soldier'), { pages: { blackmarket: true } }));
     await assertSucceeds(setDoc(doc(as('sol'), 'boards/2026-10'), { sales: { sol2: increment(9000) }, _by: 'sol', _via: 'rank' }, { merge: true }));
   });
   it('hands the top 3 of a finished month a trophy, once', async () => {
@@ -500,7 +500,7 @@ describe('blacksites', () => {
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      await updateDoc(doc(db, 'ranks/capo'), { 'permissions.confirmRep': true });
+      await updateDoc(doc(db, 'hqRanks/capo'), { 'permissions.confirmRep': true });
       await setDoc(doc(db, 'blacksites/b1'), fight('sol'));
       await setDoc(doc(db, 'blacksites/b1/loot/l1'), { label: 'Carbine Rifle', item: 'g_carbine_rifle', field: 'meth', qty: 3, claims: {} });
       await setDoc(doc(db, 'stats/familyRep'), { total: 100 });
@@ -558,5 +558,14 @@ describe('gear & loadouts', () => {
     await assertSucceeds(getDoc(doc(as('ub'), 'loadouts/sol')));
     await assertSucceeds(setDoc(doc(as('sol'), 'loadouts/sol'), { public: true }, { merge: true }));
     await assertSucceeds(getDoc(doc(as('sol2'), 'loadouts/sol')));
+  });
+});
+
+describe('discord hooks', () => {
+  it('only Gang settings holders edit the webhooks', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/underboss'), { 'permissions.manageSettings': true }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'hooks/discord'), { blacksites: { url: '' } }));
+    await assertFails(setDoc(doc(as('sol'), 'hooks/discord'), { blacksites: { url: 'x' } }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'hooks/discord')));
   });
 });

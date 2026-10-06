@@ -75,7 +75,7 @@ export async function register(name: string, pin: string): Promise<{ founder: bo
         batch.set(doc(db, 'meta', 'hqFounding'), { uid, at: serverTimestamp() });
         DEFAULT_RANKS.forEach((r, order) => {
           const { id, ...rest } = r;
-          batch.set(doc(db, 'ranks', id), { ...rest, order });
+          batch.set(doc(db, 'hqRanks', id), { ...rest, order });
         });
         batch.set(doc(db, 'members', uid), { ...base, status: 'active', rankId: DEFAULT_RANKS[0].id });
         batch.set(doc(db, 'names', key), { uid, v: 0 });

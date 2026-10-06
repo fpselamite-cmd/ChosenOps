@@ -9,6 +9,7 @@ import { PageHeader, Panel, Stat } from '../components/Page';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { db } from '../lib/firebase';
+import { notify } from '../lib/discord';
 import { ago } from '../lib/format';
 import { adjustRep, confirmTransfer, deleteCrime, logCrime, rejectTransfer, requestTransfer } from '../lib/petty';
 import { PETTY_CRIMES, type PettyCrime as Crime, type PettyRep, type RepTransfer } from '../lib/types';
@@ -82,6 +83,7 @@ function LogCrime({ memberId, onClose }: { memberId: string; onClose: () => void
 }
 
 function SendToFamily({ memberId, available, onClose }: { memberId: string; available: number; onClose: () => void }) {
+  const { memberById } = useHub();
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const a = Math.round(Number(amount) || 0);
@@ -91,6 +93,7 @@ function SendToFamily({ memberId, available, onClose }: { memberId: string; avai
     if (a > available) return setError(`You only have ${n(available)} petty rep.`);
     try {
       await requestTransfer(memberId, a);
+      notify('rep.sent', { title: '🤝 Rep sent to the family', description: `**${memberById.get(memberId)?.name ?? 'A member'}** is sending **${n(a)}** petty rep. Waiting on a Lieutenant+ to confirm.` });
       onClose();
     } catch {
       setError('Couldn’t send that. Try again.');
@@ -223,7 +226,16 @@ export default function PettyCrime() {
                           <span className="text-xs text-smoke">Someone else confirms yours</span>
                         ) : (
                           <span className="flex gap-1.5">
-                            <button className="btn-gold btn-sm" onClick={() => confirmTransfer(t, me.id)}>
+                            <button className="btn-gold btn-sm" onClick={() =>
+                                confirmTransfer(t, me.id).then(() =>
+                                  notify('rep.confirmed', {
+                                    title: '✅ Rep donation confirmed',
+                                    description: `**${n(t.amount)}** rep from **${memberById.get(t.memberId)?.name ?? 'a member'}** is in. Confirmed by ${me.name}.`,
+                                    fields: [{ name: 'Family rep', value: n(familyRep + t.amount), inline: true }],
+                                  }),
+                                )
+                              }
+                            >
                               <Check className="size-3.5" /> Confirm
                             </button>
                             <button className="btn-danger btn-sm" onClick={() => rejectTransfer(t, me.id)}>

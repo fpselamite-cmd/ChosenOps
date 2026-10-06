@@ -14,8 +14,8 @@ export default function RanksTab() {
 
   async function swap(a: Rank, b: Rank) {
     const batch = writeBatch(db);
-    batch.update(doc(db, 'ranks', a.id), { order: b.order });
-    batch.update(doc(db, 'ranks', b.id), { order: a.order });
+    batch.update(doc(db, 'hqRanks', a.id), { order: b.order });
+    batch.update(doc(db, 'hqRanks', b.id), { order: a.order });
     await batch.commit();
   }
 
@@ -24,7 +24,7 @@ export default function RanksTab() {
     if (!name) return;
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `rank-${Date.now()}`;
     const order = (ranks[ranks.length - 1]?.order ?? 0) + 1;
-    await setDoc(doc(db, 'ranks', id), { name, order, permissions: {} });
+    await setDoc(doc(db, 'hqRanks', id), { name, order, permissions: {} });
     setNewName('');
   }
 
@@ -43,14 +43,14 @@ export default function RanksTab() {
                 className="input max-w-56 font-hud text-base font-bold"
                 defaultValue={r.name}
                 disabled={!can}
-                onBlur={(e) => e.target.value.trim() && e.target.value !== r.name && updateDoc(doc(db, 'ranks', r.id), { name: e.target.value.trim() })}
+                onBlur={(e) => e.target.value.trim() && e.target.value !== r.name && updateDoc(doc(db, 'hqRanks', r.id), { name: e.target.value.trim() })}
               />
               <label className="flex items-center gap-1.5 text-sm text-ash">
                 <input
                   type="checkbox"
                   checked={!!r.leadership}
                   disabled={!can}
-                  onChange={(e) => updateDoc(doc(db, 'ranks', r.id), { leadership: e.target.checked })}
+                  onChange={(e) => updateDoc(doc(db, 'hqRanks', r.id), { leadership: e.target.checked })}
                   className="accent-gold-400"
                 />
                 <Crown className="size-3.5 text-gold-400" /> Leadership
@@ -74,7 +74,7 @@ export default function RanksTab() {
                   className="btn-danger btn-sm"
                   disabled={!can || count > 0}
                   title={count ? 'Move everyone off this rank first' : 'Delete rank'}
-                  onClick={() => confirm(`Delete the ${r.name} rank?`) && deleteDoc(doc(db, 'ranks', r.id))}
+                  onClick={() => confirm(`Delete the ${r.name} rank?`) && deleteDoc(doc(db, 'hqRanks', r.id))}
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -93,7 +93,7 @@ export default function RanksTab() {
                       className="accent-gold-400"
                       checked={r.pages?.[p] === true}
                       disabled={!can}
-                      onChange={(e) => updateDoc(doc(db, 'ranks', r.id), { [`pages.${p}`]: e.target.checked })}
+                      onChange={(e) => updateDoc(doc(db, 'hqRanks', r.id), { [`pages.${p}`]: e.target.checked })}
                     />
                     {PAGES[p]}
                   </label>
@@ -108,7 +108,7 @@ export default function RanksTab() {
                       className="accent-gold-400"
                       checked={r.permissions?.[p] === true}
                       disabled={!can}
-                      onChange={(e) => updateDoc(doc(db, 'ranks', r.id), { [`permissions.${p}`]: e.target.checked })}
+                      onChange={(e) => updateDoc(doc(db, 'hqRanks', r.id), { [`permissions.${p}`]: e.target.checked })}
                     />
                     {PERMISSIONS[p]}
                   </label>

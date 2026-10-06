@@ -46,7 +46,7 @@ const Ctx = createContext<Hub | null>(null);
 export function HubProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const members = useCollection<Member>('members');
-  const ranks = useCollection<Rank>('ranks');
+  const ranks = useCollection<Rank>('hqRanks');
   const crews = useCollection<Crew>('crews');
   const presenceRows = useCollection<Presence>('presence');
   const settings = useDoc<GangSettings>('settings/gang');

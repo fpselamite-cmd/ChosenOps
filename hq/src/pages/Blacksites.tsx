@@ -32,6 +32,7 @@ import {
   type StatLine,
 } from '../lib/blacksites';
 import type { CalEvent } from '../lib/calendar';
+import { notify } from '../lib/discord';
 import { ago, fmtDate, fmtTime } from '../lib/format';
 import { shrinkImage } from '../lib/image';
 import { itemTitle, type ItemType } from '../lib/items';
@@ -54,7 +55,7 @@ function useItems() {
 // ---------- log / edit ----------
 
 function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void }) {
-  const { me, roster, crews } = useHub();
+  const { me, roster, crews, memberById } = useHub();
   const { storage, locLabel } = useNarcotics();
   const { types, byId } = useItems();
   const pins = (useVisible<Pin>('pins') ?? []).filter((p) => p.type === 'blacksite');
@@ -105,7 +106,18 @@ function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void })
         // Drop stat lines and votes of anyone taken off the list.
         const keep = (m: Record<string, unknown>) => Object.fromEntries(Object.entries(m).filter(([k]) => who.has(k)));
         await saveSite(site.id, { ...d, stats: keep(site.stats) as Blacksite['stats'] });
-      } else await logFight(me, { ...d, claimHours }, loot, photos);
+      } else {
+        await logFight(me, { ...d, claimHours }, loot, photos);
+        notify('blacksite.logged', {
+          title: `${resultOf(d.result).label === 'Held it' ? '🏴' : '⚔️'} Blacksite: ${d.zone}`,
+          description: `${resultOf(d.result).label}${d.rivals.length ? ` vs ${d.rivals.join(', ')}` : ''} · held ${hold(d.holdMins)}`,
+          fields: [
+            { name: 'Who was there', value: d.participants.map((p) => memberById.get(p)?.name ?? '?').join(', ').slice(0, 1000) || '—' },
+            { name: 'Rep', value: `+${d.rep.toLocaleString()} (waiting on Lieutenant+)`, inline: true },
+            ...(loot.length ? [{ name: 'Loot', value: loot.map((l) => `${l.qty}× ${l.label}`).join(', ').slice(0, 1000), inline: true }] : []),
+          ],
+        });
+      }
       onClose();
     } catch {
       setError("Couldn't save that.");
@@ -542,7 +554,18 @@ function FightDetail({ s, onClose, onEdit }: { s: Blacksite; onClose: () => void
           )}
           {can('confirmRep') && s.repStatus === 'pending' && (
             <>
-              <button className="btn-gold btn-sm" onClick={() => decideRep(s, me.id, true)}>
+              <button
+                className="btn-gold btn-sm"
+                onClick={() =>
+                  decideRep(s, me.id, true).then(() =>
+                    notify('blacksite.confirmed', {
+                      title: `✅ ${s.zone}: +${s.rep.toLocaleString()} rep confirmed`,
+                      description: `${resultOf(s.result).label}${s.rivals.length ? ` vs ${s.rivals.join(', ')}` : ''}. Confirmed by ${me.name}.`,
+                      fields: m.ids.length ? [{ name: 'MVP', value: m.ids.map((id) => memberById.get(id)?.name ?? '?').join(' & '), inline: true }] : [],
+                    }),
+                  )
+                }
+              >
                 <Check className="size-3.5" /> Confirm {s.rep.toLocaleString()} rep
               </button>
               <button className="btn-danger btn-sm" onClick={() => decideRep(s, me.id, false)}>

@@ -67,7 +67,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
   await setDoc(doc(db, 'meta/hqFounding'), { uid: ids['Don Vito'], at: Timestamp.now() });
   for (const [i, [id, name, leadership, perms]] of RANKS.entries())
-    await setDoc(doc(db, 'ranks', id), {
+    await setDoc(doc(db, 'hqRanks', id), {
       name,
       order: i,
       leadership,
