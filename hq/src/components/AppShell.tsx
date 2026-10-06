@@ -1,4 +1,4 @@
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
@@ -10,6 +10,8 @@ import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
 import { AchievementWatcher } from '../lib/cabinet';
 import { MonthlyAwarder } from '../lib/boards';
+import { useApplyPrefs } from '../lib/appearance';
+import { ShootingStars } from './ShootingStars';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -41,7 +43,7 @@ function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void })
       end={item.to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `group relative flex items-center gap-3 px-3 py-2 font-hud text-[15px] font-semibold tracking-wide transition ${
+        `group relative flex items-center gap-3 rounded-r px-3 py-2 font-hud text-[15px] font-semibold tracking-wide transition ${
           isActive
             ? 'bg-gradient-to-r from-gold-400/15 to-transparent text-gold-100'
             : 'text-ash hover:bg-white/[0.03] hover:text-gold-200'
@@ -51,8 +53,9 @@ function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void })
       {({ isActive }) => (
         <>
           <span className={`absolute inset-y-1 left-0 w-0.5 ${isActive ? 'bg-gold-400 shadow-[0_0_8px_#d4af37]' : 'bg-transparent'}`} />
-          <Icon className={`size-4 ${isActive ? 'text-gold-300' : 'text-gold-600 group-hover:text-gold-400'}`} />
+          <Icon className={`size-4 transition ${isActive ? 'text-gold-300 drop-shadow-[0_0_6px_rgb(var(--acc-hi)/0.8)]' : 'text-gold-600 group-hover:text-gold-400'}`} />
           {item.label}
+          {isActive && <span className="star4 twinkle ml-auto size-2" aria-hidden />}
         </>
       )}
     </NavLink>
@@ -102,6 +105,9 @@ function MeCard() {
           <RankBadge rank={myRank} className="mt-0.5" />
         </span>
       </Link>
+      <Link to={`/members/${me.id}#appearance`} className="p-1.5 text-smoke hover:text-gold-200" title="Appearance" aria-label="Appearance">
+        <Palette className="size-4" />
+      </Link>
       <button onClick={logout} className="p-1.5 text-smoke hover:text-gold-200" title="Sign out" aria-label="Sign out">
         <LogOut className="size-4" />
       </button>
@@ -134,6 +140,8 @@ function HeaderButtons() {
 }
 
 export function AppShell() {
+  const { me } = useHub();
+  useApplyPrefs(me.prefs);
   const clock = useClock();
   const [drawer, setDrawer] = useState(false);
   const { pathname } = useLocation();
@@ -146,9 +154,10 @@ export function AppShell() {
   return (
     <div className="min-h-dvh lg:pl-64">
       <AchievementWatcher />
+      <ShootingStars enabled={themeFor(pathname) !== 'noel'} />
       <MonthlyAwarder />
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line bg-coal/95 px-3 py-5 backdrop-blur lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">
           <Brand />
         </div>
@@ -161,7 +170,7 @@ export function AppShell() {
       </aside>
 
       {/* Top bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-void/85 px-4 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:px-8">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line sky-glass px-4 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:px-8">
         <div className="lg:hidden">
           <Brand compact />
         </div>
@@ -184,7 +193,7 @@ export function AppShell() {
       </div>
 
       {/* Phone bottom bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-coal/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         {mobileItems.map((i) => (
           <NavLink
             key={i.to}

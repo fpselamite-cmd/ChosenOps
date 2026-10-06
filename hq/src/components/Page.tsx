@@ -16,13 +16,19 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <header className="rise mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         <p className="label t-accent flex items-center gap-2 text-gold-500">
           <Icon className="size-3.5" /> {kicker}
         </p>
-        <h1 className="foil mt-1 font-display text-3xl font-bold tracking-wide sm:text-4xl">{title}</h1>
-        {sub && <p className="mt-1.5 max-w-2xl text-sm text-ash">{sub}</p>}
+        {/* Lettered like the seal: Cinzel foil with a couple of stars caught in it. */}
+        <div className="title-sky relative mt-1 inline-block pr-6">
+          <h1 className="foil foil-animate font-display text-3xl font-bold tracking-[0.06em] sm:text-[2.6rem]">{title}</h1>
+          <span className="star4 twinkle absolute -top-1 right-0 size-3.5" aria-hidden />
+          <span className="star4 twinkle absolute top-1/2 -left-3 size-2 [animation-delay:1.3s]" aria-hidden />
+          <div className="constellation draw mt-1 w-[min(320px,100%)]" aria-hidden />
+        </div>
+        {sub && <p className="mt-2 max-w-2xl text-sm text-ash">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </header>
@@ -44,11 +50,12 @@ export function Panel({
   pad?: boolean;
 }) {
   return (
-    <section className={`hud ${className}`}>
+    <section className={`hud rise ${className}`}>
       {title && (
         <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
           <h2 className="t-soft font-hud text-sm font-bold tracking-[0.16em] text-gold-300 uppercase">
-            <span className="t-accent text-gold-600">[</span> {title} <span className="t-accent text-gold-600">]</span>
+            <span className="star4 t-accent mr-1.5 inline-block size-2.5 align-[-1px]" aria-hidden />
+            {title}
           </h2>
           {right}
         </div>

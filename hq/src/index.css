@@ -50,37 +50,61 @@
 }
 
 @layer base {
+  :root {
+    --acc: 212 175 55;
+    --acc-hi: 243 210 122;
+  }
   html {
     color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-void text-bone font-sans antialiased;
+    /* The night sky from the Chosen seal: deep blue-black, a warm glow, two layers of stars. */
+    background-color: #04050a;
     background-image:
-      radial-gradient(1200px 700px at 100% -20%, rgba(212, 175, 55, 0.08), transparent 60%),
-      radial-gradient(900px 600px at -20% 120%, rgba(212, 175, 55, 0.05), transparent 60%);
+      url('/brand/stars-bright.svg'),
+      url('/brand/stars-dust.svg'),
+      radial-gradient(1100px 700px at 85% -10%, rgb(var(--acc) / 0.09), transparent 60%),
+      radial-gradient(900px 700px at -10% 110%, rgba(64, 72, 140, 0.12), transparent 60%),
+      radial-gradient(1400px 900px at 50% 40%, #0a0b14, #04050a 70%);
+    background-size: 900px 900px, 480px 480px, auto, auto, auto;
     background-attachment: fixed;
     min-height: 100dvh;
   }
-  /* A faint tactical grid behind everything. */
+  /* A faint twinkle on top of the stars. */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 0;
-    background-image:
-      linear-gradient(rgba(212, 175, 55, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(212, 175, 55, 0.035) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse at 50% 0%, black 30%, transparent 85%);
+    background-image: url('/brand/stars-bright.svg');
+    background-size: 640px 640px;
+    background-position: 210px 140px;
+    opacity: 0.5;
+    animation: twinkle 6s ease-in-out infinite alternate;
+  }
+  /* The zodiac wheel from the seal, turning very slowly behind everything. */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 1100px;
+    height: 1100px;
+    right: -380px;
+    top: -380px;
+    pointer-events: none;
+    z-index: 0;
+    background: url('/brand/zodiac.svg') center / contain no-repeat;
+    opacity: 0.07;
+    animation: seal-spin 600s linear infinite;
   }
   #root {
     position: relative;
     z-index: 1;
   }
   ::selection {
-    background: rgba(212, 175, 55, 0.35);
+    background: rgb(var(--acc) / 0.35);
   }
   input,
   select,
@@ -97,77 +121,139 @@
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
 }
 @utility btn {
-  @apply notch inline-flex items-center justify-center gap-2 px-4 py-2 font-hud text-sm font-bold tracking-[0.12em] uppercase transition select-none disabled:cursor-not-allowed disabled:opacity-40;
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 font-hud text-sm font-bold tracking-[0.12em] uppercase transition select-none disabled:cursor-not-allowed disabled:opacity-40;
 }
 
 @layer components {
   /* Gold foil text for the brand and page titles. */
   .foil {
-    background: linear-gradient(100deg, #94741f 0%, #f8e7a8 22%, #d4af37 45%, #fdf6dd 55%, #b8932a 78%, #f3d27a 100%);
+    background: linear-gradient(100deg, var(--color-gold-600) 0%, var(--color-gold-100) 22%, var(--color-gold-400) 45%, var(--color-gold-50) 55%, var(--color-gold-500) 78%, var(--color-gold-200) 100%);
     background-size: 200% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
 
-  /* HUD panel: black glass with gold corner brackets. */
+  /* Panels: night glass with a dusting of stars, a gold hairline, a dashed inner ring
+     (like the seal's rings) and a four-point star on two corners. */
   .hud {
     position: relative;
-    background: linear-gradient(180deg, rgba(24, 24, 26, 0.92), rgba(14, 14, 15, 0.92));
-    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    background:
+      url('/brand/stars-dust.svg') 0 0 / 480px 480px,
+      linear-gradient(180deg, rgba(16, 17, 28, 0.9), rgba(8, 9, 16, 0.92));
+    border: 1px solid rgb(var(--acc) / 0.24);
+    box-shadow:
+      inset 0 0 0 4px rgba(4, 5, 10, 0.55),
+      inset 0 0 0 5px rgb(var(--acc) / 0.07),
+      0 10px 30px rgba(0, 0, 0, 0.45);
   }
   .hud::before,
   .hud::after {
     content: '';
     position: absolute;
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     pointer-events: none;
-    border-color: var(--color-gold-400);
+    background: radial-gradient(circle, rgba(255, 240, 190, 0.9) 0 1px, transparent 2px), var(--color-gold-300);
+    clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+    filter: drop-shadow(0 0 4px rgb(var(--acc-hi) / 0.8));
   }
   .hud::before {
-    top: -1px;
-    left: -1px;
-    border-top: 2px solid;
-    border-left: 2px solid;
+    top: -7px;
+    left: -7px;
   }
   .hud::after {
-    bottom: -1px;
-    right: -1px;
-    border-bottom: 2px solid;
-    border-right: 2px solid;
+    bottom: -7px;
+    right: -7px;
   }
 
+  /* A soft constellation line: gold dashes between little stars. */
+  .constellation {
+    height: 12px;
+    background:
+      radial-gradient(circle, #f8e7a8 0 1.5px, transparent 2.5px) 0 50% / 80px 12px repeat-x,
+      linear-gradient(90deg, transparent, rgb(var(--acc) / 0.6) 15%, rgb(var(--acc) / 0.6) 85%, transparent) 0 50% / 100% 1px no-repeat;
+  }
+
+  /* Wax-seal tag for ranks and crews. --seal sets the wax color. */
+  .seal {
+    --seal: #8e1b22;
+    @apply inline-flex items-center gap-1.5 font-display text-[10px] font-bold tracking-[0.12em] uppercase;
+    padding: 3px 10px 3px 8px;
+    border-radius: 3px;
+    color: #f7e7c0;
+    background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--seal) 75%, white 12%), var(--seal) 55%, color-mix(in srgb, var(--seal) 60%, black));
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+  }
+  .seal::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #e8c56a;
+    box-shadow: 0 0 5px #e8c56a;
+  }
 
   .label {
     @apply font-hud text-[11px] font-semibold tracking-[0.18em] text-smoke uppercase;
   }
 
+  /* Neon gold outline: dark fill, glowing gold border. */
   .btn-gold {
-    @apply btn text-void;
-    background: linear-gradient(180deg, #f3d27a, #d4af37 55%, #b8932a);
-    box-shadow: 0 0 18px rgba(212, 175, 55, 0.25);
+    @apply btn text-gold-100 rounded-[3px];
+    background: linear-gradient(180deg, rgb(var(--acc) / 0.14), rgb(var(--acc) / 0.04));
+    border: 1px solid #d4af37;
+    box-shadow:
+      0 0 14px rgb(var(--acc) / 0.35),
+      inset 0 0 12px rgb(var(--acc) / 0.14);
+    text-shadow: 0 0 8px rgb(var(--acc-hi) / 0.55);
   }
   .btn-gold:not(:disabled):hover {
-    filter: brightness(1.08);
-    box-shadow: 0 0 26px rgba(212, 175, 55, 0.45);
+    color: #fdf6dd;
+    background: linear-gradient(180deg, rgb(var(--acc) / 0.26), rgb(var(--acc) / 0.1));
+    box-shadow:
+      0 0 24px rgb(var(--acc) / 0.6),
+      inset 0 0 16px rgb(var(--acc) / 0.25);
   }
   .btn-ghost {
-    @apply btn bg-raised text-gold-200 ring-1 ring-line ring-inset hover:bg-gold-900/60 hover:text-gold-100;
+    @apply btn rounded-[3px] text-gold-200 hover:text-gold-100;
+    background: rgba(10, 11, 20, 0.6);
+    border: 1px solid rgb(var(--acc) / 0.28);
+  }
+  .btn-ghost:not(:disabled):hover {
+    border-color: rgb(var(--acc) / 0.6);
+    box-shadow: 0 0 12px rgb(var(--acc) / 0.2);
   }
   .btn-danger {
-    @apply btn bg-danger/15 text-red-300 ring-1 ring-danger/40 ring-inset hover:bg-danger/25;
+    @apply btn rounded-[3px] text-red-200;
+    background: rgba(229, 72, 77, 0.08);
+    border: 1px solid rgba(229, 72, 77, 0.7);
+    box-shadow: 0 0 12px rgba(229, 72, 77, 0.25), inset 0 0 10px rgba(229, 72, 77, 0.1);
+  }
+  .btn-danger:not(:disabled):hover {
+    box-shadow: 0 0 20px rgba(229, 72, 77, 0.45), inset 0 0 12px rgba(229, 72, 77, 0.18);
   }
   .btn-sm {
     @apply px-2.5 py-1 text-xs;
   }
 
   .input {
-    @apply w-full border border-line bg-coal px-3 py-2 text-sm text-bone placeholder:text-smoke/60 outline-none transition focus:border-gold-400 focus:shadow-[0_0_0_3px_rgba(212,175,55,0.15)];
+    @apply w-full rounded-[3px] border px-3 py-2 text-sm text-bone placeholder:text-smoke/60 outline-none transition;
+    background: rgba(6, 7, 14, 0.75);
+    border-color: rgb(var(--acc) / 0.22);
+  }
+  .input:focus {
+    border-color: var(--color-gold-400);
+    box-shadow: 0 0 0 3px rgb(var(--acc) / 0.15), 0 0 14px rgb(var(--acc) / 0.2);
   }
 
   .chip {
-    @apply notch-sm inline-flex items-center gap-1 px-2 py-0.5 font-hud text-[11px] font-bold tracking-[0.12em] uppercase;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-hud text-[11px] font-bold tracking-[0.12em] uppercase transition;
   }
 
   .scanlines {
@@ -200,6 +286,15 @@
   animation: foil-sweep 9s linear infinite;
 }
 
+@keyframes twinkle {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 0.6;
+  }
+}
+
 @keyframes seal-spin {
   to {
     transform: rotate(360deg);
@@ -208,7 +303,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .online-dot,
-  .foil-animate {
+  .foil-animate,
+  body::before,
+  body::after {
     animation: none;
   }
 }
@@ -236,12 +333,12 @@
   right: 50%;
   width: 50%;
   height: 22px;
-  border-top: 1px solid rgba(212, 175, 55, 0.45);
+  border-top: 1px solid rgb(var(--acc) / 0.45);
 }
 .orgtree li::after {
   right: auto;
   left: 50%;
-  border-left: 1px solid rgba(212, 175, 55, 0.45);
+  border-left: 1px solid rgb(var(--acc) / 0.45);
 }
 .orgtree li:only-child::before,
 .orgtree li:only-child::after {
@@ -255,7 +352,7 @@
   border: 0 none;
 }
 .orgtree li:last-child::before {
-  border-right: 1px solid rgba(212, 175, 55, 0.45);
+  border-right: 1px solid rgb(var(--acc) / 0.45);
 }
 .orgtree ul ul::before {
   content: '';
@@ -263,7 +360,7 @@
   top: 0;
   left: 50%;
   height: 22px;
-  border-left: 1px solid rgba(212, 175, 55, 0.45);
+  border-left: 1px solid rgb(var(--acc) / 0.45);
 }
 .orgtree > ul {
   padding-top: 0;
@@ -277,7 +374,7 @@
   --t-1: #f8e7a8;
   --t-2: #d4af37;
   --t-3: #94741f;
-  --t-glow: rgba(212, 175, 55, 0.08);
+  --t-glow: rgb(var(--acc) / 0.08);
   --t-glow-2: transparent;
   --t-ink: #050505;
   --t-panel: rgba(17, 17, 18, 0.92);
@@ -501,16 +598,16 @@
 .pedestal .empty-slot {
   width: 60%;
   height: 70%;
-  border: 1px dashed rgba(243, 210, 122, 0.25);
+  border: 1px dashed rgb(var(--acc-hi) / 0.25);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(243, 210, 122, 0.4);
+  color: rgb(var(--acc-hi) / 0.4);
   font-size: 22px;
 }
 .pedestal.editable:hover .empty-slot {
-  border-color: rgba(243, 210, 122, 0.7);
+  border-color: rgb(var(--acc-hi) / 0.7);
   color: #f3d27a;
 }
 .pedestal .keepsake-photo {
@@ -525,4 +622,259 @@
   .shelf {
     --per: 2 !important;
   }
+}
+
+/* ── Stars and motion ─────────────────────────────────────────── */
+.star4 {
+  display: inline-block;
+  background: radial-gradient(circle, #fff6d6 0 1px, transparent 2px), var(--color-gold-300);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  filter: drop-shadow(0 0 4px rgb(var(--acc-hi) / 0.9));
+}
+.twinkle {
+  animation: twinkle-star 3.2s ease-in-out infinite;
+}
+@keyframes twinkle-star {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.75) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(45deg);
+  }
+}
+/* Panels and headers drift up into place. */
+.rise {
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.grid > .rise:nth-child(2),
+.space-y-6 > .rise:nth-child(2),
+.space-y-4 > .rise:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.grid > .rise:nth-child(3),
+.space-y-6 > .rise:nth-child(3),
+.space-y-4 > .rise:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.grid > .rise:nth-child(n + 4),
+.space-y-6 > .rise:nth-child(n + 4) {
+  animation-delay: 0.18s;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* The line under a page title draws itself in. */
+.draw {
+  animation: draw 1.1s 0.15s cubic-bezier(0.3, 0.6, 0.2, 1) both;
+}
+@keyframes draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+/* Clickable panels lift and glow. */
+a.hud,
+button.hud,
+.hud-hover {
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+a.hud:hover,
+button.hud:hover,
+.hud-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--acc) / 0.55);
+  box-shadow:
+    inset 0 0 0 4px rgba(4, 5, 10, 0.55),
+    0 12px 30px rgba(0, 0, 0, 0.5),
+    0 0 22px rgb(var(--acc) / 0.18);
+}
+/* A shooting star every so often (see ShootingStars). */
+.shooting-star {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  width: 140px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgb(var(--acc-hi) / 0.9), #fffbe8);
+  border-radius: 999px;
+  filter: drop-shadow(0 0 6px rgb(var(--acc-hi) / 0.9));
+  transform: rotate(-28deg);
+  animation: shoot 1.4s ease-in forwards;
+}
+@keyframes shoot {
+  from {
+    opacity: 0;
+    translate: 0 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    translate: -520px 270px;
+  }
+}
+
+/* ── Each member's own look (Profile → Appearance) ─────────────── */
+html[data-accent='rose'] {
+  --acc: 224 150 140;
+  --acc-hi: 244 194 184;
+  --color-gold-50: #fdf0ed;
+  --color-gold-100: #f9dcd6;
+  --color-gold-200: #f2c2b8;
+  --color-gold-300: #e8a99c;
+  --color-gold-400: #d98e7f;
+  --color-gold-500: #b8705f;
+  --color-gold-600: #94584a;
+  --color-gold-700: #6e4035;
+  --color-gold-900: #2a1712;
+}
+html[data-accent='silver'] {
+  --acc: 190 200 220;
+  --acc-hi: 226 232 245;
+  --color-gold-50: #f6f8fc;
+  --color-gold-100: #e7ecf5;
+  --color-gold-200: #d3dbea;
+  --color-gold-300: #bcc7dc;
+  --color-gold-400: #a3b1cc;
+  --color-gold-500: #8392b0;
+  --color-gold-600: #66738e;
+  --color-gold-700: #49536a;
+  --color-gold-900: #1a1e28;
+}
+html[data-accent='emerald'] {
+  --acc: 80 200 140;
+  --acc-hi: 150 230 185;
+  --color-gold-50: #ecfdf3;
+  --color-gold-100: #c9f7dd;
+  --color-gold-200: #9eedc2;
+  --color-gold-300: #6fdda3;
+  --color-gold-400: #43c585;
+  --color-gold-500: #2ea36b;
+  --color-gold-600: #237f54;
+  --color-gold-700: #1a5e3e;
+  --color-gold-900: #0a2418;
+}
+html[data-accent='violet'] {
+  --acc: 170 140 240;
+  --acc-hi: 205 188 250;
+  --color-gold-50: #f5f1fe;
+  --color-gold-100: #e6dcfd;
+  --color-gold-200: #d3c3fb;
+  --color-gold-300: #bca5f7;
+  --color-gold-400: #a487f0;
+  --color-gold-500: #8467d6;
+  --color-gold-600: #664fac;
+  --color-gold-700: #4a3a7e;
+  --color-gold-900: #1c1530;
+}
+/* Sky: plain black (no stars) or deep space (nebula glow). */
+html[data-sky='plain'] body {
+  background-image: none;
+  background-color: #060607;
+}
+html[data-sky='plain'] body::before,
+html[data-sky='plain'] .hud {
+  background-image: linear-gradient(180deg, rgba(20, 20, 22, 0.92), rgba(12, 12, 13, 0.92));
+}
+html[data-sky='plain'] body::before {
+  display: none;
+}
+html[data-sky='deep'] body {
+  background-image:
+    url('/brand/stars-bright.svg'),
+    url('/brand/stars-dust.svg'),
+    radial-gradient(1000px 700px at 80% 10%, rgba(130, 70, 190, 0.38), transparent 60%),
+    radial-gradient(900px 700px at 10% 90%, rgba(40, 100, 190, 0.34), transparent 60%),
+    radial-gradient(600px 400px at 40% 30%, rgba(190, 80, 140, 0.12), transparent 70%),
+    radial-gradient(700px 500px at 50% 50%, rgb(var(--acc) / 0.08), transparent 70%),
+    #03040a;
+  background-size: 900px 900px, 480px 480px, auto, auto, auto, auto, auto;
+}
+html[data-wheel='off'] body::after {
+  display: none;
+}
+html[data-text='large'] {
+  font-size: 17.5px;
+}
+/* Motion off: everything holds still. */
+html[data-motion='off'] *,
+html[data-motion='off'] *::before,
+html[data-motion='off'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+html[data-motion='off'] .shooting-star {
+  display: none;
+}
+
+/* Sidebar, header and phone nav: night glass with a little star dust. */
+.sky-glass {
+  background:
+    url('/brand/stars-dust.svg') 0 0 / 480px 480px,
+    linear-gradient(180deg, rgba(8, 9, 18, 0.9), rgba(5, 6, 12, 0.92));
+}
+html[data-sky='plain'] .sky-glass {
+  background: rgba(8, 8, 9, 0.94);
+}
+
+/* ── Family card: a tarot-sized card that tilts, shines and turns over ── */
+.fc-stage {
+  perspective: 900px;
+  width: 190px;
+  aspect-ratio: 2 / 3.3;
+  cursor: pointer;
+}
+.fc-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.fc-stage:hover .fc-card {
+  transition-duration: 0.12s;
+}
+.fc-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  backface-visibility: hidden;
+  border: 2px solid var(--color-gold-400);
+  box-shadow:
+    inset 0 0 0 3px rgba(4, 5, 10, 0.8),
+    inset 0 0 0 4px rgb(var(--acc) / 0.5),
+    0 14px 22px rgba(0, 0, 0, 0.6),
+    0 0 16px rgb(var(--acc) / 0.25);
+  -webkit-backface-visibility: hidden;
+}
+.fc-back {
+  transform: rotateY(180deg);
+  background:
+    url('/brand/zodiac.svg') center / 150% no-repeat,
+    url('/brand/stars-dust.svg') 0 0 / 240px,
+    radial-gradient(circle at 50% 50%, #12121e, #05060c 75%);
+}
+.fc-shine {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
 }

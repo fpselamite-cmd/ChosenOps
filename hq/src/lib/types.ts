@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   manageOps: 'Add and edit stash houses and grows',
   money: 'See and manage all money (Treasurer)',
   awardTrophies: 'Award trophies to anyone',
+  familyCards: 'Give members their family card',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;
@@ -71,6 +72,8 @@ export interface Member {
   joinedAt?: Timestamp;
   /** Crews they're in (kept in sync from the crews, used to share pins and events by crew). */
   crewIds?: string[];
+  /** How the HQ looks to them (Profile → Appearance). */
+  prefs?: import('./appearance').Prefs;
   /** Character's birthday, "MM-DD". */
   birthday?: string | null;
   /** Sign-in account currently bound to this member; absent means the original one. */

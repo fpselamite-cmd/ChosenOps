@@ -569,3 +569,20 @@ describe('discord hooks', () => {
     await assertSucceeds(getDoc(doc(as('sol'), 'hooks/discord')));
   });
 });
+
+describe('family cards', () => {
+  it('only the Boss (or a rank given family cards) gives them out; everyone sees them', async () => {
+    const card = (by: string) => ({ image: 'data:image/jpeg;base64,xx', title: 'The Fool', by });
+    await assertSucceeds(setDoc(doc(as('boss'), 'familyCards/sol'), card('boss')));
+    await assertFails(setDoc(doc(as('ub'), 'familyCards/sol2'), card('ub')));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/underboss'), { 'permissions.familyCards': true }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'familyCards/sol2'), card('ub')));
+    await assertFails(setDoc(doc(as('sol'), 'familyCards/sol'), card('sol')));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'familyCards/sol')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'familyCards/sol')));
+  });
+  it('lets members save their own look', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { prefs: { accent: 'rose', sky: 'deep' } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'members/sol'), { prefs: { accent: 'rose' } }));
+  });
+});

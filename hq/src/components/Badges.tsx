@@ -1,16 +1,17 @@
 import { Crown } from 'lucide-react';
+import type React from 'react';
 import { Link } from 'react-router-dom';
 import type { Crew, Rank } from '../lib/types';
 
 /** Rank as a gold chip. Leadership ranks get a crown. */
 export function RankBadge({ rank, className = '' }: { rank?: Rank; className?: string }) {
-  if (!rank) return <span className={`chip bg-raised text-smoke ${className}`}>Unranked</span>;
+  if (!rank) return <span className={`seal ${className}`} style={{ '--seal': '#3a3a44' } as React.CSSProperties}>Unranked</span>;
   const top = rank.order === 0;
+  // Wax seals: the Boss in gold-brown, leadership in deep red, everyone else in wine.
+  const wax = top ? '#7a5a10' : rank.leadership ? '#8e1b22' : '#4a1a26';
   return (
-    <span
-      className={`chip ${top ? 'bg-gold-400 text-void' : rank.leadership ? 'bg-gold-700/60 text-gold-100' : 'bg-gold-900/70 text-gold-200'} ${className}`}
-    >
-      {rank.leadership && <Crown className="size-3" />}
+    <span className={`seal ${className}`} style={{ '--seal': wax } as React.CSSProperties}>
+      {rank.leadership && <Crown className="-ml-0.5 size-3 text-gold-200" />}
       {rank.name}
     </span>
   );
@@ -19,11 +20,7 @@ export function RankBadge({ rank, className = '' }: { rank?: Rank; className?: s
 /** Crew chip in the crew's own color. Links to the crew page. */
 export function CrewChip({ crew, link = true, full = false }: { crew: Crew; link?: boolean; full?: boolean }) {
   const body = (
-    <span
-      className="chip text-void"
-      style={{ background: crew.color }}
-      title={crew.name}
-    >
+    <span className="seal" style={{ '--seal': crew.color } as React.CSSProperties} title={crew.name}>
       {full ? crew.name : crew.tag}
     </span>
   );

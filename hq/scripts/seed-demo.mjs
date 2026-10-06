@@ -20,7 +20,7 @@ const RANKS = [
   ['soldier', 'Soldier', false, {}],
   ['associate', 'Associate', false, {}],
 ];
-const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true };
+const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true, familyCards: true };
 const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
 const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
 const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
@@ -385,6 +385,29 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     at: Timestamp.fromMillis(now - H),
   });
   await setDoc(doc(db, 'loadouts', ids['Rocco Vale']), { public: false, vest: 'ar_class_iii_armor', plates: 4, primary: { item: 'w_mk18_rifle', parts: {} }, utility: [], at: Timestamp.fromMillis(now - H) });
+
+  // Family cards (sample art; the real ones are images the Boss uploads)
+  const card = (roman, name, rank, suit, color, glyph) =>
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="660" viewBox="0 0 400 660">
+      <defs><radialGradient id="b" cx=".5" cy=".42" r=".7"><stop offset="0" stop-color="#2a2238"/><stop offset="1" stop-color="#07070d"/></radialGradient>
+      <linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2b0"/><stop offset=".5" stop-color="#d4af37"/><stop offset="1" stop-color="#7a5a14"/></linearGradient></defs>
+      <rect width="400" height="660" fill="url(#b)"/>
+      <rect x="18" y="18" width="364" height="624" rx="14" fill="none" stroke="url(#g)" stroke-width="3"/>
+      <rect x="30" y="30" width="340" height="600" rx="10" fill="none" stroke="#d4af37" stroke-opacity=".4" stroke-dasharray="3 5"/>
+      <text x="200" y="78" text-anchor="middle" font-family="Georgia,serif" font-size="30" fill="url(#g)" letter-spacing="6">${roman}</text>
+      <text x="50" y="118" font-family="Georgia,serif" font-size="34" fill="${color}">${rank}</text><text x="52" y="152" font-family="Georgia,serif" font-size="30" fill="${color}">${suit}</text>
+      <g transform="rotate(180 200 330)"><text x="50" y="118" font-family="Georgia,serif" font-size="34" fill="${color}">${rank}</text><text x="52" y="152" font-family="Georgia,serif" font-size="30" fill="${color}">${suit}</text></g>
+      <circle cx="200" cy="330" r="118" fill="none" stroke="#d4af37" stroke-opacity=".5"/><circle cx="200" cy="330" r="96" fill="none" stroke="#d4af37" stroke-opacity=".3" stroke-dasharray="2 4"/>
+      <text x="200" y="368" text-anchor="middle" font-family="Georgia,serif" font-size="120" fill="url(#g)">${glyph}</text>
+      <text x="200" y="560" text-anchor="middle" font-family="Georgia,serif" font-size="30" fill="url(#g)" letter-spacing="4">${name}</text>
+      <text x="200" y="596" text-anchor="middle" font-family="Georgia,serif" font-size="14" fill="#d4af37" fill-opacity=".7" letter-spacing="6">THE CHOSEN</text></svg>`);
+  const fc = (who, roman, name, rank, suit, color, glyph, title) =>
+    setDoc(doc(db, 'familyCards', ids[who]), { image: card(roman, name, rank, suit, color, glyph), title, by: vito, at: Timestamp.fromMillis(now - 3 * D) });
+  await fc('Don Vito', 'IV', 'THE EMPEROR', 'K', '♠', '#e8e2cf', '♛', 'The Emperor · King of Spades');
+  await fc('Rocco Vale', 'VII', 'THE CHARIOT', 'J', '♦', '#d9534f', '⚔', 'The Chariot · Jack of Diamonds');
+  await fc('Kira Lane', 'XVII', 'THE STAR', '7', '♥', '#d9534f', '✦', 'The Star · Seven of Hearts');
+  await fc('Lena Russo', 'X', 'WHEEL OF FORTUNE', 'Q', '♣', '#e8e2cf', '☸', 'Wheel of Fortune · Queen of Clubs');
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
