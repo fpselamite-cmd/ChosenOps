@@ -1,7 +1,7 @@
-import { doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { pageOpen, rankCan } from '../lib/permissions';
+import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
 import type { Announcement, Crew, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
 import { useAuth } from './useAuth';
 import { useCollection, useDoc } from './useCollection';
@@ -34,6 +34,12 @@ interface Hub {
   can: (p: Permission) => boolean;
   /** Whether my rank or one of my crew roles opens this page. */
   canSee: (page: PageId) => boolean;
+  /** Admin access (the admin password, or given by an owner): every power except acting on the top rank. */
+  isAdmin: boolean;
+  /** An owner of the HQ (set from GitHub): hands out admin. */
+  isOwner: boolean;
+  /** Whether I can act on people in, or edit, this rank. */
+  actsOn: (rank?: Rank) => boolean;
   /**
    * What opened a page for me: 'rank', or the id of a crew whose role grants it.
    * Every ops write carries it as `_via` so the security rules can check it.
@@ -67,6 +73,15 @@ export function HubProvider({ children }: { children: ReactNode }) {
       clearInterval(t);
       document.removeEventListener('visibilitychange', beat);
     };
+  }, [me?.id]);
+
+  // Am I an owner? Only owners can read their own entry, so a denied read just means no.
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    if (!me) return;
+    getDoc(doc(db, 'meta', 'owners'))
+      .then((d) => setOwner(((d.data()?.ids as string[]) ?? []).includes(me.id)))
+      .catch(() => setOwner(false));
   }, [me?.id]);
 
   // Keep each member's crewIds in step with the crews, so pins and events shared with a crew
@@ -125,12 +140,15 @@ export function HubProvider({ children }: { children: ReactNode }) {
       settings: settings ?? { name: 'The Chosen', motto: '' },
       announcement: announcement ?? null,
       familyRep: familyRep?.total ?? 0,
-      can: (p) => rankCan(myRank, p),
-      canSee: (page) => pageOpen(page, myRank, myCrews),
+      can: (p) => liveMe.admin === true || rankCan(myRank, p),
+      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank, myCrews),
       viaFor: (page) =>
-        myRank && (myRank.order === 0 || myRank.pages?.[page]) ? 'rank' : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
+        liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page])) ? 'rank' : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
+      isAdmin: liveMe.admin === true,
+      isOwner: owner,
+      actsOn: (rank) => (liveMe.admin === true ? rankOrder(rank) > 0 : outranks(myRank, rank)),
     };
-  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep]);
+  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner]);
 
   if (!value) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

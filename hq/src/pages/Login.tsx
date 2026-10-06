@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { AdminLock } from '../components/AdminLock';
 import { Link, useNavigate } from 'react-router-dom';
 import { ErrorText, Field } from '../components/Field';
 import { AuthError, login, redeemResetCode, register } from '../lib/auth';
@@ -114,6 +115,11 @@ export default function Login({ mode }: { mode: Mode }) {
             </p>
           )}
         </div>
+        {mode === 'login' && (
+          <div className="mt-8 flex justify-center">
+            <AdminLock />
+          </div>
+        )}
       </div>
     </div>
   );

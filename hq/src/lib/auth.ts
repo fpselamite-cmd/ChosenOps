@@ -48,6 +48,9 @@ export async function login(name: string, pin: string) {
 
 export const logout = () => signOut(auth);
 
+/** The member file id for a name (stays the same through PIN resets). */
+export const memberIdFor = async (name: string) => ((await getDoc(doc(db, 'names', nameKey(name)))).data()?.uid as string | undefined) ?? null;
+
 /**
  * Creates the account. The very first person to register founds the gang: they become
  * the Boss and the default ranks and settings are seeded. Everyone after that waits for approval.

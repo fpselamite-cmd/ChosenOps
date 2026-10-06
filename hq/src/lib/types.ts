@@ -72,6 +72,8 @@ export interface Member {
   joinedAt?: Timestamp;
   /** Crews they're in (kept in sync from the crews, used to share pins and events by crew). */
   crewIds?: string[];
+  /** Has admin access (admin password, or given by an owner). Never shown on profiles. */
+  admin?: boolean;
   /** How the HQ looks to them (Profile → Appearance). */
   prefs?: import('./appearance').Prefs;
   /** Character's birthday, "MM-DD". */

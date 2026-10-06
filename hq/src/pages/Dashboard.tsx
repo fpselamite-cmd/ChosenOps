@@ -2,6 +2,7 @@ import { Crown, LayoutDashboard, Megaphone, Pencil, Users } from 'lucide-react';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AdminLock } from '../components/AdminLock';
 import { Avatar } from '../components/Avatar';
 import { RankBadge } from '../components/Badges';
 import { CrewEmblem } from '../components/CrewEmblem';
@@ -190,6 +191,11 @@ export default function Dashboard() {
           </Panel>
         </div>
       </div>
+      <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-smoke/60">
+        <span className="h-px w-16 bg-gradient-to-r from-transparent to-gold-700/40" />
+        <AdminLock signedIn={{ id: me.id, admin: me.admin }} />
+        <span className="h-px w-16 bg-gradient-to-l from-transparent to-gold-700/40" />
+      </footer>
     </>
   );
 }

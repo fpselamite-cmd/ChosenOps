@@ -7,7 +7,6 @@ import { useHub } from '../../hooks/useHub';
 import { issueResetCode } from '../../lib/auth';
 import { fmtTime } from '../../lib/format';
 import { setRank, setReportsTo, setStatus } from '../../lib/members';
-import { outranks } from '../../lib/permissions';
 import type { Member } from '../../lib/types';
 
 function ResetPin({ m, onClose }: { m: Member; onClose: () => void }) {
@@ -44,10 +43,10 @@ function ResetPin({ m, onClose }: { m: Member; onClose: () => void }) {
 }
 
 export default function MembersTab() {
-  const { members, ranks, rankById, myRank, me, can, crewsOf, roster } = useHub();
+  const { members, ranks, rankById, actsOn, me, can, crewsOf, roster } = useHub();
   const [q, setQ] = useState('');
   const [resetting, setResetting] = useState<Member | null>(null);
-  const grantable = ranks.filter((r) => outranks(myRank, r));
+  const grantable = ranks.filter((r) => actsOn(r));
   const list = members
     .filter((m) => m.status !== 'pending' && m.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => (rankById.get(a.rankId ?? '')?.order ?? 99) - (rankById.get(b.rankId ?? '')?.order ?? 99) || a.name.localeCompare(b.name));
@@ -72,7 +71,7 @@ export default function MembersTab() {
           <tbody className="divide-y divide-line-soft">
             {list.map((m) => {
               const rank = rankById.get(m.rankId ?? '');
-              const below = m.id !== me.id && outranks(myRank, rank);
+              const below = m.id !== me.id && actsOn(rank);
               const manage = below && can('manageMembers');
               return (
                 <tr key={m.id} className={m.status === 'suspended' ? 'opacity-50' : ''}>

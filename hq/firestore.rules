@@ -30,11 +30,20 @@ service cloud.firestore {
     // Unranked (pending) members sit below everyone.
     function orderOf(rankId) { return rankId == null ? 1000000 : rankOf(rankId).order; }
 
+    // Owners: set only from GitHub (the 'Set owner' workflow, with the deploy service account),
+    // which also makes them admin. They alone hand out admin. Admins: members who entered the
+    // admin password or were made admin by an owner. They can do everything except act on the
+    // top rank.
+    function isOwner() {
+      return exists(/databases/$(database)/documents/meta/owners)
+        && myId() in get(/databases/$(database)/documents/meta/owners).data.get('ids', []);
+    }
+    function isAdmin() { return me().get('admin', false) == true; }
     function can(p) {
       let r = rankOf(me().rankId);
-      return active() && (r.order == 0 || r.permissions.get(p, false) == true);
+      return active() && (isAdmin() || r.order == 0 || r.permissions.get(p, false) == true);
     }
-    function below(rankId) { return orderOf(rankId) > myOrder(); }
+    function below(rankId) { return orderOf(rankId) > (isAdmin() ? 0 : myOrder()); }
 
     function onlyChanges(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
@@ -97,6 +106,16 @@ service cloud.firestore {
           && (!('birthday' in d) || d.birthday == null || (d.birthday is string && d.birthday.matches('[01][0-9]-[0-3][0-9]')));
       }
 
+      // Admin access, on its own (only the 'admin' field changes).
+      // Becoming an admin with the admin password, written to your own claim in the same go:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin == true && active() && myId() == id
+        && hashing.sha256('chosenops-admin:' + getAfter(/databases/$(database)/documents/adminClaims/$(id)).data.code).toHexString().lower()
+           == get(/databases/$(database)/documents/settings/adminKey).data.hash;
+      // Stepping down yourself:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin == false && active() && myId() == id;
+      // An owner granting or taking it away:
+      allow update: if onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
+
       allow update: if
         // Your own profile.
         (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio', 'birthday', 'prefs']) && validProfile())
@@ -156,6 +175,26 @@ service cloud.firestore {
         && myId() in request.resource.data.memberIds;
     }
 
+    // Who owns the HQ. Written only from GitHub; an owner can see their own entry, nobody else.
+    match /meta/owners {
+      allow get: if signedIn() && myId() in resource.data.get('ids', []);
+      allow write: if false;
+    }
+    // The admin password, stored as a hash. Nobody reads it; only owners set it.
+    match /settings/adminKey {
+      allow read: if false;
+      allow write: if active() && isOwner()
+        && request.resource.data.keys().hasOnly(['hash', 'by', 'at'])
+        && request.resource.data.hash is string && request.resource.data.hash.size() == 64
+        && request.resource.data.by == myId();
+    }
+    // What a member typed as the admin password (checked by the members rule above).
+    match /adminClaims/{uid} {
+      allow read: if false;
+      allow write: if active() && myId() == uid && request.resource.data.keys().hasOnly(['code', 'at'])
+        && request.resource.data.code is string && request.resource.data.code.size() <= 100;
+    }
+
     match /settings/gang {
       allow read: if active();
       allow create: if founding();
@@ -173,7 +212,7 @@ service cloud.firestore {
     // signed with _by (you) and _via ('rank' or that crew's id), and the rules check the claim.
     function rankPage(page) {
       let r = rankOf(me().rankId);
-      return r.order == 0 || r.get('pages', {}).get(page, false) == true;
+      return isAdmin() || r.order == 0 || r.get('pages', {}).get(page, false) == true;
     }
     function crewPage(page, crewId) {
       let c = get(/databases/$(database)/documents/crews/$(crewId)).data;

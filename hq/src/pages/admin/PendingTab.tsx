@@ -5,12 +5,11 @@ import { Empty } from '../../components/Field';
 import { useHub } from '../../hooks/useHub';
 import { ago } from '../../lib/format';
 import { approveMember, setStatus } from '../../lib/members';
-import { outranks } from '../../lib/permissions';
 
 export default function PendingTab() {
-  const { members, ranks, myRank } = useHub();
+  const { members, ranks, actsOn } = useHub();
   const pending = members.filter((m) => m.status === 'pending');
-  const grantable = ranks.filter((r) => outranks(myRank, r));
+  const grantable = ranks.filter((r) => actsOn(r));
   const [pick, setPick] = useState<Record<string, string>>({});
   const lowest = grantable[grantable.length - 1]?.id ?? '';
 

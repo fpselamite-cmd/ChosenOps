@@ -2,6 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Tabs } from '../../components/Page';
 import { useHub } from '../../hooks/useHub';
+import AccessTab from './AccessTab';
 import DiscordTab from './DiscordTab';
 import ItemsTab from './ItemsTab';
 import MembersTab from './MembersTab';
@@ -9,10 +10,10 @@ import PendingTab from './PendingTab';
 import RanksTab from './RanksTab';
 import SettingsTab from './SettingsTab';
 
-type Tab = 'pending' | 'members' | 'ranks' | 'items' | 'discord' | 'settings';
+type Tab = 'pending' | 'members' | 'ranks' | 'items' | 'discord' | 'access' | 'settings';
 
 export default function Admin() {
-  const { can, members } = useHub();
+  const { can, members, isOwner } = useHub();
   const [params, setParams] = useSearchParams();
   const pending = members.filter((m) => m.status === 'pending').length;
 
@@ -22,6 +23,7 @@ export default function Admin() {
     { id: 'ranks', label: 'Ranks & permissions', show: can('manageRanks') },
     { id: 'items', label: 'Item catalog', show: can('manageOps') },
     { id: 'discord', label: 'Discord', show: can('manageSettings') },
+    { id: 'access', label: 'Admin access', show: isOwner },
     { id: 'settings', label: 'Gang settings', show: can('manageSettings') },
   ];
   const visible = tabs.filter((t) => t.show);
@@ -39,6 +41,7 @@ export default function Admin() {
       {tab === 'ranks' && <RanksTab />}
       {tab === 'items' && <ItemsTab />}
       {tab === 'discord' && <DiscordTab />}
+      {tab === 'access' && <AccessTab />}
       {tab === 'settings' && <SettingsTab />}
     </>
   );

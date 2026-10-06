@@ -586,3 +586,44 @@ describe('family cards', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'members/sol'), { prefs: { accent: 'rose' } }));
   });
 });
+
+describe('owners and admins', () => {
+  const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'meta/owners'), { ids: ['sol2'] });
+      await updateDoc(doc(db, 'members/sol2'), { admin: true });
+      await setDoc(doc(db, 'settings/adminKey'), { hash: sha('chosenops-admin:open sesame'), by: 'sol2' });
+    });
+  });
+  it('lets only an owner set the admin password; nobody reads it', async () => {
+    const key = (by: string) => ({ hash: sha('chosenops-admin:new'), by });
+    await assertSucceeds(setDoc(doc(as('sol2'), 'settings/adminKey'), key('sol2')));
+    await assertFails(setDoc(doc(as('boss'), 'settings/adminKey'), key('boss')));
+    await assertFails(getDoc(doc(as('sol2'), 'settings/adminKey')));
+    await assertFails(setDoc(doc(as('boss'), 'meta/owners'), { ids: ['boss'] }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'meta/owners')));
+    await assertFails(getDoc(doc(as('boss'), 'meta/owners')));
+  });
+  it('makes a member admin with the right password only', async () => {
+    const claim = async (uid: string, code: string) => {
+      const db = as(uid);
+      const b = writeBatch(db);
+      b.set(doc(db, 'adminClaims', uid), { code, at: serverTimestamp() });
+      b.update(doc(db, 'members', uid), { admin: true });
+      return b.commit();
+    };
+    await assertFails(claim('sol', 'wrong'));
+    await assertSucceeds(claim('sol', 'open sesame'));
+    // Now an admin: can do officer things, but not touch the Boss.
+    await assertSucceeds(setDoc(doc(as('sol'), 'crews/new'), { name: 'New', tag: 'NEW', color: '#fff', leaderId: null, memberIds: [] }));
+    await assertFails(updateDoc(doc(as('sol'), 'members/boss'), { status: 'suspended' }));
+  });
+  it('only owners grant or take away admin; the Boss cannot', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'members/sol'), { admin: true }));
+    await assertFails(updateDoc(doc(as('boss'), 'members/sol'), { admin: false }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'members/sol'), { admin: false }));
+    await assertFails(updateDoc(doc(as('boss'), 'members/capo'), { admin: true }));
+  });
+});

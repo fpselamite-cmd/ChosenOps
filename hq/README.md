@@ -50,6 +50,10 @@ npm run test:rules   # security rule tests
   write, then run it again unticked. It copies grows, stash houses, stock, sales, history, yields, the activity feed and
   work counters. Run it again with `sales,stats` once members have signed up, to link sales to them by name.
   Locally: `node scripts/import-noelops.mjs --from <file or url> [--live] [--only=…] [--dry-run]`.
+- **Owner and admin access**: register in the app, then Actions tab → **Set owner** → your member name. Owners get
+  Admin → **Admin access**, where they set the admin password and give or take away admin. Anyone given the password
+  opens the small gold lock (bottom of the Dashboard, or under the sign-in form) and enters it. Admins can do
+  everything except act on the top rank. The Boss can't hand out admin; only owners can.
 - **Discord**: Admin → Discord. Paste a webhook for Blacksites and/or Rep donations, tick the events, Send a test.
   Everything is off until then. Webhook URLs live in the database, never in the repo.
 - **Map**: `public/map/city.jpg` (the postal map from NoelOps). Replace the file to change it.

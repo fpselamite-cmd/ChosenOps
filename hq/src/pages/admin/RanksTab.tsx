@@ -3,14 +3,13 @@ import { deleteDoc, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestor
 import { useState } from 'react';
 import { useHub } from '../../hooks/useHub';
 import { db } from '../../lib/firebase';
-import { outranks } from '../../lib/permissions';
 import { PAGES, PERMISSIONS, type PageId, type Permission, type Rank } from '../../lib/types';
 
 export default function RanksTab() {
-  const { ranks, myRank, roster } = useHub();
+  const { ranks, actsOn, roster } = useHub();
   const [newName, setNewName] = useState('');
 
-  const editable = (r: Rank) => outranks(myRank, r);
+  const editable = (r: Rank) => actsOn(r);
 
   async function swap(a: Rank, b: Rank) {
     const batch = writeBatch(db);
