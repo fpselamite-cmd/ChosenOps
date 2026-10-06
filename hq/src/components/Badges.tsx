@@ -28,7 +28,7 @@ export function CrewChip({ crew, link = true, full = false }: { crew: Crew; link
     </span>
   );
   return link ? (
-    <Link to={`/crews/${crew.id}`} className="hover:brightness-110">
+    <Link to={`/crews?crew=${crew.id}`} className="hover:brightness-110">
       {body}
     </Link>
   ) : (

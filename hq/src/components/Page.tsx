@@ -18,7 +18,7 @@ export function PageHeader({
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <p className="label flex items-center gap-2 text-gold-500">
+        <p className="label t-accent flex items-center gap-2 text-gold-500">
           <Icon className="size-3.5" /> {kicker}
         </p>
         <h1 className="foil mt-1 font-display text-3xl font-bold tracking-wide sm:text-4xl">{title}</h1>
@@ -47,8 +47,8 @@ export function Panel({
     <section className={`hud ${className}`}>
       {title && (
         <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
-          <h2 className="font-hud text-sm font-bold tracking-[0.16em] text-gold-300 uppercase">
-            <span className="text-gold-600">[</span> {title} <span className="text-gold-600">]</span>
+          <h2 className="t-soft font-hud text-sm font-bold tracking-[0.16em] text-gold-300 uppercase">
+            <span className="t-accent text-gold-600">[</span> {title} <span className="t-accent text-gold-600">]</span>
           </h2>
           {right}
         </div>
@@ -63,7 +63,7 @@ export function Stat({ label, value, sub }: { label: string; value: ReactNode; s
   return (
     <div className="hud px-4 py-3">
       <p className="label">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-semibold text-gold-100">{value}</p>
+      <p className="t-soft mt-1 font-mono text-2xl font-semibold text-gold-100">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-smoke">{sub}</p>}
     </div>
   );
@@ -86,7 +86,7 @@ export function Tabs<T extends string>({
           key={t.id}
           onClick={() => onChange(t.id)}
           className={`-mb-px border-b-2 px-3 py-2 font-hud text-sm font-bold tracking-[0.12em] uppercase transition ${
-            value === t.id ? 'border-gold-400 text-gold-200' : 'border-transparent text-smoke hover:text-gold-200'
+            value === t.id ? 't-tab-on border-gold-400 text-gold-200' : 'border-transparent text-smoke hover:text-gold-200'
           }`}
         >
           {t.label}

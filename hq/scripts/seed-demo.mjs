@@ -12,14 +12,17 @@ const RANKS = [
   ['boss', 'Boss', true, null],
   ['consigliere', 'Consigliere', true, 'all'],
   ['underboss', 'Underboss', true, 'all'],
-  ['treasurer', 'Treasurer', true, { approveMembers: true, postAnnouncements: true }],
-  ['caporegime', 'Caporegime', false, { approveMembers: true, resetPins: true, postAnnouncements: true }],
-  ['lieutenant', 'Lieutenant', false, { approveMembers: true }],
+  ['treasurer', 'Treasurer', true, { approveMembers: true, postAnnouncements: true, confirmRep: true }],
+  ['caporegime', 'Caporegime', false, { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true }],
+  ['lieutenant', 'Lieutenant', false, { approveMembers: true, confirmRep: true }],
   ['enforcer', 'Enforcer', false, {}],
   ['soldier', 'Soldier', false, {}],
   ['associate', 'Associate', false, {}],
 ];
-const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true };
+const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true };
+const PAGE_IDS = ['stash', 'timers', 'meth', 'coke', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
+const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
+const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
 
 // [name, rank, reportsTo, online status or null, alias]
 const PEOPLE = [
@@ -63,7 +66,13 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
   await setDoc(doc(db, 'meta/hqFounding'), { uid: ids['Don Vito'], at: Timestamp.now() });
   for (const [i, [id, name, leadership, perms]] of RANKS.entries())
-    await setDoc(doc(db, 'ranks', id), { name, order: i, leadership, permissions: perms === 'all' || perms === null ? ALL : perms });
+    await setDoc(doc(db, 'ranks', id), {
+      name,
+      order: i,
+      leadership,
+      permissions: perms === 'all' || perms === null ? ALL : perms,
+      pages: i <= 5 ? pages(PAGE_IDS) : BASIC,
+    });
   for (const [i, [name, rankId, boss, status, alias]] of PEOPLE.entries()) {
     const id = ids[name];
     await setDoc(doc(db, 'members', id), {
@@ -87,12 +96,39 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
   await setDoc(doc(db, 'names', 'fresh_face'), { uid: ids['Fresh Face'], v: 0 });
 
-  const crew = (id, name, tag, color, leader, members, motto) =>
-    setDoc(doc(db, 'crews', id), { name, tag, color, motto, emblem: null, leaderId: ids[leader], memberIds: members.map((m) => ids[m]), createdAt: Timestamp.now() });
-  await crew('grow', 'Green Room', 'GRN', '#27ae60', 'Marco Gallo', ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], 'Patience pays.');
-  await crew('hit', 'Hit Squad', 'HIT', '#c0392b', 'Rocco Vale', ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], 'Hold the hill.');
-  await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.');
-  await crew('money', 'Counting Room', 'CNT', '#d4af37', 'Lena Russo', ['Lena Russo', 'Mia Santos', 'Don Vito'], '');
+  const crew = (id, name, tag, color, leader, members, motto, unlocks) =>
+    setDoc(doc(db, 'crews', id), {
+      name, tag, color, motto, emblem: null, leaderId: ids[leader], memberIds: members.map((m) => ids[m]), pages: pages(unlocks), createdAt: Timestamp.now(),
+    });
+  await crew('grow', 'Green Room', 'GRN', '#27ae60', 'Marco Gallo', ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], 'Patience pays.', ['stash', 'timers', 'map']);
+  await crew('hit', 'Hit Squad', 'HIT', '#c0392b', 'Rocco Vale', ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], 'Hold the hill.', ['map', 'calendar']);
+  await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.', ['meth', 'timers']);
+  await crew('money', 'Counting Room', 'CNT', '#d4af37', 'Lena Russo', ['Lena Russo', 'Mia Santos', 'Don Vito'], '', ['blackmarket']);
+
+  // Petty crime
+  const REP = { 'Don Vito': 120, 'Rocco Vale': 340, 'Dani Cruz': 210, 'Tommy Reyes': 185, 'Kira Lane': 95, Ghost: 60, 'Jax Holt': 30 };
+  for (const [name, rep] of Object.entries(REP)) await setDoc(doc(db, 'petty', ids[name]), { rep });
+  const crimes = [
+    ['Don Vito', 'Store robbery', 25, 4200, 'Little Seoul 24/7', 5],
+    ['Don Vito', 'Car theft', 15, 2800, 'Sultan RS to the chop shop', 26],
+    ['Don Vito', 'ATM', 10, 1500, '', 50],
+  ];
+  for (const [i, [who, crime, rep, cash, notes, hoursAgo]] of crimes.entries())
+    await setDoc(doc(db, 'pettyLog', `c${i}`), { memberId: ids[who], crime, rep, cash, notes, at: Timestamp.fromMillis(now - hoursAgo * 3600_000) });
+  const transfers = [
+    ['Rocco Vale', 200, 'confirmed', 'Nico Bruno', 30],
+    ['Dani Cruz', 150, 'confirmed', 'Rocco Vale', 20],
+    ['Tommy Reyes', 75, 'confirmed', 'Rocco Vale', 12],
+    ['Don Vito', 50, 'confirmed', 'Nico Bruno', 8],
+    ['Kira Lane', 40, 'pending', null, 1],
+    ['Ghost', 25, 'pending', null, 0.3],
+  ];
+  for (const [i, [who, amount, status, by, hoursAgo]] of transfers.entries())
+    await setDoc(doc(db, 'repTransfers', `t${i}`), {
+      memberId: ids[who], amount, status, at: Timestamp.fromMillis(now - hoursAgo * 3600_000),
+      ...(by ? { decidedBy: ids[by], decidedAt: Timestamp.fromMillis(now - (hoursAgo - 0.5) * 3600_000) } : {}),
+    });
+  await setDoc(doc(db, 'stats/familyRep'), { total: 2475 });
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {

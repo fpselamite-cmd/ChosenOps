@@ -155,6 +155,74 @@ service cloud.firestore {
         && request.resource.data.by == myId() && request.resource.data.at == request.time;
     }
 
+    // ── Petty crime ──────────────────────────────────────────────
+    function transfer(tid) { return get(/databases/$(database)/documents/repTransfers/$(tid)).data; }
+    function transferAfter(tid) { return getAfter(/databases/$(database)/documents/repTransfers/$(tid)).data; }
+
+    // Each member's own petty rep. Self-reported, so members set their own (never below zero).
+    // A confirmer may only add back the exact amount of a transfer they're rejecting.
+    match /petty/{id} {
+      allow read: if active();
+      allow create, update: if active() && myId() == id
+        && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
+        && request.resource.data.rep is int && request.resource.data.rep >= 0
+        && (resource == null || request.resource.data.get('refundOf', null) == resource.data.get('refundOf', null));
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
+        && transfer(request.resource.data.refundOf).memberId == id
+        && transfer(request.resource.data.refundOf).status == 'pending'
+        && transferAfter(request.resource.data.refundOf).status == 'rejected'
+        && request.resource.data.rep
+           == (resource == null ? 0 : resource.data.rep) + transfer(request.resource.data.refundOf).amount;
+    }
+
+    match /pettyLog/{logId} {
+      allow read: if active();
+      allow create: if active()
+        && request.resource.data.keys().hasOnly(['memberId', 'crime', 'rep', 'cash', 'notes', 'at'])
+        && request.resource.data.memberId == myId() && request.resource.data.at == request.time
+        && str(request.resource.data.crime, 40) && str(request.resource.data.notes, 140)
+        && request.resource.data.rep is int && request.resource.data.rep >= 0 && request.resource.data.rep <= 1000000
+        && request.resource.data.cash is int && request.resource.data.cash >= 0;
+      allow delete: if active() && (resource.data.memberId == myId() || can('confirmRep'));
+    }
+
+    // Rep a member sends to the family, confirmed (or turned down) by Lieutenant+.
+    match /repTransfers/{tid} {
+      allow read: if active();
+      allow create: if active()
+        && request.resource.data.keys().hasOnly(['memberId', 'amount', 'status', 'at'])
+        && request.resource.data.memberId == myId() && request.resource.data.status == 'pending'
+        && request.resource.data.amount is int && request.resource.data.amount > 0
+        && request.resource.data.at == request.time;
+      // Nobody confirms their own, except the top rank. Confirming must add it to the family
+      // total in the same write; rejecting must give it back to the member.
+      allow update: if can('confirmRep') && resource.data.status == 'pending'
+        && (resource.data.memberId != myId() || myOrder() == 0)
+        && onlyChanges(['status', 'decidedBy', 'decidedAt'])
+        && request.resource.data.decidedBy == myId() && request.resource.data.decidedAt == request.time
+        && (
+          (request.resource.data.status == 'confirmed'
+            && getAfter(/databases/$(database)/documents/stats/familyRep).data.lastTransfer == tid)
+          || (request.resource.data.status == 'rejected'
+            && getAfter(/databases/$(database)/documents/petty/$(resource.data.memberId)).data.get('refundOf', null) == tid)
+        );
+    }
+
+    // The family's gang rep. Grows by exactly the amount of each confirmed transfer.
+    match /stats/familyRep {
+      allow read: if active();
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer'])
+        && transfer(request.resource.data.lastTransfer).status == 'pending'
+        && transferAfter(request.resource.data.lastTransfer).status == 'confirmed'
+        && request.resource.data.total
+           == (resource == null ? 0 : resource.data.total) + transfer(request.resource.data.lastTransfer).amount;
+      // Leadership can correct the total by hand.
+      allow create, update: if can('manageSettings') && request.resource.data.total is int
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer']);
+    }
+
     // One-time PIN reset codes. Only the SHA-256 of the code is stored.
     match /pinResets/{memberId} {
       allow create, update: if can('resetPins') && memberId != myId() && below(memberOf(memberId).rankId)

@@ -2,7 +2,7 @@ import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, serverTime
 import { db } from './firebase';
 import type { Crew } from './types';
 
-export type CrewDraft = Pick<Crew, 'name' | 'tag' | 'color' | 'motto' | 'leaderId'>;
+export type CrewDraft = Pick<Crew, 'name' | 'tag' | 'color' | 'motto' | 'leaderId' | 'pages'>;
 
 export async function createCrew(d: CrewDraft) {
   const ref = await addDoc(collection(db, 'crews'), {

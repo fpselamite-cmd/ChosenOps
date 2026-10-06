@@ -12,9 +12,33 @@ export const PERMISSIONS = {
   manageRanks: 'Edit ranks & permissions',
   manageSettings: 'Edit gang settings',
   postAnnouncements: 'Post the Word from the Top',
+  confirmRep: 'Confirm petty rep sent to the family',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;
+
+/** Pages that can be shown or hidden per rank and per crew role. The Dashboard is always open. */
+export const PAGES = {
+  stash: 'Stash',
+  timers: 'Timers',
+  meth: 'Meth',
+  coke: 'Coke',
+  blackmarket: 'BlackMarket',
+  blacksites: 'Blacksites',
+  gear: 'Gear & Loadouts',
+  pettycrime: 'Petty Crime',
+  crews: 'Crews',
+  family: 'Family',
+  map: 'Map',
+  calendar: 'Calendar',
+} as const;
+export type PageId = keyof typeof PAGES;
+export type PageMap = Partial<Record<PageId, boolean>>;
+
+/** What everyone below Lieutenant sees unless a crew role unlocks more. */
+export const BASIC_PAGES: PageId[] = ['blacksites', 'gear', 'pettycrime', 'crews', 'family'];
+const pages = (ids: PageId[]): PageMap => Object.fromEntries(ids.map((p) => [p, true]));
+const ALL_PAGES = pages(Object.keys(PAGES) as PageId[]);
 
 export interface Rank {
   id: string;
@@ -24,6 +48,8 @@ export interface Rank {
   /** "Leadership" ranks sit in the top tier of the Family tree. */
   leadership?: boolean;
   permissions: PermissionMap;
+  /** Pages this rank can open. The top rank sees everything. */
+  pages?: PageMap;
 }
 
 export type MemberStatus = 'pending' | 'active' | 'suspended';
@@ -58,8 +84,45 @@ export interface Crew {
   leaderId: string | null;
   /** Everyone in the crew, leader included. People can be in several crews. */
   memberIds: string[];
+  /** Crews work as roles: pages being in this crew unlocks, on top of rank. */
+  pages?: PageMap;
   createdAt?: Timestamp;
 }
+
+/** A member's own petty crime rep, as it stands in the city. */
+export interface PettyRep {
+  id: string;
+  rep: number;
+}
+
+export interface PettyCrime {
+  id: string;
+  memberId: string;
+  crime: string;
+  rep: number;
+  cash: number;
+  notes?: string;
+  at?: Timestamp;
+}
+
+export type TransferStatus = 'pending' | 'confirmed' | 'rejected';
+
+/** Petty rep a member sends to the family. Lieutenant+ confirms it happened in the city. */
+export interface RepTransfer {
+  id: string;
+  memberId: string;
+  amount: number;
+  status: TransferStatus;
+  at?: Timestamp;
+  decidedBy?: string;
+  decidedAt?: Timestamp;
+}
+
+export interface FamilyRep {
+  total: number;
+}
+
+export const PETTY_CRIMES = ['Store robbery', 'ATM', 'Car theft', 'Chop shop', 'Mugging', 'House robbery', 'Corner selling', 'Other'];
 
 export interface Presence {
   id: string;
@@ -86,22 +149,24 @@ const all = (): PermissionMap => Object.fromEntries(Object.keys(PERMISSIONS).map
 
 /** Seeded when the gang is founded. Editable in Admin → Ranks. */
 export const DEFAULT_RANKS: Omit<Rank, 'order'>[] = [
-  { id: 'boss', name: 'Boss', leadership: true, permissions: all() },
-  { id: 'consigliere', name: 'Consigliere', leadership: true, permissions: all() },
-  { id: 'underboss', name: 'Underboss', leadership: true, permissions: all() },
+  { id: 'boss', name: 'Boss', leadership: true, permissions: all(), pages: ALL_PAGES },
+  { id: 'consigliere', name: 'Consigliere', leadership: true, permissions: all(), pages: ALL_PAGES },
+  { id: 'underboss', name: 'Underboss', leadership: true, permissions: all(), pages: ALL_PAGES },
   {
     id: 'treasurer',
     name: 'Treasurer',
     leadership: true,
-    permissions: { approveMembers: true, postAnnouncements: true },
+    permissions: { approveMembers: true, postAnnouncements: true, confirmRep: true },
+    pages: ALL_PAGES,
   },
   {
     id: 'caporegime',
     name: 'Caporegime',
-    permissions: { approveMembers: true, resetPins: true, postAnnouncements: true },
+    permissions: { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true },
+    pages: ALL_PAGES,
   },
-  { id: 'lieutenant', name: 'Lieutenant', permissions: { approveMembers: true } },
-  { id: 'enforcer', name: 'Enforcer', permissions: {} },
-  { id: 'soldier', name: 'Soldier', permissions: {} },
-  { id: 'associate', name: 'Associate', permissions: {} },
+  { id: 'lieutenant', name: 'Lieutenant', permissions: { approveMembers: true, confirmRep: true }, pages: ALL_PAGES },
+  { id: 'enforcer', name: 'Enforcer', permissions: {}, pages: pages(BASIC_PAGES) },
+  { id: 'soldier', name: 'Soldier', permissions: {}, pages: pages(BASIC_PAGES) },
+  { id: 'associate', name: 'Associate', permissions: {}, pages: pages(BASIC_PAGES) },
 ];

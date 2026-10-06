@@ -21,13 +21,21 @@ npm run test:rules   # security rule tests
 - **Ranks** (Boss → Consigliere → Underboss → Treasurer → Caporegime → Lieutenant → Enforcer → Soldier → Associate)
   grant gang-wide permissions, editable in **Admin → Ranks & permissions**. The top rank always has everything.
   Officers only act on people and ranks below them. All of it is enforced in `firestore.rules`.
-- **Crews**: leadership creates crews and picks leaders; crew leaders add and remove their own members,
-  and set the crew's motto, color and emblem. People can be in several crews.
+- **Page access**: each rank has a list of pages it can open. By default everyone below Lieutenant sees only
+  Dashboard, Blacksites, Gear & Loadouts, Petty Crime, Crews and Family.
+- **Crews are roles**: leadership creates crews, picks leaders and ticks which extra pages each crew unlocks
+  (e.g. a Soldier in the grow crew gets Stash and Timers). Crew leaders add and remove their own members and set
+  the crew's motto, color and emblem. People can be in several crews.
+- **Petty Crime**: everyone tracks their own petty rep (quick +/− and a crime log) and can send rep to the family.
+  A Lieutenant or above confirms it before it counts toward the family's gang rep; turned-down rep goes back.
+- **Map** and **Calendar** are buttons in the header.
+- The NoelOps pages keep their original colors: green grow-light (Stash, Timers), cyan (Meth), ice blue (Coke),
+  red on black (BlackMarket).
 - **Family**: the chain of command, by rank or as an org chart (who answers to whom).
 
 ## Build progress
 
-1. ✅ Foundation: sign-in, ranks, crews, Family, profiles, Admin
+1. ✅ Foundation: sign-in, ranks, page access, crews as roles, Family, Petty Crime, profiles, Admin
 2. Stash, Timers, Meth, Coke
 3. BlackMarket
 4. Titles, MVPs, leaderboards, Map, Calendar

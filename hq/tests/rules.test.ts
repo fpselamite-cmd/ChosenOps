@@ -198,3 +198,84 @@ describe('PIN reset', () => {
     await assertFails(setDoc(doc(as('capo'), 'pinResets/sol'), { ...reset, by: 'capo' }));
   });
 });
+
+describe('petty crime', () => {
+  const seedTransfer = (amount = 50, memberId = 'sol') =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'petty', memberId), { rep: 10 });
+      await setDoc(doc(db, 'repTransfers/t1'), { memberId, amount, status: 'pending' });
+      await setDoc(doc(db, 'stats/familyRep'), { total: 100 });
+    });
+
+  it('lets members set their own rep but not below zero or for others', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'petty/sol'), { rep: 40 }));
+    await assertFails(setDoc(doc(as('sol'), 'petty/sol'), { rep: -1 }));
+    await assertFails(setDoc(doc(as('sol'), 'petty/sol2'), { rep: 40 }));
+  });
+
+  it('lets members log their own crimes only', async () => {
+    const c = { crime: 'ATM', rep: 5, cash: 1200, notes: '', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'pettyLog/a'), { ...c, memberId: 'sol' }));
+    await assertFails(setDoc(doc(as('sol'), 'pettyLog/b'), { ...c, memberId: 'sol2' }));
+  });
+
+  it('lets members request a transfer for themselves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'repTransfers/x'), { memberId: 'sol', amount: 5, status: 'pending', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'repTransfers/y'), { memberId: 'sol', amount: 5, status: 'confirmed', at: serverTimestamp() }));
+  });
+
+  it('confirms a transfer by adding exactly its amount to the family', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+    );
+    await seedTransfer();
+    const db = as('capo');
+    const ok = writeBatch(db);
+    ok.update(doc(db, 'repTransfers/t1'), { status: 'confirmed', decidedBy: 'capo', decidedAt: serverTimestamp() });
+    ok.set(doc(db, 'stats/familyRep'), { total: 150, lastTransfer: 't1' });
+    await assertSucceeds(ok.commit());
+  });
+
+  it('rejects padding the family total', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+    );
+    await seedTransfer();
+    const db = as('capo');
+    const bad = writeBatch(db);
+    bad.update(doc(db, 'repTransfers/t1'), { status: 'confirmed', decidedBy: 'capo', decidedAt: serverTimestamp() });
+    bad.set(doc(db, 'stats/familyRep'), { total: 9999, lastTransfer: 't1' });
+    await assertFails(bad.commit());
+  });
+
+  it('gives the rep back when a transfer is rejected', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+    );
+    await seedTransfer();
+    const db = as('capo');
+    const b = writeBatch(db);
+    b.update(doc(db, 'repTransfers/t1'), { status: 'rejected', decidedBy: 'capo', decidedAt: serverTimestamp() });
+    b.set(doc(db, 'petty/sol'), { rep: 60, refundOf: 't1' });
+    await assertSucceeds(b.commit());
+  });
+
+  it("doesn't let anyone without the power confirm, or confirm their own", async () => {
+    await seedTransfer(50, 'capo');
+    await env.withSecurityRulesDisabled((ctx) =>
+      updateDoc(doc(ctx.firestore(), 'ranks/capo'), { 'permissions.confirmRep': true }),
+    );
+    const own = as('capo');
+    const b = writeBatch(own);
+    b.update(doc(own, 'repTransfers/t1'), { status: 'confirmed', decidedBy: 'capo', decidedAt: serverTimestamp() });
+    b.set(doc(own, 'stats/familyRep'), { total: 150, lastTransfer: 't1' });
+    await assertFails(b.commit());
+
+    const sol = as('sol');
+    const c = writeBatch(sol);
+    c.update(doc(sol, 'repTransfers/t1'), { status: 'confirmed', decidedBy: 'sol', decidedAt: serverTimestamp() });
+    c.set(doc(sol, 'stats/familyRep'), { total: 150, lastTransfer: 't1' });
+    await assertFails(c.commit());
+  });
+});

@@ -4,7 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
 import { logout } from '../lib/auth';
 import { TZ } from '../lib/format';
-import { ADMIN_NAV, NAV, type NavItem } from '../lib/nav';
+import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Avatar } from './Avatar';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
@@ -18,12 +18,12 @@ function useClock() {
   return now.toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
 }
 
-function Brand() {
+function Brand({ compact }: { compact?: boolean }) {
   const { settings } = useHub();
   return (
     <Link to="/" className="flex items-center gap-3">
-      <img src="/brand/logo-192.png" alt="" className="size-11 drop-shadow-[0_0_12px_rgba(212,175,55,0.35)]" />
-      <span className="leading-none">
+      <img src="/brand/logo-192.png" alt="" className={`drop-shadow-[0_0_12px_rgba(212,175,55,0.35)] ${compact ? 'size-9' : 'size-11'}`} />
+      <span className={`leading-none ${compact ? 'hidden sm:block' : ''}`}>
         <span className="foil foil-animate block font-display text-lg font-black tracking-[0.08em]">CHOSENOPS</span>
         <span className="label mt-1 block text-[10px] text-gold-600">{settings.name} · HQ</span>
       </span>
@@ -57,12 +57,19 @@ function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void })
   );
 }
 
+/** Menu groups with only the pages this person can open. */
+function useNav() {
+  const { canSee } = useHub();
+  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.page || canSee(i.page)) })).filter((g) => g.items.length);
+}
+
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const { can } = useHub();
+  const nav = useNav();
   const admin = can('approveMembers') || can('manageMembers') || can('manageCrews') || can('manageRanks') || can('manageSettings');
   return (
     <nav className="flex flex-col gap-5">
-      {NAV.map((g) => (
+      {nav.map((g) => (
         <div key={g.group}>
           <p className="label mb-1 px-3 text-[10px] text-gold-700">{g.group}</p>
           <div className="flex flex-col">
@@ -100,13 +107,39 @@ function MeCard() {
   );
 }
 
+/** Map and Calendar live in the header as small labelled buttons. */
+function HeaderButtons() {
+  const { canSee } = useHub();
+  return (
+    <div className="flex items-center gap-1">
+      {HEADER_NAV.filter((i) => !i.page || canSee(i.page)).map((i) => (
+        <NavLink
+          key={i.to}
+          to={i.to}
+          title={i.label}
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-0.5 px-2 py-0.5 font-hud text-[10px] font-semibold tracking-wider uppercase transition ${
+              isActive ? 'text-gold-200' : 'text-smoke hover:text-gold-200'
+            }`
+          }
+        >
+          <i.icon className="size-4" />
+          {i.label}
+        </NavLink>
+      ))}
+    </div>
+  );
+}
+
 export function AppShell() {
   const clock = useClock();
   const [drawer, setDrawer] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => window.scrollTo(0, 0), [pathname]);
 
-  const mobileItems = NAV.flatMap((g) => g.items).filter((i) => i.mobile);
+  // Phone bottom bar: Dashboard plus the first three other pages this person can open.
+  const all = useNav().flatMap((g) => g.items);
+  const mobileItems = [all[0]!, ...all.slice(1, 4)];
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -126,17 +159,22 @@ export function AppShell() {
       {/* Top bar */}
       <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-void/85 px-4 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:px-8">
         <div className="lg:hidden">
-          <Brand />
+          <Brand compact />
         </div>
         <p className="label hidden lg:block">
           <span className="text-gold-500">●</span> City time <span className="font-mono text-gold-200">{clock} ET</span>
         </p>
-        <WhoIsOnline />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <HeaderButtons />
+          <WhoIsOnline />
+        </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
-        <Outlet />
-      </main>
+      <div className="page-theme min-h-[calc(100dvh-57px)]" data-theme={themeFor(pathname)}>
+        <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Phone bottom bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-coal/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">

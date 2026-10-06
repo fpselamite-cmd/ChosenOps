@@ -1,17 +1,18 @@
-import { Crown, Plus, Search, Users } from 'lucide-react';
+import { Crown, KeyRound, Plus, Search, Users } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Avatar, AvatarStack } from '../components/Avatar';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { CrewEmblem } from '../components/CrewEmblem';
 import { CrewForm } from '../components/CrewForm';
+import { CrewPanel } from '../components/CrewPanel';
 import { Empty } from '../components/Field';
 import { PageHeader, Tabs } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
-import type { Crew } from '../lib/types';
+import { PAGES, type Crew, type PageId } from '../lib/types';
 
-function CrewCard({ crew }: { crew: Crew }) {
+function CrewCard({ crew, onOpen }: { crew: Crew; onOpen: () => void }) {
   const { memberById, me, isOnline } = useHub();
   const members = crew.memberIds.map((id) => memberById.get(id)).filter((m) => m && m.status === 'active') as NonNullable<
     ReturnType<typeof memberById.get>
@@ -19,10 +20,11 @@ function CrewCard({ crew }: { crew: Crew }) {
   const leader = crew.leaderId ? memberById.get(crew.leaderId) : undefined;
   const online = members.filter((m) => isOnline(m.id)).length;
   const mine = crew.memberIds.includes(me.id);
+  const unlocks = (Object.keys(PAGES) as PageId[]).filter((p) => crew.pages?.[p]);
   return (
-    <Link
-      to={`/crews/${crew.id}`}
-      className="hud group block overflow-hidden transition hover:-translate-y-0.5"
+    <button
+      onClick={onOpen}
+      className="hud group block w-full overflow-hidden text-left transition hover:-translate-y-0.5"
       style={{ boxShadow: `inset 0 3px 0 ${crew.color}` }}
     >
       <div className="flex items-start gap-4 p-4">
@@ -37,6 +39,11 @@ function CrewCard({ crew }: { crew: Crew }) {
             <Crown className="size-3.5 text-gold-400" />
             {leader ? leader.name : <span className="text-smoke">No leader</span>}
           </p>
+          {unlocks.length > 0 && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-smoke">
+              <KeyRound className="size-3" /> {unlocks.map((p) => PAGES[p]).join(' · ')}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-between border-t border-line-soft px-4 py-2.5">
@@ -45,7 +52,7 @@ function CrewCard({ crew }: { crew: Crew }) {
           {members.length} {members.length === 1 ? 'member' : 'members'} · <span className="text-ok">{online} on</span>
         </span>
       </div>
-    </Link>
+    </button>
   );
 }
 
@@ -103,10 +110,10 @@ function Roster() {
 }
 
 export default function Crews() {
-  const { crews, can, roster } = useHub();
-  const nav = useNavigate();
+  const { crews, can, roster, crewById } = useHub();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as 'crews' | 'roster') ?? 'crews';
+  const open = crewById.get(params.get('crew') ?? '');
   const [creating, setCreating] = useState(false);
 
   return (
@@ -115,7 +122,7 @@ export default function Crews() {
         icon={Users}
         kicker="People"
         title="Crews"
-        sub="Every crew in the family and everyone in it. A person can run with more than one crew."
+        sub="Crews are roles: being in one can unlock pages on top of your rank. A person can run with more than one crew."
         actions={
           can('manageCrews') && (
             <button className="btn-gold" onClick={() => setCreating(true)}>
@@ -138,7 +145,7 @@ export default function Crews() {
         crews.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {crews.map((c) => (
-              <CrewCard key={c.id} crew={c} />
+              <CrewCard key={c.id} crew={c} onOpen={() => setParams({ crew: c.id })} />
             ))}
           </div>
         ) : (
@@ -149,7 +156,8 @@ export default function Crews() {
       ) : (
         <Roster />
       )}
-      {creating && <CrewForm onClose={() => setCreating(false)} onCreated={(id) => nav(`/crews/${id}`)} />}
+      {creating && <CrewForm onClose={() => setCreating(false)} onCreated={(id) => setParams({ crew: id })} />}
+      {open && <CrewPanel crew={open} onClose={() => setParams(tab === 'roster' ? { tab } : {})} />}
     </>
   );
 }

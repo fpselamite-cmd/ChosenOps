@@ -16,13 +16,14 @@ export function WhoIsOnline() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="flex items-center gap-2 border border-line bg-panel px-2.5 py-1 hover:border-gold-600">
-        <span className="flex">
+        <span className="hidden sm:flex">
           {online.slice(0, 4).map((m) => (
             <span key={m.id} className="-ml-1.5 first:ml-0">
               <Avatar member={m} size="xs" />
             </span>
           ))}
         </span>
+        <span className="online-dot size-2 rounded-full bg-ok sm:hidden" />
         <span className="font-hud text-sm font-bold text-ok">{online.length}</span>
         <span className="label hidden sm:inline">online</span>
       </button>

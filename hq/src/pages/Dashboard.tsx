@@ -66,7 +66,7 @@ function WordFromTheTop() {
 }
 
 export default function Dashboard() {
-  const { me, myCrews, roster, isOnline, rankById, ranks, settings, memberById } = useHub();
+  const { me, myCrews, roster, isOnline, rankById, ranks, settings, memberById, familyRep, canSee } = useHub();
   const online = roster.filter((m) => isOnline(m.id));
   const leadership = roster.filter((m) => rankById.get(m.rankId ?? '')?.leadership);
   const hour = Number(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
@@ -79,8 +79,8 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Family" value={roster.length} sub={`${ranks.length} ranks`} />
         <Stat label="Online now" value={<span className="text-ok">{online.length}</span>} />
-        <Stat label="Bricks on hand" value="—" sub="Stash · step 2" />
-        <Stat label="Blacksite rep" value="—" sub="Blacksites · step 5" />
+        <Stat label="Family rep" value={familyRep.toLocaleString('en-US')} sub="Petty rep sent in + blacksites" />
+        {canSee('stash') ? <Stat label="Bricks on hand" value="—" sub="Stash · step 2" /> : <Stat label="Your crews" value={myCrews.length} />}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -95,7 +95,7 @@ export default function Dashboard() {
                   return (
                     <Link
                       key={c.id}
-                      to={`/crews/${c.id}`}
+                      to={`/crews?crew=${c.id}`}
                       className="flex items-center gap-3 border border-line-soft bg-coal/60 p-3 transition hover:border-gold-700"
                       style={{ boxShadow: `inset 3px 0 0 ${c.color}` }}
                     >

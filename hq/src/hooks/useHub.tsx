@@ -1,8 +1,8 @@
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { db } from '../lib/firebase';
-import { rankCan } from '../lib/permissions';
-import type { Announcement, Crew, GangSettings, Member, Permission, Presence, Rank } from '../lib/types';
+import { pageOpen, rankCan } from '../lib/permissions';
+import type { Announcement, Crew, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
 import { useAuth } from './useAuth';
 import { useCollection, useDoc } from './useCollection';
 
@@ -29,7 +29,11 @@ interface Hub {
   isOnline: (memberId: string) => boolean;
   settings: GangSettings;
   announcement: Announcement | null;
+  /** Family gang rep: confirmed petty rep transfers plus blacksite rep. */
+  familyRep: number;
   can: (p: Permission) => boolean;
+  /** Whether my rank or one of my crew roles opens this page. */
+  canSee: (page: PageId) => boolean;
 }
 
 const Ctx = createContext<Hub | null>(null);
@@ -42,6 +46,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const presenceRows = useCollection<Presence>('presence');
   const settings = useDoc<GangSettings>('settings/gang');
   const announcement = useDoc<Announcement>('settings/announcement');
+  const familyRep = useDoc<FamilyRep>('stats/familyRep');
 
   // Check in while the page is open so the crew can see who's around.
   useEffect(() => {
@@ -61,7 +66,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;
-    const ready = !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined;
+    const ready =
+      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined;
     const sortedRanks = [...(ranks ?? [])].sort((a, b) => a.order - b.order);
     const rankById = new Map(sortedRanks.map((r) => [r.id, r]));
     const allMembers = members ?? [];
@@ -71,6 +77,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const liveMe = memberById.get(me.id) ?? me;
     const myRank = liveMe.rankId ? rankById.get(liveMe.rankId) : undefined;
     const crewsOf = (id: string) => sortedCrews.filter((c) => c.memberIds?.includes(id));
+    const myCrews = crewsOf(me.id);
     return {
       ready,
       me: liveMe,
@@ -88,7 +95,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
       rankById,
       crews: sortedCrews,
       crewById: new Map(sortedCrews.map((c) => [c.id, c])),
-      myCrews: crewsOf(me.id),
+      myCrews,
       crewsOf,
       presence,
       isOnline: (id) => {
@@ -97,9 +104,11 @@ export function HubProvider({ children }: { children: ReactNode }) {
       },
       settings: settings ?? { name: 'The Chosen', motto: '' },
       announcement: announcement ?? null,
+      familyRep: familyRep?.total ?? 0,
       can: (p) => rankCan(myRank, p),
+      canSee: (page) => pageOpen(page, myRank, myCrews),
     };
-  }, [me, members, ranks, crews, presenceRows, settings, announcement]);
+  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep]);
 
   if (!value) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useHub } from '../hooks/useHub';
 import { createCrew, suggestTag, updateCrew } from '../lib/crews';
-import { CREW_COLORS, type Crew } from '../lib/types';
+import { CREW_COLORS, PAGES, type Crew, type PageId, type PageMap } from '../lib/types';
 import { CrewEmblem } from './CrewEmblem';
 import { ErrorText, Field } from './Field';
 import { Modal } from './Modal';
@@ -16,6 +16,7 @@ export function CrewForm({ crew, onClose, onCreated }: { crew?: Crew; onClose: (
   const [color, setColor] = useState(crew?.color ?? CREW_COLORS[0]);
   const [motto, setMotto] = useState(crew?.motto ?? '');
   const [leaderId, setLeaderId] = useState(crew?.leaderId ?? '');
+  const [pages, setPages] = useState<PageMap>(crew?.pages ?? {});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -27,9 +28,9 @@ export function CrewForm({ crew, onClose, onCreated }: { crew?: Crew; onClose: (
     setBusy(true);
     try {
       if (crew) {
-        await updateCrew(crew.id, full ? { name: name.trim(), tag: shownTag.trim(), color, motto: motto.trim() } : { color, motto: motto.trim() });
+        await updateCrew(crew.id, full ? { name: name.trim(), tag: shownTag.trim(), color, motto: motto.trim(), pages } : { color, motto: motto.trim() });
       } else {
-        const id = await createCrew({ name: name.trim(), tag: shownTag.trim(), color, motto: motto.trim(), leaderId: leaderId || null });
+        const id = await createCrew({ name: name.trim(), tag: shownTag.trim(), color, motto: motto.trim(), leaderId: leaderId || null, pages });
         onCreated?.(id);
       }
       onClose();
@@ -79,6 +80,23 @@ export function CrewForm({ crew, onClose, onCreated }: { crew?: Crew; onClose: (
         <Field label="Motto">
           <input className="input" value={motto} onChange={(e) => setMotto(e.target.value)} maxLength={80} placeholder="Optional" />
         </Field>
+        {full && (
+          <Field label="Role: being in this crew unlocks" hint="On top of what each member's rank already shows.">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+              {(Object.keys(PAGES) as PageId[]).map((p) => (
+                <label key={p} className="flex items-center gap-2 text-sm text-ash">
+                  <input
+                    type="checkbox"
+                    className="accent-gold-400"
+                    checked={!!pages[p]}
+                    onChange={(e) => setPages({ ...pages, [p]: e.target.checked })}
+                  />
+                  {PAGES[p]}
+                </label>
+              ))}
+            </div>
+          </Field>
+        )}
         {!crew && (
           <Field label="Crew leader" hint="You can change this later.">
             <select className="input" value={leaderId} onChange={(e) => setLeaderId(e.target.value)}>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useHub } from '../../hooks/useHub';
 import { db } from '../../lib/firebase';
 import { outranks } from '../../lib/permissions';
-import { PERMISSIONS, type Permission, type Rank } from '../../lib/types';
+import { PAGES, PERMISSIONS, type PageId, type Permission, type Rank } from '../../lib/types';
 
 export default function RanksTab() {
   const { ranks, myRank, roster } = useHub();
@@ -81,9 +81,26 @@ export default function RanksTab() {
               </span>
             </div>
             {r.order === 0 ? (
-              <p className="mt-3 text-sm text-smoke">The top rank always has every permission.</p>
+              <p className="mt-3 text-sm text-smoke">The top rank always has every permission and sees every page.</p>
             ) : (
-              <div className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+              <>
+              <p className="label mt-4 mb-1.5">Pages</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-4">
+                {(Object.keys(PAGES) as PageId[]).map((p) => (
+                  <label key={p} className="flex items-center gap-2 text-sm text-ash">
+                    <input
+                      type="checkbox"
+                      className="accent-gold-400"
+                      checked={r.pages?.[p] === true}
+                      disabled={!can}
+                      onChange={(e) => updateDoc(doc(db, 'ranks', r.id), { [`pages.${p}`]: e.target.checked })}
+                    />
+                    {PAGES[p]}
+                  </label>
+                ))}
+              </div>
+              <p className="label mt-4 mb-1.5">Powers</p>
+              <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
                 {(Object.keys(PERMISSIONS) as Permission[]).map((p) => (
                   <label key={p} className="flex items-center gap-2 text-sm text-ash">
                     <input
@@ -97,6 +114,7 @@ export default function RanksTab() {
                   </label>
                 ))}
               </div>
+              </>
             )}
           </section>
         );

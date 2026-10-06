@@ -1,14 +1,17 @@
+import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import type { PageId } from './lib/types';
 import { AppShell } from './components/AppShell';
 import { Loading } from './components/Field';
 import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
 import Admin from './pages/admin/Admin';
 import ComingUp from './pages/ComingUp';
-import CrewDetail from './pages/CrewDetail';
+import { ROADMAP } from './lib/roadmap';
 import Crews from './pages/Crews';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
+import PettyCrime from './pages/PettyCrime';
 import Login from './pages/Login';
 import Pending from './pages/Pending';
 import Profile from './pages/Profile';
@@ -43,26 +46,37 @@ export default function App() {
   );
 }
 
+/** Sends people back to the Dashboard if their rank and crews don't open this page. */
+function Gate({ page, children }: { page: PageId; children: ReactNode }) {
+  const { canSee } = useHub();
+  return canSee(page) ? children : <Navigate to="/" replace />;
+}
+
 function MemberRoutes() {
   const { ready } = useHub();
   if (!ready) return <Loading label="Opening HQ…" />;
+  const placeholder = (page: PageId & keyof typeof ROADMAP) => (
+    <Gate page={page}>
+      <ComingUp page={page} />
+    </Gate>
+  );
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
-        <Route path="stash" element={<ComingUp page="stash" />} />
-        <Route path="timers" element={<ComingUp page="timers" />} />
-        <Route path="meth" element={<ComingUp page="meth" />} />
-        <Route path="coke" element={<ComingUp page="coke" />} />
-        <Route path="blackmarket" element={<ComingUp page="blackmarket" />} />
-        <Route path="blacksites" element={<ComingUp page="blacksites" />} />
-        <Route path="gear" element={<ComingUp page="gear" />} />
-        <Route path="crews" element={<Crews />} />
-        <Route path="crews/:id" element={<CrewDetail />} />
+        <Route path="stash" element={placeholder('stash')} />
+        <Route path="timers" element={placeholder('timers')} />
+        <Route path="meth" element={placeholder('meth')} />
+        <Route path="coke" element={placeholder('coke')} />
+        <Route path="blackmarket" element={placeholder('blackmarket')} />
+        <Route path="blacksites" element={placeholder('blacksites')} />
+        <Route path="gear" element={placeholder('gear')} />
+        <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
+        <Route path="crews" element={<Gate page="crews"><Crews /></Gate>} />
         <Route path="members/:id" element={<Profile />} />
-        <Route path="family" element={<Family />} />
-        <Route path="map" element={<ComingUp page="map" />} />
-        <Route path="calendar" element={<ComingUp page="calendar" />} />
+        <Route path="family" element={<Gate page="family"><Family /></Gate>} />
+        <Route path="map" element={placeholder('map')} />
+        <Route path="calendar" element={placeholder('calendar')} />
         <Route path="admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
