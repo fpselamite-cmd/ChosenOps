@@ -5,21 +5,21 @@ import { CrewChip } from '../components/Badges';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel } from '../components/Page';
+import { collection, query, where } from 'firebase/firestore';
+import { useMemo } from 'react';
 import { useCollection } from '../hooks/useCollection';
+import { db } from '../lib/firebase';
+import { ago } from '../lib/format';
+import type { Signout } from '../lib/locker';
 import { useHub } from '../hooks/useHub';
 import { BRICK_SIZE, COKE_INGREDIENTS, MAIN_STASH, STRAINS, budCell, n, rootOf, toCount, type CokeRecipe, type OpsLocation } from '../noel/data';
+import { ITEM_KINDS } from '../lib/items';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { ToastProvider, useToast } from '../noel/ui';
 
-/** What can be kept besides drugs. Gear & Loadouts will bring the full gun and attachment list. */
-const CATEGORIES = [
-  { id: 'gun', label: 'Guns' },
-  { id: 'attachment', label: 'Attachments' },
-  { id: 'ammo', label: 'Ammo' },
-  { id: 'gear', label: 'Armor & gear' },
-  { id: 'other', label: 'Other items' },
-] as const;
+/** What can be kept besides drugs. */
+const CATEGORIES = ITEM_KINDS;
 
 interface ItemType {
   id: string;
@@ -347,6 +347,47 @@ function Drugs({ loc }: { loc: OpsLocation }) {
   );
 }
 
+/** Leadership: gang property members have taken into their lockers and not brought back. */
+function SignedOut() {
+  const q = useMemo(() => query(collection(db, 'signouts'), where('status', 'in', ['out', 'lost', 'seized'])), []);
+  const rows = (useCollection<Signout>(q) ?? []).sort((a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
+  const out = rows.filter((r) => r.status === 'out');
+  const gone = rows.filter((r) => r.status !== 'out').slice(0, 10);
+  return (
+    <Panel title={`Signed out to members · ${out.length}`}>
+      {out.length ? (
+        <ul className="divide-y divide-line-soft">
+          {out.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+              <b className="text-gold-100">{s.memberName}</b>
+              <span className="text-ash">
+                has {s.thing.qty} × {s.thing.label}
+              </span>
+              <span className="text-smoke">
+                from {s.fromLabel} · {ago(s.at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-smoke">Nothing signed out right now.</p>
+      )}
+      {gone.length > 0 && (
+        <>
+          <p className="label mt-4 mb-1">Lost or seized</p>
+          <ul className="space-y-1 text-sm">
+            {gone.map((s) => (
+              <li key={s.id} className="text-smoke">
+                <span className={s.status === 'seized' ? 'text-red-300' : 'text-amber-300'}>{s.status === 'seized' ? 'Seized' : 'Lost'}</span> · {s.memberName} · {s.thing.qty} × {s.thing.label} from {s.fromLabel} · {ago(s.closedAt)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function RecipeEditor({ onClose }: { onClose: () => void }) {
   const { recipe } = useNarcotics();
   const ops = useOps('stash');
@@ -538,6 +579,7 @@ function Body() {
               </section>
               <Items loc={sel} types={types} />
               <Drugs loc={sel} />
+              {(can('money') || can('manageOps')) && <SignedOut />}
             </div>
           )}
         </div>

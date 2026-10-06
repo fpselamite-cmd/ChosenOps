@@ -2,6 +2,7 @@ import { ArrowLeft, Camera, Crosshair, Crown, KeyRound, Pencil, Swords, Trophy }
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
+import { Cabinet } from '../components/Cabinet';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
@@ -101,7 +102,7 @@ function ChangePin({ onClose }: { onClose: () => void }) {
 }
 
 const COMING = [
-  { icon: Trophy, title: 'Stats & titles', text: 'Harvests, cooks, runs, sales, titles and MVP crowns.' },
+  { icon: Trophy, title: 'Titles & MVPs', text: 'Leaderboard titles and MVP crowns.' },
   { icon: Crosshair, title: 'Blacksite record', text: 'Every blacksite they fought in, kills and MVPs.' },
   { icon: Swords, title: 'Current loadout', text: 'What they’re carrying right now.' },
 ];
@@ -260,6 +261,10 @@ export default function Profile() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <Cabinet member={m} />
       </div>
 
       {editing && <EditProfile m={m} onClose={() => setEditing(false)} />}

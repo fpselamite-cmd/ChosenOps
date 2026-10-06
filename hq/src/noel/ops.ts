@@ -72,7 +72,9 @@ export interface Done {
   key?: string;
 }
 
-const stockRef = (loc: string) => doc(db, 'stock', loc);
+/** A stash's stock ('main') or any stock-shaped doc by path ('lockerStock/<member>__<storage>'). */
+const stockRef = (loc: string) => (loc.includes('/') ? doc(db, loc) : doc(db, 'stock', loc));
+export const lockerPath = (memberId: string, storageId: string) => `lockerStock/${memberId}__${storageId}`;
 
 /** Actions for the Narcotics and Stash pages, signed with who did it and what opened the page. */
 export function useOps(page: PageId = 'narcotics') {
@@ -123,17 +125,24 @@ export function useOps(page: PageId = 'narcotics') {
           writes.set(d.loc, w);
           applied.push({ ...d, delta });
         }
-        for (const [l, w] of writes) tx.set(stockRef(l), { ...w, ...sign }, { merge: true });
+        for (const [l, w] of writes) tx.set(stockRef(l), { ...w, ...sign, ...(l.startsWith('lockerStock/') ? { owner: me.id } : {}) }, { merge: true });
         return applied;
       });
     }
     const reverse = (applied: Delta[]) => () => applyDeltas(applied.map((d) => ({ ...d, delta: -d.delta })));
+
+    /** Your own work counters, for achievements. */
+    const bump = (field: 'harvests' | 'bud' | 'pressed' | 'cooks' | 'runs', k: number) =>
+      k ? setDoc(doc(db, 'stats', me.id), { [field]: increment(k) }, { merge: true }).catch(() => {}) : Promise.resolve();
 
     const strainName = (id: string) => STRAIN_BY_ID[id as StrainId]?.name ?? ROOT_FIELDS[id as RootField] ?? id;
 
     return {
       via,
       log,
+      /** Raw stock changes (any stash or locker storage), clamped at zero. */
+      applyDeltas,
+      reverse,
 
       // ---------- stock ----------
       async adjust(loc: string, strain: StrainId | null, field: BudField | RootField, delta: number, label: string): Promise<Done | null> {
@@ -170,10 +179,11 @@ export function useOps(page: PageId = 'narcotics') {
         ]);
         if (applied.length < 2) return null;
         made('bricksMade', bricks);
+        bump('pressed', bricks);
         log('buds');
         return {
           text: `Pressed ${bricks} ${strainName(strain)} ${bricks === 1 ? 'brick' : 'bricks'} · ${label}`,
-          undo: () => Promise.all([reverse(applied)(), made('bricksMade', -bricks)]),
+          undo: () => Promise.all([reverse(applied)(), made('bricksMade', -bricks), bump('pressed', -bricks)]),
         };
       },
 
@@ -286,6 +296,10 @@ export function useOps(page: PageId = 'narcotics') {
           await setDoc(doc(db, 'yields', strain), { samples, ...sign });
         }
         const total = applied.reduce((s, d) => s + d.delta, 0);
+        if (total) {
+          bump('harvests', 1);
+          bump('bud', total);
+        }
         log('harvest');
         const postal = loc.postal ?? loc.name;
         return {
@@ -295,6 +309,8 @@ export function useOps(page: PageId = 'narcotics') {
           undo: () =>
             Promise.all([
               reverse(applied)(),
+              total ? bump('harvests', -1) : null,
+              total ? bump('bud', -total) : null,
               updateDoc(doc(db, 'locations', loc.id), { startTime: loc.startTime ?? null, ...sign }),
               ...Object.entries(prevYields).map(([s, samples]) => setDoc(doc(db, 'yields', s), { samples, ...sign })),
             ]),
@@ -349,6 +365,7 @@ export function useOps(page: PageId = 'narcotics') {
         if (Object.keys(took).length)
           batch.set(doc(db, 'supplies', 'lab'), { ...Object.fromEntries(Object.entries(took).map(([k, v]) => [k, increment(-v)])), ...sign }, { merge: true });
         await batch.commit();
+        bump('cooks', count);
         log('cook');
         const what = count > 1 ? `${count} ${METH_SIZES[size]!.toLowerCase()} yields` : `${METH_SIZES[size]} yield`;
         const tookText = Object.keys(took).length ? ` Took ${Object.entries(took).map(([k, v]) => `${v} ${k}`).join(' + ')} from the lab.` : '';
@@ -383,6 +400,7 @@ export function useOps(page: PageId = 'narcotics') {
         const applied = await applyDeltas([{ loc: to, field: r.size === 'large' ? 'cokeLarge' : 'cokeSmall', delta: r.n }]);
         await updateDoc(doc(db, 'runs', r.id), { done: true, ...sign });
         made('cokeMade', r.n);
+        bump('runs', 1);
         log('coca');
         return {
           text: `${r.n} ${r.size} coke ${r.n === 1 ? 'brick' : 'bricks'} into ${label}`,

@@ -3,6 +3,7 @@ import {
   Cannabis,
   Crosshair,
   HandCoins,
+  Lock,
   LayoutDashboard,
   Map,
   Network,
@@ -24,7 +25,13 @@ export interface NavItem {
 }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
-  { group: 'HQ', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
+  {
+    group: 'HQ',
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/locker', label: 'My Locker', icon: Lock },
+    ],
+  },
   {
     group: 'Ops',
     items: [
@@ -64,7 +71,6 @@ export const ADMIN_NAV: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCh
  */
 export type PageTheme = 'gold' | 'noel' | 'blackmarket';
 export function themeFor(path: string): PageTheme {
-  if (path.startsWith('/narcotics')) return 'noel';
-  if (path.startsWith('/blackmarket')) return 'blackmarket';
+  if (path.startsWith('/narcotics') || path.startsWith('/blackmarket')) return 'noel';
   return 'gold';
 }

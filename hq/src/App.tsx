@@ -6,6 +6,7 @@ import { Loading } from './components/Field';
 import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
 import Admin from './pages/admin/Admin';
+import BlackMarket from './pages/BlackMarket';
 import ComingUp from './pages/ComingUp';
 import { ROADMAP } from './lib/roadmap';
 import Crews from './pages/Crews';
@@ -14,6 +15,7 @@ import Family from './pages/Family';
 import Narcotics from './pages/Narcotics';
 import Stash from './pages/Stash';
 import PettyCrime from './pages/PettyCrime';
+import Locker from './pages/Locker';
 import Login from './pages/Login';
 import Pending from './pages/Pending';
 import Profile from './pages/Profile';
@@ -85,11 +87,19 @@ function MemberRoutes() {
         <Route path="timers" element={<Navigate to="/narcotics?tab=weed" replace />} />
         <Route path="meth" element={<Navigate to="/narcotics?tab=meth" replace />} />
         <Route path="coke" element={<Navigate to="/narcotics?tab=coke" replace />} />
-        <Route path="blackmarket" element={placeholder('blackmarket')} />
+        <Route
+          path="blackmarket"
+          element={
+            <Gate page="blackmarket">
+              <BlackMarket />
+            </Gate>
+          }
+        />
         <Route path="blacksites" element={placeholder('blacksites')} />
         <Route path="gear" element={placeholder('gear')} />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
         <Route path="crews" element={<Gate page="crews"><Crews /></Gate>} />
+        <Route path="locker" element={<Locker />} />
         <Route path="members/:id" element={<Profile />} />
         <Route path="family" element={<Gate page="family"><Family /></Gate>} />
         <Route path="map" element={placeholder('map')} />

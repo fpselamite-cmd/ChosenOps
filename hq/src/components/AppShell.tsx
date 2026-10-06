@@ -8,6 +8,7 @@ import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Avatar } from './Avatar';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
+import { AchievementWatcher } from '../lib/cabinet';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -143,6 +144,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh lg:pl-64">
+      <AchievementWatcher />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line bg-coal/95 px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">

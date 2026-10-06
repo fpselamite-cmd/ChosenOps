@@ -2,12 +2,13 @@ import { ShieldCheck } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Tabs } from '../../components/Page';
 import { useHub } from '../../hooks/useHub';
+import ItemsTab from './ItemsTab';
 import MembersTab from './MembersTab';
 import PendingTab from './PendingTab';
 import RanksTab from './RanksTab';
 import SettingsTab from './SettingsTab';
 
-type Tab = 'pending' | 'members' | 'ranks' | 'settings';
+type Tab = 'pending' | 'members' | 'ranks' | 'items' | 'settings';
 
 export default function Admin() {
   const { can, members } = useHub();
@@ -18,6 +19,7 @@ export default function Admin() {
     { id: 'pending', label: `Waiting${pending ? ` · ${pending}` : ''}`, show: can('approveMembers') },
     { id: 'members', label: 'Members', show: can('manageMembers') || can('resetPins') },
     { id: 'ranks', label: 'Ranks & permissions', show: can('manageRanks') },
+    { id: 'items', label: 'Item catalog', show: can('manageOps') },
     { id: 'settings', label: 'Gang settings', show: can('manageSettings') },
   ];
   const visible = tabs.filter((t) => t.show);
@@ -33,6 +35,7 @@ export default function Admin() {
       {tab === 'pending' && <PendingTab />}
       {tab === 'members' && <MembersTab />}
       {tab === 'ranks' && <RanksTab />}
+      {tab === 'items' && <ItemsTab />}
       {tab === 'settings' && <SettingsTab />}
     </>
   );

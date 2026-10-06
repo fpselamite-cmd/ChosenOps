@@ -1,18 +1,5 @@
 /** What each not-yet-built page will hold. Shown on its placeholder so the plan can be reviewed. */
 export const ROADMAP: Record<string, { step: number; title: string; kicker: string; sub: string; features: string[] }> = {
-  blackmarket: {
-    step: 3,
-    title: 'BlackMarket',
-    kicker: 'Money',
-    sub: 'Where product sells for dirty money.',
-    features: [
-      'Sell flow and the ringing Narco call button',
-      'Ledger with filters, charts and CSV export, plus weekly price history',
-      'Wish list: post what the gang needs, claim it, mark it got',
-      'Wash: dirty money to clean, minus the launderer’s cut',
-      'Budget (leadership + Treasurer): crew bank, cuts, payouts and expenses',
-    ],
-  },
   blacksites: {
     step: 5,
     title: 'Blacksites',

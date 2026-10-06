@@ -323,3 +323,76 @@ describe('ops: narcotics and stash', () => {
     await assertFails(setDoc(doc(as('sol2'), 'cooks/c2'), { ...cook, ...sign('sol2', 'rank') }));
   });
 });
+
+describe('my locker', () => {
+  it('keeps a locker private to its owner', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'lockerStock/sol__onme'), { owner: 'sol', meth: 1 }));
+    await assertFails(getDoc(doc(as('sol2'), 'lockerStock/sol__onme')));
+    await assertFails(getDoc(doc(as('boss'), 'lockerStock/sol__onme')));
+    await assertFails(setDoc(doc(as('sol2'), 'lockerStock/sol__x'), { owner: 'sol2', meth: 1 }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'lockers/sol'), { storages: [{ id: 'onme', name: 'On Me' }] }));
+    await assertFails(getDoc(doc(as('boss'), 'lockers/sol')));
+  });
+
+  it('lets leadership see sign-outs of gang property', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'ranks/underboss'), { 'permissions.money': true }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'signouts/s1'), { memberId: 'sol', status: 'out', qty: 1, at: serverTimestamp() }));
+    await assertSucceeds(getDoc(doc(as('ub'), 'signouts/s1')));
+    await assertFails(getDoc(doc(as('sol2'), 'signouts/s1')));
+  });
+});
+
+describe('trades', () => {
+  beforeEach(() =>
+    env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'trades/t1'), { from: 'sol', to: 'sol2', status: 'pending', qty: 2 })),
+  );
+  it('only the receiver accepts or declines', async () => {
+    await assertFails(updateDoc(doc(as('sol'), 'trades/t1'), { status: 'accepted', closedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'trades/t1'), { status: 'accepted', closedAt: serverTimestamp() }));
+  });
+  it('the giver can cancel a pending trade, and nobody else can read it', async () => {
+    await assertFails(getDoc(doc(as('capo'), 'trades/t1')));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'trades/t1'), { status: 'cancelled', closedAt: serverTimestamp() }));
+  });
+});
+
+describe('trophies', () => {
+  const award = (by: string, memberId: string) => ({ kind: 'award', by, memberId, title: 'Blacksite MVP', at: serverTimestamp() });
+  it('lets leadership award anyone, but not ordinary members', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'trophies/d'), award('boss', 'sol2')));
+    await assertFails(setDoc(doc(as('sol'), 'trophies/e'), award('sol', 'sol2')));
+  });
+  it('lets members claim an achievement once, for themselves', async () => {
+    const ach = { kind: 'achievement', by: 'achievement', memberId: 'sol', achId: 'harvester', tier: 1, title: 'Harvester I', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'trophies/sol_harvester_1'), ach));
+    await assertFails(setDoc(doc(as('sol'), 'trophies/random'), ach));
+    await assertFails(setDoc(doc(as('sol2'), 'trophies/sol_harvester_2'), { ...ach, tier: 2 }));
+  });
+});
+
+describe('money', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, 'ranks/soldier'), { pages: { blackmarket: true } });
+      await updateDoc(doc(db, 'ranks/underboss'), { 'permissions.money': true });
+      await setDoc(doc(db, 'sales/s1'), { sellerId: 'sol', qty: 1, price: 5000 });
+    });
+  });
+  it('shows sellers only their own sales; the Treasurer sees all', async () => {
+    await assertSucceeds(getDoc(doc(as('sol'), 'sales/s1')));
+    await assertFails(getDoc(doc(as('sol2'), 'sales/s1')));
+    await assertSucceeds(getDoc(doc(as('ub'), 'sales/s1')));
+  });
+  it('lets sellers record their own sales only', async () => {
+    const sale = { qty: 2, price: 9000, at: serverTimestamp(), _by: 'sol', _via: 'rank' };
+    await assertSucceeds(setDoc(doc(as('sol'), 'sales/s2'), { ...sale, sellerId: 'sol' }));
+    await assertFails(setDoc(doc(as('sol'), 'sales/s3'), { ...sale, sellerId: 'sol2' }));
+  });
+  it('keeps payouts and expenses to the Treasurer', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'ledger/l1'), { type: 'expense', amount: 10 }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'ledger/l1'), { type: 'payout', amount: 10, toId: 'sol' }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'ledger/l1')));
+    await assertFails(getDoc(doc(as('sol2'), 'ledger/l1')));
+  });
+});

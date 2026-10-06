@@ -12,14 +12,14 @@ const RANKS = [
   ['boss', 'Boss', true, null],
   ['consigliere', 'Consigliere', true, 'all'],
   ['underboss', 'Underboss', true, 'all'],
-  ['treasurer', 'Treasurer', true, { approveMembers: true, postAnnouncements: true, confirmRep: true }],
+  ['treasurer', 'Treasurer', true, { approveMembers: true, postAnnouncements: true, confirmRep: true, money: true, awardTrophies: true }],
   ['caporegime', 'Caporegime', false, { approveMembers: true, resetPins: true, postAnnouncements: true, confirmRep: true, manageOps: true }],
   ['lieutenant', 'Lieutenant', false, { approveMembers: true, confirmRep: true }],
   ['enforcer', 'Enforcer', false, {}],
   ['soldier', 'Soldier', false, {}],
   ['associate', 'Associate', false, {}],
 ];
-const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true };
+const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true };
 const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
 const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
 const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
@@ -184,6 +184,60 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   };
   for (const [i, [who, kind, minsAgo]] of acts.entries())
     await setDoc(doc(db, 'activity', `a${i}`), { who, kind, pre: KINDS[kind][0], hi: KINDS[kind][1], post: KINDS[kind][2], at: Timestamp.fromMillis(now - minsAgo * 60_000), ...sign });
+
+  // BlackMarket books
+  const D = 86400_000;
+  const sales = [
+    ['dosidos', 2, 'main', 'Main Stash', 'Lena Russo', 20, 38000, 2], ['meth', 1, 'basement', "Tempest's Basement", 'Nico Bruno', 20, 26000, 5],
+    ['cokeSmall', 2, 'lockup', 'The Lockup', 'Rocco Vale', 25, 44000, 9], ['nl', 3, 'main', 'Main Stash', 'Marco Gallo', 20, 51000, 20],
+    ['acapulco', 1, 'main', 'Main Stash', 'Kira Lane', 15, 17500, 30], ['ogkush', 2, 'main', 'Main Stash', 'Lena Russo', 20, null, 50],
+    ['cokeLarge', 1, 'main', 'Main Stash', 'Don Vito', 30, 61000, 70], ['rainbow', 4, 'main', 'Main Stash', 'Marco Gallo', 20, 70000, 26 * 24],
+    ['dosidos', 3, 'main', 'Main Stash', 'Kira Lane', 15, 54000, 52 * 24], ['meth', 2, 'basement', "Tempest's Basement", 'Jax Holt', 15, 50000, 75 * 24],
+  ];
+  for (const [i, [product, qty, from, fromLabel, who, cut, price, hoursAgo]] of sales.entries())
+    await setDoc(doc(db, 'sales', `s${i}`), { product, qty, from, fromLabel, sellerId: ids[who], sellerName: who, cut, price, narco: i === 1, note: i === 2 ? 'Pier buyer' : '', byName: who, at: Timestamp.fromMillis(now - hoursAgo * H), ...sign });
+  await setDoc(doc(db, 'washes', 'w0'), { memberId: ids['Lena Russo'], memberName: 'Lena Russo', dirty: 30000, pct: 50, clean: 15000, note: 'Laundromat', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 4 * H), ...sign });
+  await setDoc(doc(db, 'washes', 'w1'), { memberId: ids['Marco Gallo'], memberName: 'Marco Gallo', dirty: 40000, pct: 50, clean: 20000, note: '', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 2 * D), ...sign });
+  await setDoc(doc(db, 'ledger', 'l0'), { type: 'payout', amount: 7600, toId: ids['Lena Russo'], toName: 'Lena Russo', note: 'Weekly cut', byName: 'Lena Russo', at: Timestamp.fromMillis(now - D) });
+  await setDoc(doc(db, 'ledger', 'l1'), { type: 'expense', amount: 12000, toId: null, note: 'Lab supplies', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 3 * D) });
+  await setDoc(doc(db, 'settings', 'blackmarket'), {
+    prices: { dosidos: 19000, nl: 17000, acapulco: 17500, rainbow: 17500, meth: 25000, cokeSmall: 22000, cokeLarge: 61000 },
+    defaultCut: 20, cuts: { [ids['Kira Lane']]: 15, [ids['Jax Holt']]: 15, [ids['Rocco Vale']]: 25, [ids['Don Vito']]: 30 }, washPct: 50,
+    wishFields: [{ id: 'pay', label: 'Will pay' }],
+  });
+  await setDoc(doc(db, 'wishes', 'x0'), { title: 'Thermite', qty: 3, notes: 'For the bank job', fields: { pay: '$5k each' }, byId: ids['Rocco Vale'], byName: 'Rocco Vale', status: 'open', claimerId: null, claimerName: null, at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'wishes', 'x1'), { title: 'Heavy Armor', qty: 10, notes: '', fields: {}, byId: ids['Dani Cruz'], byName: 'Dani Cruz', status: 'claimed', claimerId: ids['Tommy Reyes'], claimerName: 'Tommy Reyes', at: Timestamp.fromMillis(now - 26 * H) });
+
+  // Don Vito's locker, a sign-out and a trade
+  const vito = ids['Don Vito'];
+  await setDoc(doc(db, 'lockers', vito), { storages: [{ id: 'onme', name: 'On Me' }, { id: 'home', name: 'Home' }, { id: 'yacht', name: 'The Yacht' }] });
+  await setDoc(doc(db, 'lockerStock', `${vito}__onme`), { owner: vito, items: { pistol50: 1, armor: 2, lockpick: 3 }, ...sign });
+  await setDoc(doc(db, 'lockerStock', `${vito}__home`), { owner: vito, dosidos: bud(2, 0, 0), meth: 1, items: { carbine: 1, suppressor: 1 }, ...sign });
+  await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo556: 400 }, ...sign });
+  await setDoc(doc(db, 'signouts', 'so0'), { memberId: vito, memberName: 'Don Vito', fromLoc: 'main', fromLabel: 'Main Stash', storageId: 'home', thing: { field: 'meth', item: 'carbine', qty: 1, label: 'Carbine Rifle' }, status: 'out', at: Timestamp.fromMillis(now - 3 * H) });
+  await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'lockup', fromLabel: 'The Lockup', storageId: 'onme', thing: { field: 'meth', item: 'smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
+  await setDoc(doc(db, 'trades', 'tr0'), { from: ids['Rocco Vale'], fromName: 'Rocco Vale', fromStorage: 'onme', to: vito, toName: 'Don Vito', thing: { field: 'meth', item: 'extmag', qty: 2, label: 'Extended Mag' }, note: 'For your carbine, boss', status: 'pending', at: Timestamp.fromMillis(now - 40 * 60_000) });
+
+  // Trophies and keepsake cabinets
+  await setDoc(doc(db, 'stats', vito), { harvests: 31, pressed: 64, cooks: 7, runs: 4 });
+  const trophy = (id, who, t) => setDoc(doc(db, 'trophies', id), { memberId: ids[who], at: Timestamp.fromMillis(now - 2 * D), ...t });
+  await trophy(`${vito}_harvester_1`, 'Don Vito', { kind: 'achievement', achId: 'harvester', tier: 1, design: 'leaf', title: 'Harvester I', note: '5 harvests', by: 'achievement' });
+  await trophy(`${vito}_harvester_2`, 'Don Vito', { kind: 'achievement', achId: 'harvester', tier: 2, design: 'leaf', title: 'Harvester II', note: '25 harvests', by: 'achievement' });
+  await trophy(`${vito}_press_2`, 'Don Vito', { kind: 'achievement', achId: 'press', tier: 2, design: 'brick', title: 'Brick Press II', note: '50 bricks pressed', by: 'achievement' });
+  await trophy('aw0', 'Don Vito', { kind: 'award', tier: 4, design: 'crown', title: 'Founder of the Family', note: 'Built The Chosen from nothing.', by: ids['Sal Moretti'], byName: 'Sal Moretti' });
+  await trophy('aw1', 'Don Vito', { kind: 'award', tier: 3, design: 'cup', title: 'Docks Blacksite Champion', note: 'Held the docks for 41 minutes.', by: ids['Sal Moretti'], byName: 'Sal Moretti' });
+  await trophy('aw2', 'Rocco Vale', { kind: 'award', tier: 3, design: 'crosshair', title: 'Marksman', note: 'Most kills at the docks.', by: vito, byName: 'Don Vito' });
+  await setDoc(doc(db, 'cabinets', vito), {
+    pedestals: 8,
+    slots: {
+      0: { kind: 'trophy', trophyId: 'aw0', label: 'Where it all began' },
+      1: { kind: 'trophy', trophyId: 'aw1' },
+      2: { kind: 'item', itemTypeId: 'pistol50', name: 'Pistol .50', label: 'First gun I ever pulled' },
+      3: { kind: 'trophy', trophyId: `${vito}_harvester_2` },
+      4: { kind: 'keepsake', name: 'Lucky Dice', label: 'From the first card game', image: null },
+      5: { kind: 'trophy', trophyId: `${vito}_press_2`, label: '50 bricks, one night' },
+    },
+  });
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {

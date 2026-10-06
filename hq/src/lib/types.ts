@@ -14,6 +14,8 @@ export const PERMISSIONS = {
   postAnnouncements: 'Post the Word from the Top',
   confirmRep: 'Confirm petty rep sent to the family',
   manageOps: 'Add and edit stash houses and grows',
+  money: 'See and manage all money (Treasurer)',
+  awardTrophies: 'Award trophies to anyone',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;
@@ -155,7 +157,7 @@ export const DEFAULT_RANKS: Omit<Rank, 'order'>[] = [
     id: 'treasurer',
     name: 'Treasurer',
     leadership: true,
-    permissions: { approveMembers: true, postAnnouncements: true, confirmRep: true },
+    permissions: { approveMembers: true, postAnnouncements: true, confirmRep: true, money: true, awardTrophies: true },
     pages: ALL_PAGES,
   },
   {

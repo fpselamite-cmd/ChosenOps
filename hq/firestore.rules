@@ -172,7 +172,7 @@ service cloud.firestore {
         && ((v == 'rank' && rankPage(page))
           || (v is string && v != 'rank' && exists(/databases/$(database)/documents/crews/$(v)) && crewPage(page, v)));
     }
-    function opsWrite() { return opens('narcotics') || opens('stash'); }
+    function opsWrite() { return opens('narcotics') || opens('stash') || opens('blackmarket'); }
 
     match /locations/{locId} {
       allow read: if active();
@@ -216,15 +216,99 @@ service cloud.firestore {
       allow create: if opsWrite() && request.resource.data.at == request.time
         && request.resource.data.keys().hasOnly(['who', 'kind', 'pre', 'hi', 'post', 'at', '_by', '_via']);
     }
-    // Guns, attachments and other item types kept in stashes.
+    // The item catalog: guns, attachments, ammo, gear and anything else. Anyone can add a
+    // new item when they need it; Manage ops edits, removes and bulk-imports.
     match /itemTypes/{id} {
       allow read: if active();
-      allow create, update: if opsWrite() && str(request.resource.data.name, 40);
-      allow delete: if can('manageOps');
+      allow create: if active() && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0;
+      allow update, delete: if can('manageOps');
     }
     match /settings/narcotics {
       allow read: if active();
       allow create, update: if can('manageOps');
+    }
+
+    // ── My Locker: private to each member ───────────────────────
+    function mine(field) { return request.resource.data[field] == myId(); }
+    function wasMine(field) { return resource.data[field] == myId(); }
+
+    match /lockers/{memberId} {
+      allow read, write: if active() && myId() == memberId;
+    }
+    // One doc per storage: "<memberId>__<storageId>". Same shape as a stash's stock.
+    match /lockerStock/{id} {
+      allow read: if active() && wasMine('owner');
+      allow create: if active() && mine('owner') && id.matches(myId() + '__.+');
+      allow update: if active() && wasMine('owner') && mine('owner');
+      allow delete: if active() && wasMine('owner');
+    }
+    // Gang property taken into a locker. The member and leadership see these.
+    match /signouts/{id} {
+      allow read: if active() && (wasMine('memberId') || can('money') || can('manageOps'));
+      allow create: if active() && mine('memberId') && request.resource.data.status == 'out' && request.resource.data.at == request.time;
+      allow update: if active() && onlyChanges(['status', 'closedAt', 'closedBy'])
+        && request.resource.data.status in ['returned', 'lost', 'seized'] && resource.data.status == 'out'
+        && (wasMine('memberId') || can('manageOps'));
+    }
+    // Member-to-member trades. The giver's items are held until the other person accepts.
+    match /trades/{id} {
+      allow read: if active() && (wasMine('from') || wasMine('to'));
+      allow create: if active() && mine('from') && request.resource.data.to != myId()
+        && request.resource.data.status == 'pending' && request.resource.data.at == request.time;
+      allow update: if active() && onlyChanges(['status', 'closedAt']) && (
+        (wasMine('to') && resource.data.status == 'pending' && request.resource.data.status in ['accepted', 'declined'])
+        || (wasMine('from') && resource.data.status == 'pending' && request.resource.data.status == 'cancelled')
+        || (wasMine('from') && resource.data.status == 'declined' && request.resource.data.status == 'returned'));
+    }
+
+    // ── Keepsake cabinet and trophies (on profiles) ─────────────
+    match /cabinets/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId;
+    }
+    // Trophies come two ways: earned from achievements (the member's own page awards them once,
+    // with a fixed id per achievement tier so they can't stack), or awarded by leadership.
+    match /trophies/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.at == request.time && str(request.resource.data.title, 60)
+        && ((request.resource.data.kind == 'award' && can('awardTrophies') && mine('by'))
+          || (request.resource.data.kind == 'achievement' && mine('memberId') && request.resource.data.by == 'achievement'
+              && id == myId() + '_' + request.resource.data.achId + '_' + string(request.resource.data.tier)));
+      allow delete: if active() && can('awardTrophies');
+    }
+    // Each member's own work counters (harvests, presses, cooks, runs) for achievements.
+    match /stats/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId;
+    }
+
+    // ── BlackMarket: drugs sell for dirty money ─────────────────
+    match /sales/{id} {
+      allow read: if active() && (can('money') || wasMine('sellerId'));
+      allow create: if opens('blackmarket') && request.resource.data.at == request.time
+        && (mine('sellerId') || can('money'))
+        && request.resource.data.qty is int && request.resource.data.qty > 0;
+      allow delete: if can('money');
+    }
+    match /washes/{id} {
+      allow read: if active() && (can('money') || wasMine('memberId'));
+      allow create: if active() && request.resource.data.at == request.time
+        && ((mine('memberId') && opens('blackmarket')) || can('money'));
+      allow delete: if can('money');
+    }
+    // Payouts and expenses. A member can see payouts made to them.
+    match /ledger/{id} {
+      allow read: if active() && (can('money') || resource.data.get('toId', null) == myId());
+      allow create, delete: if can('money');
+    }
+    match /wishes/{id} {
+      allow read: if active();
+      allow create: if active() && mine('byId') && request.resource.data.status == 'open';
+      allow update: if active();
+    }
+    match /settings/blackmarket {
+      allow read: if active();
+      allow write: if can('money');
     }
 
     // ── Petty crime ──────────────────────────────────────────────
