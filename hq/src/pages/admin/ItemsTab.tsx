@@ -253,6 +253,24 @@ export default function ItemsTab() {
                   ))}
               </ul>
             )}
+            {kind === 'gun' && inKind.some((i) => i.blackMarket) && (
+              <div className="mb-4">
+                <p className="label mb-1">Black Market parts for base guns</p>
+                <ul className="divide-y divide-line-soft">
+                  {inKind
+                    .filter((i) => i.blackMarket && match(i))
+                    .sort(sort)
+                    .map((i) => (
+                      <li key={i.id}>
+                        <ul>
+                          <Row i={i} byId={byId} />
+                        </ul>
+                        <p className="-mt-1 pb-1.5 text-[11px] text-smoke">Fits {(i.fits ?? []).map((f) => byId.get(f)?.name ?? f).join(', ')}</p>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
             {kind === 'gun' && inKind.filter((i) => i.category === 'gun' && !i.gunClass).length > 0 && (
               <div>
                 <p className="label mb-1">Other guns</p>

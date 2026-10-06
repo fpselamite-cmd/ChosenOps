@@ -9,6 +9,7 @@ export const ITEM_KINDS = [
   { id: 'melee', label: 'Melee', one: 'Melee' },
   { id: 'armor', label: 'Armor', one: 'Armor' },
   { id: 'safety', label: 'Safety equipment', one: 'Safety' },
+  { id: 'throwable', label: 'Throwables', one: 'Throwable' },
   { id: 'gear', label: 'Other gear', one: 'Gear' },
   { id: 'tool', label: 'Tools', one: 'Tool' },
   { id: 'consumable', label: 'Consumables', one: 'Consumable' },
@@ -52,6 +53,9 @@ export interface ItemType {
   /** Attachments: the weapon (item id) it fits, and its slot. */
   weapon?: string;
   slot?: string;
+  /** Black Market attachments: the base guns they fit. */
+  fits?: string[];
+  blackMarket?: boolean;
   /** Ammo: the caliber, and whether this is the box or the loose rounds. */
   caliber?: string;
   form?: 'box' | 'round';
@@ -67,9 +71,18 @@ export function itemTitle(t: ItemType | undefined, byId: Map<string, ItemType>) 
   if (t.baseId) return `${t.name} (${byId.get(t.baseId)?.name ?? 'custom'})`;
   return t.name;
 }
+/** Every attachment that fits a weapon (its own parts, or Black Market parts for base guns). */
+export const attachmentsFor = (weaponId: string, types: ItemType[]) =>
+  types.filter((t) => t.category === 'attachment' && (t.weapon === weaponId || t.fits?.includes(weaponId)));
+/** The slots a weapon has, in editor order. */
+export const slotsFor = (weaponId: string, types: ItemType[]) => {
+  const have = new Set(attachmentsFor(weaponId, types).map((a) => a.slot));
+  return SLOTS.filter((s) => have.has(s.id));
+};
+
 export const itemSub = (t: ItemType, byId: Map<string, ItemType>) =>
   t.category === 'attachment'
-    ? `${byId.get(t.weapon ?? '')?.name ?? 'Attachment'} · ${slotLabel(t.slot)}`
+    ? `${t.blackMarket ? 'Black Market' : (byId.get(t.weapon ?? '')?.name ?? 'Attachment')} · ${slotLabel(t.slot)}`
     : t.category === 'gun'
       ? (GUN_CLASSES.find((c) => c.id === t.gunClass)?.label.replace(/s$/, '') ?? 'Gun') + (t.base ? '' : ' · custom')
       : t.baseId
@@ -84,6 +97,7 @@ export function guessKind(word: string): ItemKind {
   const w = word.toLowerCase();
   if (ITEM_KINDS.some((k) => k.id === w)) return w as ItemKind;
   if (/(extinguisher|flare|repair)/.test(w)) return 'safety';
+  if (/(molotov|pipe bomb|grenade|sticky|tear gas|throw)/.test(w)) return 'throwable';
   if (/(melee|knife|axe|hatchet|dagger|machete|knuckle|nightstick|switchblade|\bbat\b)/.test(w)) return 'melee';
   if (/(gun|pistol|rifle|smg|pdw|shotgun|sniper|carbine|revolver|lmg|mg\b|weapon|musket)/.test(w)) return 'gun';
   if (/(attach|optic|scope|sight|suppress|silencer|mag|grip|stock|barrel|flash|laser|muzzle|comp)/.test(w)) return 'attachment';

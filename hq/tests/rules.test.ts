@@ -539,3 +539,24 @@ describe('blacksites', () => {
     await assertSucceeds(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 0, dumped: true }));
   });
 });
+
+describe('gear & loadouts', () => {
+  const build = (by: string) => ({ name: 'Blacksite rifleman', weaponId: 'w_mk18_rifle', parts: { sight: 'a1' }, notes: '', by, byName: by, likes: {} });
+  it('lets anyone share a build; only the maker edits; anyone likes for themselves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'builds/b1'), build('sol')));
+    await assertFails(setDoc(doc(as('sol'), 'builds/b2'), build('sol2')));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'builds/b1'), { 'likes.sol2': true }));
+    await assertFails(updateDoc(doc(as('sol2'), 'builds/b1'), { 'likes.sol': true }));
+    await assertFails(updateDoc(doc(as('sol2'), 'builds/b1'), { name: 'Mine' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'builds/b1'), { name: 'Docks rifleman' }));
+  });
+  it('keeps a private loadout to its member and admins; public ones to all', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'loadouts/sol'), { public: false, vest: 'ar_class_iii_armor', plates: 3, utility: [] }));
+    await assertFails(setDoc(doc(as('sol2'), 'loadouts/sol'), { public: true }));
+    await assertFails(getDoc(doc(as('sol2'), 'loadouts/sol')));
+    await assertSucceeds(getDoc(doc(as('boss'), 'loadouts/sol')));
+    await assertSucceeds(getDoc(doc(as('ub'), 'loadouts/sol')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'loadouts/sol'), { public: true }, { merge: true }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'loadouts/sol')));
+  });
+});

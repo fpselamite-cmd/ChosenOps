@@ -7,8 +7,6 @@ import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
 import Admin from './pages/admin/Admin';
 import BlackMarket from './pages/BlackMarket';
-import ComingUp from './pages/ComingUp';
-import { ROADMAP } from './lib/roadmap';
 import Crews from './pages/Crews';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
@@ -18,6 +16,7 @@ import PettyCrime from './pages/PettyCrime';
 import Locker from './pages/Locker';
 import HallOfFame from './pages/HallOfFame';
 import Blacksites from './pages/Blacksites';
+import Gear from './pages/Gear';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
 import Login from './pages/Login';
@@ -63,11 +62,6 @@ function Gate({ page, children }: { page: PageId; children: ReactNode }) {
 function MemberRoutes() {
   const { ready } = useHub();
   if (!ready) return <Loading label="Opening HQ…" />;
-  const placeholder = (page: PageId & keyof typeof ROADMAP) => (
-    <Gate page={page}>
-      <ComingUp page={page} />
-    </Gate>
-  );
   return (
     <Routes>
       <Route element={<AppShell />}>
@@ -108,7 +102,14 @@ function MemberRoutes() {
             </Gate>
           }
         />
-        <Route path="gear" element={placeholder('gear')} />
+        <Route
+          path="gear"
+          element={
+            <Gate page="gear">
+              <Gear />
+            </Gate>
+          }
+        />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
         <Route path="crews" element={<Gate page="crews"><Crews /></Gate>} />
         <Route path="locker" element={<Locker />} />

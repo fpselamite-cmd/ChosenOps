@@ -1,7 +1,8 @@
-import { ArrowLeft, Camera, Crosshair, Crown, KeyRound, Pencil, Swords, Trophy } from 'lucide-react';
+import { ArrowLeft, Camera, Crosshair, Crown, KeyRound, Pencil, Trophy } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
+import { LoadoutCard } from './Gear';
 import { useCollection } from '../hooks/useCollection';
 import { records, type Blacksite } from '../lib/blacksites';
 import { Cabinet } from '../components/Cabinet';
@@ -160,7 +161,6 @@ function BlacksiteRecord({ id }: { id: string }) {
 
 const COMING = [
   { icon: Trophy, title: 'Titles & MVPs', text: 'Leaderboard titles and MVP crowns.' },
-  { icon: Swords, title: 'Current loadout', text: 'What they’re carrying right now.' },
 ];
 
 export default function Profile() {
@@ -312,6 +312,7 @@ export default function Profile() {
         </div>
         <div className="space-y-3">
           <BlacksiteRecord id={m.id} />
+          <LoadoutCard memberId={m.id} />
           {COMING.map((c) => (
             <div key={c.title} className="hud flex gap-3 p-4 opacity-75">
               <c.icon className="mt-0.5 size-5 shrink-0 text-gold-500" />

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Backpack, Box, Check, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
+import { ArrowLeftRight, Backpack, Bomb, Box, Check, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
@@ -29,6 +29,7 @@ const KIND_ICON = {
   melee: Sword,
   armor: Shield,
   safety: FireExtinguisher,
+  throwable: Bomb,
   gear: Backpack,
   tool: Hammer,
   consumable: Pill,

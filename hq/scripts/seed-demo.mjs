@@ -237,7 +237,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
   await setDoc(doc(db, 'lockerStock', `${vito}__home`), {
     owner: vito, dosidos: bud(2, 0, 0), meth: 1,
-    items: { g_carbine_rifle: 1, w_mk18_rifle: 1, a_mk18_rifle__mk18_ta02_acog: 1, a_mk18_rifle__mk18_30rd_std: 3, a_mk18_rifle__mk18_m_lok_mvg_black: 1, a_mk18_rifle__mk18_moe_magpul_black: 1, m_switchblade: 1, s_fire_extinguisher: 1, ammo_12_gauge_rnd: 16 },
+    items: { g_carbine_rifle: 1, w_mk18_rifle: 1, a_mk18_rifle__mk18_ta02_acog: 1, a_mk18_rifle__mk18_30rd_std: 3, a_mk18_rifle__mk18_m_lok_mvg_black: 1, a_mk18_rifle__mk18_moe_magpul_black: 1, a_mk18_rifle__mk18_dbal_a2: 1, m_switchblade: 1, s_fire_extinguisher: 1, ammo_12_gauge_rnd: 16, k_duffel_bag: 1, t_molotov: 3, t_pipe_bomb: 1, k_tablet: 1, k_medkit: 2, bm_pistol_suppressor: 1 },
     ...sign,
   });
   await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo_5_56x45mm_box: 4, ammo_5_56x45mm_rnd: 400, ammo_50_bmg_box: 1, w_m700_rifle: 1 }, ...sign });
@@ -353,7 +353,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     notes: 'Held through two pushes. Families showed up late.',
     loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'pending',
   });
-  await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MK18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MX-18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
   await setDoc(doc(db, 'blacksites/bs3/loot/l2'), { label: 'Armor Plate', item: 'ar_armor_plate', strain: null, field: 'meth', qty: 6, claims: { [ids['Kira Lane']]: 2 } });
   await setDoc(doc(db, 'blacksites/bs3/loot/l3'), { label: '9x19mm Box', item: 'ammo_9x19mm_box', strain: null, field: 'meth', qty: 3, claims: { [ids['Rocco Vale']]: 1 } });
   await setDoc(doc(db, 'blacksites/bs3/loot/l4'), { label: 'Machete', item: 'm_machete', strain: null, field: 'meth', qty: 1, claims: {} });
@@ -366,6 +366,25 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     votes: { [ids['Rocco Vale']]: ids['Dani Cruz'], [ids['Kira Lane']]: ids['Dani Cruz'], [ids['Ghost']]: ids['Dani Cruz'] },
     loggedBy: ids['Dani Cruz'], loggedByName: 'Dani Cruz', repStatus: 'confirmed', repBy: ids['Don Vito'],
   });
+
+  // Gear & Loadouts: shared builds and character loadouts
+  const build = (id, by, name, weaponId, parts, notes, likes) =>
+    setDoc(doc(db, 'builds', id), { name, weaponId, parts, notes, by: ids[by], byName: by, likes: Object.fromEntries(likes.map((n) => [ids[n], true])), at: Timestamp.fromMillis(now - likes.length * 7 * H) });
+  const A = (w, s) => `a_${w}__${s}`;
+  await build('bd1', 'Rocco Vale', 'Blacksite rifleman', 'w_mk18_rifle', { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), light: A('mk18_rifle', 'mk18_dbal_a2'), stock: A('mk18_rifle', 'mk18_moe_magpul_black'), frame: A('mk18_rifle', 'mk18_black_frame') }, 'Holds the hill. ACOG for the long lanes at the docks.', ['Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Don Vito']);
+  await build('bd2', 'Kira Lane', 'Runner SMG', 'w_ump45', { sight: A('ump45', 'ump45_aimdirect_micro_t_1'), magazine: A('ump45', '25rnd_magazine'), stock: A('ump45', 'ump45_folded_stock'), grip: A('ump45', 'magpul_afg_black') }, 'Light and quick for supply runs to the point.', ['Ghost', 'Jax Holt']);
+  await build('bd3', 'Dani Cruz', 'Overwatch', 'w_m700_rifle', { sight: A('m700_rifle', 'm700_nightforce_atacr_1_8x24'), barrel: A('m700_rifle', 'm700_26in_barrel'), magazine: A('m700_rifle', 'm700_10rnd_aics'), stock: A('m700_rifle', 'm700_at_aics_sniper'), muzzle: A('m700_rifle', 'm700_muzzle_break_1') }, '', ['Rocco Vale', 'Don Vito', 'Marco Gallo']);
+  await build('bd4', 'Tommy Reyes', 'Quiet Combat Pistol', 'g_combat_pistol', { muzzle: 'bm_pistol_suppressor', magazine: 'bm_pistol_extmag' }, 'Black Market suppressor and mag.', ['Nico Bruno']);
+  await build('bd5', 'Ghost', 'Block-17 Tan kit', 'w_block_17_pistol', { slide: A('block_17_pistol', 'b17_zev_custom_tan'), frame: A('block_17_pistol', 'b17_tan'), magazine: A('block_17_pistol', 'b17_20rd_extended'), barrel: A('block_17_pistol', 'b17_threaded_sai_barrel_tan') }, '', []);
+  await setDoc(doc(db, 'loadouts', vito), {
+    public: true, vest: 'ar_class_iii_armor', plates: 3,
+    primary: { item: 'w_mk18_rifle', parts: { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), stock: A('mk18_rifle', 'mk18_moe_magpul_black') } },
+    sidearm: { item: 'w_pn905_pistol', parts: { magazine: 'a_pn905_pistol__pn_905_17rd' } },
+    melee: 'v_pumpkin_bat', bag: 'k_duffel_bag',
+    utility: [{ item: 't_molotov', qty: 3 }, { item: 't_pipe_bomb', qty: 1 }, { item: 'k_tablet', qty: 1 }, { item: 'k_medkit', qty: 2 }],
+    at: Timestamp.fromMillis(now - H),
+  });
+  await setDoc(doc(db, 'loadouts', ids['Rocco Vale']), { public: false, vest: 'ar_class_iii_armor', plates: 4, primary: { item: 'w_mk18_rifle', parts: {} }, utility: [], at: Timestamp.fromMillis(now - H) });
 
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {

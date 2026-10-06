@@ -22,6 +22,7 @@ const KIND_ICON: Record<string, string> = {
   melee: 'fa-baseball-bat-ball',
   armor: 'fa-shield-halved',
   safety: 'fa-fire-extinguisher',
+  throwable: 'fa-bomb',
   gear: 'fa-suitcase',
   tool: 'fa-screwdriver-wrench',
   consumable: 'fa-flask-vial',

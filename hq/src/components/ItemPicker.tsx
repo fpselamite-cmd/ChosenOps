@@ -42,7 +42,7 @@ export function ItemPicker({
     const g = new Map<string, ItemType[]>();
     const keyOf = (t: ItemType) => {
       const k = kindOf(t, byId);
-      if (t.category === 'attachment') return `Attachments · ${byId.get(t.weapon ?? '')?.name ?? 'Other'}`;
+      if (t.category === 'attachment') return `Attachments · ${t.blackMarket ? 'Black Market (base guns)' : (byId.get(t.weapon ?? '')?.name ?? 'Other')}`;
       if (k === 'gun' && !t.baseId) return `${GUN_CLASSES.find((c) => c.id === t.gunClass)?.label ?? 'Guns'}${t.base ? '' : ' · custom'}`;
       return ITEM_KINDS.find((x) => x.id === k)?.label ?? 'Other';
     };
