@@ -2,6 +2,8 @@ import { ArrowLeft, Camera, Crosshair, Crown, KeyRound, Pencil, Swords, Trophy }
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
+import { useCollection } from '../hooks/useCollection';
+import { records, type Blacksite } from '../lib/blacksites';
 import { Cabinet } from '../components/Cabinet';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { ErrorText, Field } from '../components/Field';
@@ -126,9 +128,38 @@ function ChangePin({ onClose }: { onClose: () => void }) {
   );
 }
 
+function BlacksiteRecord({ id }: { id: string }) {
+  const sites = useCollection<Blacksite>('blacksites') ?? [];
+  const r = records(sites).get(id);
+  return (
+    <Link to="/blacksites" className="hud flex gap-3 p-4 hover:bg-raised/40">
+      <Crosshair className="mt-0.5 size-5 shrink-0 text-gold-500" />
+      <div className="min-w-0 flex-1">
+        <p className="font-hud font-bold text-gold-200">Blacksite record</p>
+        {r ? (
+          <div className="mt-1 grid grid-cols-4 gap-1 text-center">
+            {[
+              ['Fights', r.fights],
+              ['Kills', r.kills],
+              ['K/D', (r.kills / Math.max(1, r.downs)).toFixed(1)],
+              ['MVPs', r.mvps],
+            ].map(([l, v]) => (
+              <div key={l}>
+                <p className="font-mono text-lg text-gold-100">{v}</p>
+                <p className="label">{l}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-smoke">No fights logged yet.</p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 const COMING = [
   { icon: Trophy, title: 'Titles & MVPs', text: 'Leaderboard titles and MVP crowns.' },
-  { icon: Crosshair, title: 'Blacksite record', text: 'Every blacksite they fought in, kills and MVPs.' },
   { icon: Swords, title: 'Current loadout', text: 'What they’re carrying right now.' },
 ];
 
@@ -280,6 +311,7 @@ export default function Profile() {
           </Panel>
         </div>
         <div className="space-y-3">
+          <BlacksiteRecord id={m.id} />
           {COMING.map((c) => (
             <div key={c.title} className="hud flex gap-3 p-4 opacity-75">
               <c.icon className="mt-0.5 size-5 shrink-0 text-gold-500" />

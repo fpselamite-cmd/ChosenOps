@@ -490,3 +490,52 @@ describe('custom item names', () => {
     await assertFails(updateDoc(doc(as('sol'), 'itemTypes/v1'), { category: 'gun' }));
   });
 });
+
+describe('blacksites', () => {
+  const fight = (by: string, extra = {}) => ({
+    zone: 'Docks', at: Timestamp.now(), result: 'win', rivals: ['Ballas'], holdMins: 30, rep: 150,
+    participants: ['sol', 'sol2', 'capo'], stats: {}, votes: {}, lootStatus: 'open', stashTo: 'main',
+    closesAt: Timestamp.fromMillis(Date.now() + 86400e3), loggedBy: by, repStatus: 'pending', ...extra,
+  });
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, 'ranks/capo'), { 'permissions.confirmRep': true });
+      await setDoc(doc(db, 'blacksites/b1'), fight('sol'));
+      await setDoc(doc(db, 'blacksites/b1/loot/l1'), { label: 'Carbine Rifle', item: 'g_carbine_rifle', field: 'meth', qty: 3, claims: {} });
+      await setDoc(doc(db, 'stats/familyRep'), { total: 100 });
+    });
+  });
+  it('lets anyone log a fight, with its rep pending', async () => {
+    await assertSucceeds(setDoc(doc(as('sol2'), 'blacksites/b2'), fight('sol2')));
+    await assertFails(setDoc(doc(as('sol2'), 'blacksites/b3'), fight('sol2', { repStatus: 'confirmed' })));
+    await assertFails(setDoc(doc(as('sol2'), 'blacksites/b4'), fight('sol')));
+  });
+  it('lets participants fill their own line and vote for someone else', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'blacksites/b1'), { 'stats.sol2': { kills: 4, downs: 1, logistics: 2, brought: ['plates'] }, 'votes.sol2': 'capo' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1'), { 'stats.capo': { kills: 0 } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1'), { 'votes.sol2': 'sol2' }));
+    await assertFails(updateDoc(doc(as('ub'), 'blacksites/b1'), { 'votes.ub': 'sol' }));
+  });
+  it('adds the rep to the family only when Lieutenant+ confirms', async () => {
+    await assertFails(updateDoc(doc(as('sol'), 'blacksites/b1'), { repStatus: 'confirmed', repBy: 'sol' }));
+    const db = as('capo');
+    const b = writeBatch(db);
+    b.update(doc(db, 'blacksites/b1'), { repStatus: 'confirmed', repBy: 'capo' });
+    b.set(doc(db, 'stats/familyRep'), { total: 250, lastBlacksite: 'b1' }, { merge: true });
+    await assertSucceeds(b.commit());
+    const db2 = as('capo');
+    const b2 = writeBatch(db2);
+    b2.set(doc(db2, 'stats/familyRep'), { total: 9999, lastBlacksite: 'b1' }, { merge: true });
+    await assertFails(b2.commit());
+  });
+  it('lets participants claim loot while the draw is open, then dumps the rest', async () => {
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 2, 'claims.sol2': 1 }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 0, 'claims.sol2': 1 }));
+    await assertFails(updateDoc(doc(as('ub'), 'blacksites/b1/loot/l1'), { qty: 1, 'claims.ub': 1 }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1'), { lootStatus: 'closed', closedBy: 'sol2' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'blacksites/b1'), { lootStatus: 'closed', closedBy: 'sol' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 1, 'claims.sol2': 2 }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 0, dumped: true }));
+  });
+});

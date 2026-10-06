@@ -95,7 +95,7 @@ function Row({ i, byId }: { i: ItemType; byId: Map<string, ItemType> }) {
           <Pencil className="size-3.5" />
         </button>
       )}
-      <button className="text-ash hover:text-blood" title="Remove from catalog" onClick={() => confirm(`Remove ${i.name} from the catalog?`) && deleteDoc(doc(db, 'itemTypes', i.id))}>
+      <button className="text-ash hover:text-danger" title="Remove from catalog" onClick={() => confirm(`Remove ${i.name} from the catalog?`) && deleteDoc(doc(db, 'itemTypes', i.id))}>
         <Trash2 className="size-3.5" />
       </button>
     </li>

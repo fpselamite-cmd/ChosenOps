@@ -393,14 +393,95 @@ service cloud.firestore {
     match /stats/familyRep {
       allow read: if active();
       allow create, update: if can('confirmRep')
-        && request.resource.data.keys().hasOnly(['total', 'lastTransfer'])
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite'])
+        && request.resource.data.get('lastBlacksite', null) == (resource == null ? null : resource.data.get('lastBlacksite', null))
         && transfer(request.resource.data.lastTransfer).status == 'pending'
         && transferAfter(request.resource.data.lastTransfer).status == 'confirmed'
         && request.resource.data.total
            == (resource == null ? 0 : resource.data.total) + transfer(request.resource.data.lastTransfer).amount;
+      // A blacksite's rep, added once, when Lieutenant+ confirms the fight.
+      allow create, update: if can('confirmRep')
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite'])
+        && request.resource.data.get('lastTransfer', null) == (resource == null ? null : resource.data.get('lastTransfer', null))
+        && site(request.resource.data.lastBlacksite).repStatus == 'pending'
+        && siteAfter(request.resource.data.lastBlacksite).repStatus == 'confirmed'
+        && request.resource.data.total
+           == (resource == null ? 0 : resource.data.total) + site(request.resource.data.lastBlacksite).rep;
       // Leadership can correct the total by hand.
       allow create, update: if can('manageSettings') && request.resource.data.total is int
-        && request.resource.data.keys().hasOnly(['total', 'lastTransfer']);
+        && request.resource.data.keys().hasOnly(['total', 'lastTransfer', 'lastBlacksite']);
+    }
+
+    // ── Blacksites: King of the Hill fights ─────────────────────
+    function site(id) { return get(/databases/$(database)/documents/blacksites/$(id)).data; }
+    function siteAfter(id) { return getAfter(/databases/$(database)/documents/blacksites/$(id)).data; }
+    function mapOnlyMine(after, before) {
+      return after.diff(before).affectedKeys().hasOnly([myId()]);
+    }
+    match /blacksites/{bid} {
+      allow read: if active();
+      function validSite() {
+        let d = request.resource.data;
+        return str(d.zone, 60) && d.zone.size() > 0 && d.at is timestamp
+          && d.result in ['win', 'loss', 'draw'] && d.rivals is list && d.rivals.size() <= 10
+          && d.holdMins is int && d.holdMins >= 0 && d.rep is int && d.rep >= 0 && d.rep <= 1000000
+          && d.participants is list && d.participants.size() <= 60
+          && d.stats is map && d.stats.keys().hasOnly(d.participants)
+          && d.votes is map && (!('notes' in d) || str(d.notes, 1000))
+          && d.lootStatus in ['open', 'closed'] && str(d.stashTo, 60);
+      }
+      // Anyone logs a fight. Its rep waits for Lieutenant+.
+      allow create: if active() && validSite() && request.resource.data.loggedBy == myId()
+        && request.resource.data.repStatus == 'pending' && request.resource.data.lootStatus == 'open'
+        && request.resource.data.votes.size() == 0;
+      allow update: if active() && (
+        // The logger fixes anything except the rep decision (and can't change the rep once confirmed).
+        (resource.data.loggedBy == myId() && validSite()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['repStatus', 'repBy', 'loggedBy', 'votes'])
+          && (resource.data.repStatus == 'pending' || request.resource.data.rep == resource.data.rep))
+        // Each participant fills in their own line and casts their own MVP vote (for someone else who was there).
+        || (myId() in resource.data.participants && onlyChanges(['stats', 'votes'])
+            && mapOnlyMine(request.resource.data.stats, resource.data.stats)
+            && mapOnlyMine(request.resource.data.votes, resource.data.votes)
+            && (!(myId() in request.resource.data.votes)
+                || (request.resource.data.votes[myId()] in resource.data.participants && request.resource.data.votes[myId()] != myId())))
+        // Lieutenant+ confirms (adding it to the family total in the same write) or turns down the rep.
+        || (can('confirmRep') && resource.data.repStatus == 'pending' && onlyChanges(['repStatus', 'repBy'])
+            && request.resource.data.repBy == myId()
+            && ((request.resource.data.repStatus == 'confirmed'
+                  && getAfter(/databases/$(database)/documents/stats/familyRep).data.lastBlacksite == bid)
+                || request.resource.data.repStatus == 'rejected'))
+        // Closing the loot draw (the leftovers then go into the stash).
+        || (resource.data.lootStatus == 'open' && onlyChanges(['lootStatus', 'closedBy'])
+            && request.resource.data.lootStatus == 'closed' && request.resource.data.closedBy == myId()
+            && (resource.data.loggedBy == myId() || resource.data.closesAt < request.time || can('manageOps')))
+      );
+      allow delete: if active() && (can('manageOps') || (resource.data.loggedBy == myId() && resource.data.repStatus == 'pending'));
+
+      // Loot to share out: participants claim, the rest goes into the stash when the draw closes.
+      match /loot/{lid} {
+        allow read: if active();
+        allow create: if active() && site(bid).loggedBy == myId() && site(bid).lootStatus == 'open'
+          && str(request.resource.data.label, 60) && request.resource.data.qty is int && request.resource.data.qty > 0
+          && request.resource.data.claims is map && request.resource.data.claims.size() == 0;
+        allow update: if active() && (
+          (site(bid).lootStatus == 'open' && myId() in site(bid).participants
+            && onlyChanges(['qty', 'claims']) && mapOnlyMine(request.resource.data.claims, resource.data.claims)
+            && request.resource.data.qty >= 0
+            && request.resource.data.qty - resource.data.qty
+               == resource.data.claims.get(myId(), 0) - request.resource.data.claims.get(myId(), 0))
+          || (site(bid).lootStatus == 'closed' && onlyChanges(['qty', 'dumped'])
+              && request.resource.data.qty == 0 && request.resource.data.dumped == true)
+        );
+        allow delete: if active() && site(bid).loggedBy == myId() && resource.data.claims.size() == 0;
+      }
+      // Loot screenshots, one per doc (they're big).
+      match /photos/{pid} {
+        allow read: if active();
+        allow create: if active() && (site(bid).loggedBy == myId() || myId() in site(bid).participants)
+          && request.resource.data.by == myId() && str(request.resource.data.image, 400000);
+        allow delete: if active() && (resource.data.by == myId() || site(bid).loggedBy == myId());
+      }
     }
 
     // ── Leaderboards: one doc per month (ET), e.g. boards/2026-10 ──

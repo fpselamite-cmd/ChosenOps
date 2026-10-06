@@ -173,7 +173,7 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
             <button className="text-smoke hover:text-gold-200" onClick={() => onEdit(e!)} aria-label="Edit">
               <Pencil className="size-3.5" />
             </button>
-            <button className="text-smoke hover:text-blood" onClick={() => confirm(`Delete “${e!.title}”${e!.repeat !== 'none' ? ' and all its repeats' : ''}?`) && removeEvent(e!.id)} aria-label="Delete">
+            <button className="text-smoke hover:text-danger" onClick={() => confirm(`Delete “${e!.title}”${e!.repeat !== 'none' ? ' and all its repeats' : ''}?`) && removeEvent(e!.id)} aria-label="Delete">
               <Trash2 className="size-3.5" />
             </button>
           </span>
@@ -186,7 +186,7 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
             <button
               key={v}
               onClick={() => rsvp(e.id, me.id, v)}
-              className={`chip px-2.5 py-1 text-xs ${mine === v ? (v === 'yes' ? 'bg-ok text-void' : v === 'maybe' ? 'bg-gold-400 text-void' : 'bg-blood text-white') : 'bg-raised text-ash'}`}
+              className={`chip px-2.5 py-1 text-xs ${mine === v ? (v === 'yes' ? 'bg-ok text-void' : v === 'maybe' ? 'bg-gold-400 text-void' : 'bg-danger text-white') : 'bg-raised text-ash'}`}
             >
               {v === 'yes' ? 'Going' : v === 'maybe' ? 'Maybe' : 'Can’t'}
             </button>

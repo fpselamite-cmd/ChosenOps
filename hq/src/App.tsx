@@ -17,6 +17,7 @@ import Stash from './pages/Stash';
 import PettyCrime from './pages/PettyCrime';
 import Locker from './pages/Locker';
 import HallOfFame from './pages/HallOfFame';
+import Blacksites from './pages/Blacksites';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
 import Login from './pages/Login';
@@ -99,7 +100,14 @@ function MemberRoutes() {
             </Gate>
           }
         />
-        <Route path="blacksites" element={placeholder('blacksites')} />
+        <Route
+          path="blacksites"
+          element={
+            <Gate page="blacksites">
+              <Blacksites />
+            </Gate>
+          }
+        />
         <Route path="gear" element={placeholder('gear')} />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
         <Route path="crews" element={<Gate page="crews"><Crews /></Gate>} />

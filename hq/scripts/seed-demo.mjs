@@ -320,6 +320,53 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD, crewIds: ['hit'] });
   await ev('e7', 'Mia Santos', 'Rooftop party', 'party', at(10, 23), 240, 'none', 'gang', { place: 'Vinewood rooftop' });
 
+  // Blacksites
+  const shot = (title, color) =>
+    'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a2230"/><stop offset="1" stop-color="#0a0d12"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/><rect x="24" y="24" width="592" height="312" fill="none" stroke="${color}" stroke-opacity=".5" stroke-width="2"/><text x="320" y="170" fill="${color}" font-family="sans-serif" font-size="34" text-anchor="middle">${title}</text><text x="320" y="214" fill="#999" font-family="monospace" font-size="16" text-anchor="middle">sample screenshot</text></svg>`);
+  const P = (names) => names.map((n) => ids[n]);
+  const st = (k, d, l, b = []) => ({ kills: k, downs: d, logistics: l, brought: b });
+  const fight = (id, f) => setDoc(doc(db, 'blacksites', id), { pinId: 'p5', notes: '', closesAt: Timestamp.fromMillis(now - H), stashTo: 'main', lootStatus: 'closed', votes: {}, stats: {}, createdAt: f.at, ...f });
+  await fight('bs1', {
+    zone: 'Docks blacksite', at: Timestamp.fromMillis(now - 2 * D - 3 * H), result: 'win', rivals: ['Ballas'], holdMins: 41, rep: 250,
+    participants: P(['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Don Vito', 'Nico Bruno']),
+    stats: { [ids['Rocco Vale']]: st(9, 2, 0), [ids['Dani Cruz']]: st(6, 3, 1, ['meds']), [ids['Tommy Reyes']]: st(4, 4, 0), [ids['Kira Lane']]: st(2, 1, 5, ['ammo', 'plates']), [ids['Don Vito']]: st(3, 0, 0), [ids['Nico Bruno']]: st(1, 2, 3, ['ammo', 'meds']) },
+    votes: { [ids['Dani Cruz']]: ids['Rocco Vale'], [ids['Tommy Reyes']]: ids['Rocco Vale'], [ids['Kira Lane']]: ids['Rocco Vale'], [ids['Don Vito']]: ids['Kira Lane'], [ids['Nico Bruno']]: ids['Kira Lane'], [ids['Rocco Vale']]: ids['Kira Lane'] },
+    notes: 'Pushed from the warehouse side. Kira kept the plates coming the whole hold.',
+    loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'confirmed', repBy: ids['Lena Russo'], closedBy: ids['Rocco Vale'],
+  });
+  await setDoc(doc(db, 'blacksites/bs1/loot/l1'), { label: 'Carbine Rifle', item: 'g_carbine_rifle', strain: null, field: 'meth', qty: 0, claims: { [ids['Rocco Vale']]: 1, [ids['Kira Lane']]: 1 }, dumped: true });
+  await setDoc(doc(db, 'blacksites/bs1/loot/l2'), { label: '5.56x45mm Box', item: 'ammo_5_56x45mm_box', strain: null, field: 'meth', qty: 0, claims: { [ids['Dani Cruz']]: 2 }, dumped: true });
+  await setDoc(doc(db, 'blacksites/bs1/photos/ph1'), { image: shot('DOCKS · LOOT', '#d4af37'), by: ids['Rocco Vale'], at: Timestamp.fromMillis(now - 2 * D) });
+  await fight('bs2', {
+    zone: 'Docks blacksite', at: Timestamp.fromMillis(now - 26 * H), result: 'loss', rivals: ['Vagos'], holdMins: 12, rep: 40,
+    participants: P(['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Ghost']),
+    stats: { [ids['Rocco Vale']]: st(3, 2, 0), [ids['Tommy Reyes']]: st(2, 3, 0), [ids['Ghost']]: st(0, 2, 2, ['armor']) },
+    votes: { [ids['Tommy Reyes']]: ids['Rocco Vale'] },
+    loggedBy: ids['Dani Cruz'], loggedByName: 'Dani Cruz', repStatus: 'pending',
+  });
+  await fight('bs3', {
+    zone: 'Mirror Park hill', pinId: null, at: Timestamp.fromMillis(now - 2 * H), result: 'win', rivals: ['Ballas', 'Families'], holdMins: 33, rep: 300,
+    participants: P(['Rocco Vale', 'Kira Lane', 'Don Vito', 'Tommy Reyes', 'Marco Gallo']),
+    stats: { [ids['Rocco Vale']]: st(7, 1, 0), [ids['Kira Lane']]: st(3, 2, 4, ['ammo', 'meds', 'plates']), [ids['Tommy Reyes']]: st(5, 3, 0) },
+    votes: { [ids['Kira Lane']]: ids['Rocco Vale'], [ids['Tommy Reyes']]: ids['Kira Lane'] },
+    lootStatus: 'open', closesAt: Timestamp.fromMillis(now + 22 * H),
+    notes: 'Held through two pushes. Families showed up late.',
+    loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'pending',
+  });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MK18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l2'), { label: 'Armor Plate', item: 'ar_armor_plate', strain: null, field: 'meth', qty: 6, claims: { [ids['Kira Lane']]: 2 } });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l3'), { label: '9x19mm Box', item: 'ammo_9x19mm_box', strain: null, field: 'meth', qty: 3, claims: { [ids['Rocco Vale']]: 1 } });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l4'), { label: 'Machete', item: 'm_machete', strain: null, field: 'meth', qty: 1, claims: {} });
+  await setDoc(doc(db, 'blacksites/bs3/photos/ph1'), { image: shot('MIRROR PARK · HOLD', '#22c55e'), by: ids['Rocco Vale'], at: Timestamp.fromMillis(now - H) });
+  await setDoc(doc(db, 'blacksites/bs3/photos/ph2'), { image: shot('MIRROR PARK · LOOT', '#d4af37'), by: ids['Kira Lane'], at: Timestamp.fromMillis(now - H) });
+  await fight('bs4', {
+    zone: 'Sandy airfield', pinId: null, at: Timestamp.fromMillis(now - 10 * D), result: 'draw', rivals: ['Lost MC'], holdMins: 20, rep: 120,
+    participants: P(['Rocco Vale', 'Dani Cruz', 'Kira Lane', 'Ghost', 'Jax Holt']),
+    stats: { [ids['Rocco Vale']]: st(4, 3, 0), [ids['Dani Cruz']]: st(5, 2, 0), [ids['Kira Lane']]: st(1, 1, 3, ['ammo']), [ids['Ghost']]: st(2, 2, 1), [ids['Jax Holt']]: st(0, 1, 2, ['meds']) },
+    votes: { [ids['Rocco Vale']]: ids['Dani Cruz'], [ids['Kira Lane']]: ids['Dani Cruz'], [ids['Ghost']]: ids['Dani Cruz'] },
+    loggedBy: ids['Dani Cruz'], loggedByName: 'Dani Cruz', repStatus: 'confirmed', repBy: ids['Don Vito'],
+  });
+
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',
