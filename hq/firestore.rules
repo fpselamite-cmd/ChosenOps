@@ -353,7 +353,8 @@ service cloud.firestore {
     }
     // One doc per storage: "<memberId>__<storageId>". Same shape as a stash's stock.
     match /lockerStock/{id} {
-      allow read: if active() && wasMine('owner');
+      // An empty storage has no doc yet; reading it (before the first thing goes in) is fine if it's yours.
+      allow read: if active() && (resource == null ? id.matches(myId() + '__.+') : wasMine('owner'));
       allow create: if active() && mine('owner') && id.matches(myId() + '__.+');
       allow update: if active() && wasMine('owner') && mine('owner');
       allow delete: if active() && wasMine('owner');
