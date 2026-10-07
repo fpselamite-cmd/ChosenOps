@@ -491,6 +491,14 @@ describe('pins and events', () => {
     await assertFails(deleteDoc(doc(as('sol'), 'pins/gang')));
     await assertSucceeds(deleteDoc(doc(as('boss'), 'pins/gang')));
   });
+  it('takes a postal, access notes, a photo and a stash link on a pin, and a map spot on an event', async () => {
+    const full = { ...pin('sol', 'gang'), postal: '8021', access: 'Keypad 4471', photo: 'data:image/jpeg;base64,abc', stashId: 'main' };
+    await assertSucceeds(setDoc(doc(as('sol'), 'pins/f'), full));
+    await assertFails(setDoc(doc(as('sol'), 'pins/g'), { ...full, postal: '12345678901' }));
+    await assertFails(setDoc(doc(as('sol'), 'pins/h'), { ...full, photo: 'x'.repeat(460000) }));
+    const ev = { ...aud('sol', 'gang'), title: 'Buyer meet', kind: 'meeting', start: Timestamp.now(), mins: 30, repeat: 'none', rsvp: {}, pinId: 'f' };
+    await assertSucceeds(setDoc(doc(as('sol'), 'events/e9'), ev));
+  });
   it('lets people RSVP for themselves only', async () => {
     const ev = { ...aud('boss', 'gang'), title: 'Sit-down', kind: 'meeting', start: Timestamp.now(), mins: 60, repeat: 'weekly', rsvp: {} };
     await assertSucceeds(setDoc(doc(as('boss'), 'events/e1'), ev));

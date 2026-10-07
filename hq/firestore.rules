@@ -780,6 +780,9 @@ service cloud.firestore {
         return validAudience(d) && str(d.name, 40) && d.name.size() > 0 && str(d.type, 20)
           && d.x is number && d.x >= 0 && d.x <= 1 && d.y is number && d.y >= 0 && d.y <= 1
           && (!('note' in d) || str(d.note, 300))
+          && str(d.get('postal', ''), 10) && str(d.get('access', ''), 300)
+          && (d.get('photo', null) == null || str(d.photo, 450000))
+          && (d.get('stashId', null) == null || str(d.stashId, 80))
           // Only leadership puts down rank- or crew-limited locations.
           && (d.scope != 'limited' || lead());
       }
@@ -796,6 +799,7 @@ service cloud.firestore {
           && d.start is timestamp && d.mins is int && d.mins > 0 && d.mins <= 7 * 24 * 60
           && d.repeat in ['none', 'daily', 'weekly', 'biweekly', 'monthly']
           && (!('note' in d) || str(d.note, 500)) && (!('place' in d) || str(d.place, 60))
+          && (d.get('pinId', null) == null || str(d.pinId, 80))
           && d.rsvp is map;
       }
       allow create: if active() && validEvent() && request.resource.data.rsvp.keys().hasOnly([myId()]);

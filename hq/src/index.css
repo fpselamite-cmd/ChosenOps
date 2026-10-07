@@ -1356,3 +1356,65 @@ html[data-motion='off'] .kaching { display: none; }
 @keyframes bs-wave { 50% { box-shadow: 0 0 20px rgba(212, 175, 55, 1); } }
 .bs-streak { background: linear-gradient(90deg, rgba(212, 175, 55, 0.14), transparent 70%); }
 @media (prefers-reduced-motion: reduce) { .bs-flag.win { animation: none; } }
+
+/* ── Map: gold glowing markers, pin drop, night tint ─────────── */
+.map-pin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: radial-gradient(circle at 35% 30%, #2a2416, #0a0a0b 70%);
+  color: var(--c);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 12px color-mix(in srgb, var(--c) 70%, transparent), inset 0 0 8px color-mix(in srgb, var(--c) 35%, transparent);
+  transition: transform 0.15s;
+}
+.map-pin:hover { transform: scale(1.15); }
+.map-pin.on { border-color: #fff3c4; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 0 5px rgba(212, 175, 55, 0.35), 0 0 22px var(--c); }
+.map-pin-lock { position: absolute; top: -5px; right: -6px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: #050505; color: var(--color-gold-300); box-shadow: 0 0 0 1px var(--color-gold-500); }
+.map-pin-label {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.82);
+  font: 600 11px var(--font-sans);
+  color: var(--color-gold-100);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.map-pin-label small { font-size: 10px; color: var(--color-smoke); }
+.map-pin.drop { animation: pin-drop 0.7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.map-pin.drop::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--c); animation: pin-ripple 1.1s ease-out 0.45s both; }
+@keyframes pin-drop { 0% { transform: translateY(-60px) scale(0.6); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; } }
+@keyframes pin-ripple { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3); opacity: 0; } }
+.map-extra {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(10, 10, 12, 0.88);
+  border: 1.5px solid var(--color-ash);
+  color: var(--color-ash);
+}
+.map-extra.spot { transform: rotate(45deg); }
+.map-extra.spot > svg { transform: rotate(-45deg); }
+.map-extra.spot .map-pin-label { transform: rotate(-45deg); top: 120%; }
+.map-extra.spot.win { border-color: var(--color-gold-300); color: var(--color-gold-200); box-shadow: 0 0 10px rgba(212, 175, 55, 0.7); }
+.map-extra.spot.loss { border-color: #f87171; color: #f87171; }
+.map-extra.event { border-radius: 50%; border-color: #a78bfa; color: #c4b5fd; box-shadow: 0 0 12px rgba(167, 139, 250, 0.6); animation: event-pulse 2s ease-in-out infinite; }
+@keyframes event-pulse { 50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.95); } }
+.map-night {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 40%, rgba(212, 175, 55, 0.05), transparent 60%), rgba(8, 10, 40, 0.42);
+  mix-blend-mode: multiply;
+}
+@media (prefers-reduced-motion: reduce) { .map-pin.drop, .map-pin.drop::after, .map-extra.event { animation: none; } }

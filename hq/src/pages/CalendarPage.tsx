@@ -8,6 +8,9 @@ import { Modal } from '../components/Modal';
 import { PageHeader, Panel } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft } from '../lib/audience';
+import { useCollection } from '../hooks/useCollection';
+import type { Spot } from '../lib/blacksites';
+import type { Pin } from '../lib/pins';
 import {
   addDays,
   addEvent,
@@ -51,6 +54,9 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
   const [mins, setMins] = useState(event?.mins ?? 60);
   const [repeat, setRepeat] = useState<Repeat>(event?.repeat ?? 'none');
   const [place, setPlace] = useState(event?.place ?? '');
+  const [pinId, setPinId] = useState<string | null>(event?.pinId ?? null);
+  const pins = useVisible<Pin>('pins') ?? [];
+  const spots = (useCollection<Spot>('blacksiteSpots') ?? []).filter((x) => x.x != null);
   const [note, setNote] = useState(event?.note ?? '');
   const [aud, setAud] = useState<AudienceDraft>(event ? { scope: event.scope, ranks: event.ranks, crewIds: event.crewIds, minRank: event.minRank ?? null } : { ...GANG });
   const [busy, setBusy] = useState(false);
@@ -60,7 +66,7 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
     setBusy(true);
     const { y, m, d } = parseKey(date);
     const [h, mi] = time.split(':').map(Number);
-    const draft = { title: title.trim().slice(0, 60), kind, mins, repeat, place: place.trim().slice(0, 60), note: note.trim().slice(0, 500), start: fromET(y, m, d, h, mi), ...aud };
+    const draft = { title: title.trim().slice(0, 60), kind, mins, repeat, place: place.trim().slice(0, 60), pinId, note: note.trim().slice(0, 500), start: fromET(y, m, d, h, mi), ...aud };
     if (event) await saveEvent(event.id, draft);
     else await addEvent(me, draft);
     onClose();
@@ -110,9 +116,44 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
             </select>
           </Field>
         </div>
-        <Field label="Where">
-          <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} maxLength={60} placeholder="Postal, place or pin name" />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Where">
+            <input className="input" value={place} onChange={(e) => setPlace(e.target.value)} maxLength={60} placeholder="Postal or place" />
+          </Field>
+          <Field label="On the map" hint="Shows on the Map for the week before">
+            <select
+              className="input"
+              value={pinId ?? ''}
+              onChange={(e) => {
+                const v = e.target.value || null;
+                setPinId(v);
+                const name = v?.startsWith('spot:') ? spots.find((x) => `spot:${x.id}` === v)?.name : pins.find((p) => p.id === v)?.name;
+                if (name && !place.trim()) setPlace(name);
+              }}
+            >
+              <option value="">Not on the map</option>
+              {pins.length > 0 && (
+                <optgroup label="Pins">
+                  {pins.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.postal ? ` · ${p.postal}` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {spots.length > 0 && (
+                <optgroup label="Blacksite locations">
+                  {spots.map((x) => (
+                    <option key={x.id} value={`spot:${x.id}`}>
+                      {x.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </Field>
+        </div>
         <Field label="Details">
           <textarea className="input min-h-20" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
         </Field>
