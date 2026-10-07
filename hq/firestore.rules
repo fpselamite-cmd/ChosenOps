@@ -290,6 +290,38 @@ service cloud.firestore {
     function mine(field) { return request.resource.data[field] == myId(); }
     function wasMine(field) { return resource.data[field] == myId(); }
 
+    // Character sheets: anyone in the family reads them; only the member writes their own.
+    match /sheets/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId
+        && request.resource.data.keys().hasOnly(['basics', 'looks', 'city', 'story', 'traits', 'skills', 'customSkills', 'customFields', 'relations', 'song', 'wanted'])
+        && (!('traits' in request.resource.data) || request.resource.data.traits.size() <= 16)
+        && (!('relations' in request.resource.data) || request.resource.data.relations.size() <= 24)
+        && (!('customFields' in request.resource.data) || request.resource.data.customFields.size() <= 16)
+        && (!('customSkills' in request.resource.data) || request.resource.data.customSkills.size() <= 12)
+        && (!('song' in request.resource.data) || str(request.resource.data.song, 300));
+    }
+    // Journal entries are private unless shared. Shared ones can get one emoji reaction per member.
+    match /journal/{id} {
+      allow read: if active() && (resource.data.memberId == myId() || resource.data.public == true);
+      allow create: if active() && mine('memberId') && request.resource.data.at == request.time
+        && str(request.resource.data.title, 80) && str(request.resource.data.text, 4000) && request.resource.data.public is bool
+        && request.resource.data.reactions == {};
+      allow update: if active() && wasMine('memberId') && onlyChanges(['title', 'text', 'public'])
+        && str(request.resource.data.title, 80) && str(request.resource.data.text, 4000) && request.resource.data.public is bool;
+      allow update: if active() && resource.data.public == true && onlyChanges(['reactions'])
+        && request.resource.data.reactions.diff(resource.data.reactions).affectedKeys().hasOnly([myId()]);
+      allow delete: if active() && wasMine('memberId');
+    }
+    // Leadership notes on a member: the member can read their own; leadership writes them.
+    match /leaderNotes/{id} {
+      allow read: if active() && (resource.data.memberId == myId() || can('manageMembers'));
+      allow create: if can('manageMembers') && mine('by') && request.resource.data.memberId != myId()
+        && request.resource.data.at == request.time && str(request.resource.data.text, 300)
+        && request.resource.data.kind in ['commendation', 'note', 'warning', 'strike'];
+      allow delete: if can('manageMembers');
+    }
+
     match /lockers/{memberId} {
       allow read, write: if active() && myId() == memberId;
     }

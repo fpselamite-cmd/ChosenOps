@@ -317,7 +317,7 @@ export function Cabinet({ member }: { member: Member }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="foil font-display text-2xl font-bold">Keepsake Cabinet</h2>
+        <h2 className="foil font-display text-2xl font-bold">Trophy Wall</h2>
         <div className="flex flex-wrap items-center gap-2">
           {mine && (
             <span className="flex items-center gap-1 text-sm text-smoke">
