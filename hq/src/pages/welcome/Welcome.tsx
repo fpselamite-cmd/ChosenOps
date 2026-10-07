@@ -95,7 +95,7 @@ function MyRoad() {
             ? { text: `Earn rep on runs until you hit ${w.repTarget.toLocaleString()}.`, to: '/petty-crime', cta: 'Petty Crime' }
             : now?.id === 'rec'
               ? { text: 'You’ve done it all. A handler will put you up to High Table.', cta: '' }
-              : { text: 'You’re up for your patch. High Table decides.', cta: '' };
+              : { text: 'You’re up to be blooded in. High Table decides.', cta: '' };
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_300px]">
       <Road memberId={me.id} name={me.name} w={w} p={p} ob={ob} />
@@ -240,7 +240,7 @@ function AssociateFile({ m, fights }: { m: Member; fights: Blacksite[] }) {
               </Link>
             </Panel>
 
-            <Panel title={ob?.recommended ? 'Up for their patch' : 'Recommend'}>
+            <Panel title={ob?.recommended ? 'Up to be blooded in' : 'Recommend'}>
               {ob?.recommended ? (
                 <div className="space-y-3 text-sm">
                   <p>
@@ -256,8 +256,8 @@ function AssociateFile({ m, fights }: { m: Member; fights: Blacksite[] }) {
                           </option>
                         ))}
                       </select>
-                      <button className="btn-gold btn-sm" onClick={() => confirm(`Patch ${m.name} in as ${toRank.name}?`) && promote(m, toRank.id, toRank.name)}>
-                        <Sparkles className="size-3.5" /> Patch them in
+                      <button className="btn-gold btn-sm" onClick={() => confirm(`Blood ${m.name} in as ${toRank.name}?`) && promote(m, toRank.id, toRank.name)}>
+                        <Sparkles className="size-3.5" /> Blood them in
                       </button>
                     </div>
                   )}
@@ -492,7 +492,7 @@ export default function Welcome() {
         icon={HandHeart}
         kicker="Welcome center"
         title={access.isAssoc ? 'Your road to the family' : 'Welcome Committee'}
-        sub={access.isAssoc ? 'Everything you need to earn your patch, and the people looking out for you.' : 'Associates, their progress and who’s at the door. Sign off their operations and put them up to High Table.'}
+        sub={access.isAssoc ? 'Everything you need to be blooded in, and the people looking out for you.' : 'Associates, their progress and who’s at the door. Sign off their operations and put them up to High Table.'}
       />
       <div className="mb-5">
         <Tabs value={view} onChange={(v) => setParams(v === tabs[0]!.id ? {} : { tab: v })} tabs={tabs} />

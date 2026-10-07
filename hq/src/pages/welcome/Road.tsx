@@ -68,8 +68,8 @@ function PathView({ stops, patched }: { stops: Stop[]; patched: boolean }) {
       ))}
       <li className="welcome-stop-v">
         <span className={`welcome-patch static ${patched ? 'on' : ''}`}>
-          <span>The</span>
-          <b>Patch</b>
+          <span>Blooded</span>
+          <b>In</b>
         </span>
       </li>
     </ol>
@@ -94,8 +94,8 @@ function PathView({ stops, patched }: { stops: Stop[]; patched: boolean }) {
         );
       })}
       <div className={`welcome-patch ${patched ? 'on' : ''}`} style={{ left: `${pathPoint(1).x}%`, top: `${pathPoint(1).y}%` }}>
-        <span>The</span>
-        <b>Patch</b>
+        <span>Blooded</span>
+        <b>In</b>
       </div>
     </div>
     </>

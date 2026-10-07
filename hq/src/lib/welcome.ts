@@ -3,7 +3,7 @@ import { db } from './firebase';
 import { news } from './members';
 
 /**
- * The welcome center: associates work through a checklist toward their patch, and the Welcome
+ * The welcome center: associates work through a checklist toward being blooded in, and the Welcome
  * Committee (their handlers) confirm steps, keep notes and recommend them to High Table.
  */
 
@@ -56,7 +56,7 @@ export interface Onboarding {
   rulesAt?: Timestamp;
   recommended?: { by: string; byName: string; note: string; at: Timestamp } | null;
   graduatedAt?: Timestamp | null;
-  /** They've seen the patched-in moment. */
+  /** They've seen their blooded-in moment. */
   patchSeen?: boolean;
 }
 /** A stamp on the card: the associate marks it (pending), a handler confirms it (done). */
@@ -125,7 +125,7 @@ export const removeNote = (id: string) => deleteDoc(doc(db, 'welcomeNotes', id))
 export const recommend = (me: Me, memberId: string, note: string) =>
   setDoc(doc(db, 'onboarding', memberId), { recommended: { by: me.id, byName: me.name, note: note.slice(0, 300), at: serverTimestamp() } }, { merge: true });
 export const withdraw = (memberId: string) => setDoc(doc(db, 'onboarding', memberId), { recommended: null }, { merge: true });
-/** High Table patches them in: new rank, the family hears about it, and they get their moment. */
+/** High Table bloods them in: new rank, the family hears about it, and they get their moment. */
 export function promote(m: Me, rankId: string, rankName: string) {
   const b = writeBatch(db);
   b.update(doc(db, 'members', m.id), { rankId });

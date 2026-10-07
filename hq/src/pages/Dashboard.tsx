@@ -481,7 +481,7 @@ function Todos() {
   if (out.length) items.push({ group: 'Mine', to: '/locker', text: `You still have ${out.length} signed-out ${out.length === 1 ? 'item' : 'items'} from the stash` });
   const wl = useWelcomeAttention();
   if (wl.stamps) items.push({ group: 'Welcome', to: '/welcome?tab=associates', text: `${wl.stamps} associate ${wl.stamps === 1 ? 'operation' : 'operations'} to sign off` });
-  if (wl.recs) items.push({ group: 'Leadership', to: '/welcome?tab=associates', text: `${wl.recs} ${wl.recs === 1 ? 'associate is' : 'associates are'} recommended for their patch` });
+  if (wl.recs) items.push({ group: 'Leadership', to: '/welcome?tab=associates', text: `${wl.recs} ${wl.recs === 1 ? 'associate is' : 'associates are'} recommended to be blooded in` });
   if (pendingMembers.length) items.push({ group: 'Leadership', to: '/welcome?tab=door', text: `${pendingMembers.length} ${pendingMembers.length === 1 ? 'person is' : 'people are'} waiting at the door` });
   if (reps.length) items.push({ group: 'Leadership', to: '/petty-crime', text: `${reps.length} petty rep ${reps.length === 1 ? 'transfer' : 'transfers'} to confirm` });
   const siteRep = allSites.filter((s) => s.repStatus === 'pending' && s.rep > 0).length;

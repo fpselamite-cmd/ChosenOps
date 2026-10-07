@@ -9,7 +9,7 @@ import { useAssociate, useWelcomeAccess } from './useWelcome';
 
 const CONFETTI = ['#f8e7a8', '#d4af37', '#b8962e', '#fff7d6', '#94741f'];
 
-/** The first time someone logs in after being patched in. */
+/** The first time someone logs in after being blooded in. */
 export function PatchMoment() {
   const { me, myRank, settings } = useHub();
   const ob = useDoc<Onboarding>(`onboarding/${me.id}`);
@@ -22,7 +22,7 @@ export function PatchMoment() {
       <div className="px-6 text-center">
         <div className="patch-seal">
           <span className="font-hud text-xs font-bold tracking-[0.3em] uppercase">{settings.name}</span>
-          <b className="font-display text-3xl">Patched in</b>
+          <b className="font-display text-3xl">Blooded in</b>
           <span className="mt-1 font-hud text-sm font-bold tracking-widest uppercase">{myRank?.name}</span>
         </div>
         <p className="mt-8 font-display text-3xl text-gold-100">Welcome to the family, {me.name}.</p>
@@ -35,7 +35,7 @@ export function PatchMoment() {
   );
 }
 
-/** Everyone sees who got patched in this week. */
+/** Everyone sees who got blooded in this week. */
 export function NewlyPatched() {
   const grads = (useCollection<Graduation>('graduations') ?? []).filter((g) => Date.now() - (g.at?.toMillis() ?? Date.now()) < 7 * 86400e3);
   if (!grads.length) return null;
@@ -44,7 +44,7 @@ export function NewlyPatched() {
       <Sparkles className="size-5 text-gold-300" />
       <p className="flex-1 text-gold-100">
         Welcome {grads.map((g) => g.name).join(', ').replace(/, ([^,]*)$/, ' and $1')} to the family
-        <span className="text-smoke"> · patched in as {[...new Set(grads.map((g) => g.rankName))].join(' / ')}</span>
+        <span className="text-smoke"> · blooded in as {[...new Set(grads.map((g) => g.rankName))].join(' / ')}</span>
       </p>
     </div>
   );
@@ -72,7 +72,7 @@ function MyProgressCard({ id }: { id: string }) {
         <i style={{ width: `${p.pct}%` }} />
       </div>
       <p className="mt-3 flex items-center gap-2 text-sm text-gold-100">
-        <HandHeart className="size-4 text-gold-400" /> {now ? `Next: ${now.label} · ${now.sub}` : 'Up for your patch. High Table decides.'}
+        <HandHeart className="size-4 text-gold-400" /> {now ? `Next: ${now.label} · ${now.sub}` : 'Up to be blooded in. High Table decides.'}
       </p>
     </Panel>
   );
