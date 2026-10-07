@@ -48,8 +48,42 @@ export interface Blacksite {
   loggedByName?: string;
   repStatus: 'pending' | 'confirmed' | 'rejected';
   repBy?: string;
+  /** We called it in ourselves, which costs family rep. */
+  calledIn?: boolean;
+  /** The blacksite location it happened at. */
+  spotId?: string | null;
   createdAt?: Timestamp;
 }
+
+/** What calling in a blacksite costs the family. */
+export const CALL_IN_COST = 150;
+/** What a fight does to family rep once confirmed: rep earned, minus the call-in cost. */
+export const netRep = (s: Pick<Blacksite, 'rep' | 'calledIn'>) => s.rep - (s.calledIn ? CALL_IN_COST : 0);
+
+/** A blacksite location. They repeat, so each keeps its own record. */
+export interface Spot {
+  id: string;
+  name: string;
+  /** Spot on the city map, 0–1 from the left and the top. */
+  x?: number | null;
+  y?: number | null;
+  notes?: string;
+  by: string;
+  at?: Timestamp;
+}
+export const addSpot = (me: string, name: string) => addDoc(collection(db, 'blacksiteSpots'), { name: name.trim().slice(0, 60), x: null, y: null, notes: '', by: me, at: serverTimestamp() }).then((r) => r.id);
+export const saveSpot = (id: string, patch: Partial<Pick<Spot, 'name' | 'x' | 'y' | 'notes'>>) => updateDoc(doc(db, 'blacksiteSpots', id), patch);
+/** Folds one location into another: its fights move over, then it's gone. */
+export async function mergeSpots(from: Spot, into: Spot, fights: Blacksite[]) {
+  const b = writeBatch(db);
+  fights.forEach((f) => b.update(doc(db, 'blacksites', f.id), { spotId: into.id, zone: into.name }));
+  b.delete(doc(db, 'blacksiteSpots', from.id));
+  await b.commit();
+}
+export const removeSpot = (id: string) => deleteDoc(doc(db, 'blacksiteSpots', id));
+/** Which location a fight was at: its spotId, or (older fights) a location with the same name. */
+export const spotOf = (f: Pick<Blacksite, 'spotId' | 'zone'>, spots: Spot[]) =>
+  spots.find((x) => x.id === f.spotId) ?? spots.find((x) => x.name.trim().toLowerCase() === f.zone.trim().toLowerCase());
 
 export interface Loot {
   id: string;
@@ -60,6 +94,10 @@ export interface Loot {
   /** Still in the pile. */
   qty: number;
   claims: Record<string, number>;
+  /** Leadership's split: member → how many. */
+  assigned?: Record<string, number>;
+  /** How many each member has put in their locker. */
+  collected?: Record<string, number>;
   dumped?: boolean;
 }
 
@@ -70,7 +108,7 @@ export interface Photo {
   at?: Timestamp;
 }
 
-export type SiteDraft = Pick<Blacksite, 'zone' | 'pinId' | 'result' | 'rivals' | 'holdMins' | 'rep' | 'notes' | 'participants' | 'stashTo'> & { at: Date; claimHours: number };
+export type SiteDraft = Pick<Blacksite, 'zone' | 'pinId' | 'spotId' | 'calledIn' | 'result' | 'rivals' | 'holdMins' | 'rep' | 'notes' | 'participants' | 'stashTo'> & { at: Date };
 
 /** The MVP(s): most votes from the people who were there. */
 export function mvps(s: Blacksite) {
@@ -80,10 +118,12 @@ export function mvps(s: Blacksite) {
   return { ids: top ? Object.keys(n).filter((k) => n[k] === top) : [], votes: n, top };
 }
 
-export async function logFight(me: { id: string; name: string }, d: SiteDraft, loot: Thing[], photos: string[]) {
+export async function logFight(me: { id: string; name: string }, d: SiteDraft, loot: Thing[]) {
   const ref = await addDoc(collection(db, 'blacksites'), {
     zone: d.zone.trim().slice(0, 60),
     pinId: d.pinId ?? null,
+    spotId: d.spotId ?? null,
+    calledIn: !!d.calledIn,
     at: Timestamp.fromDate(d.at),
     result: d.result,
     rivals: d.rivals.slice(0, 10),
@@ -94,19 +134,17 @@ export async function logFight(me: { id: string; name: string }, d: SiteDraft, l
     stats: {},
     votes: {},
     lootStatus: loot.length ? 'open' : 'closed',
-    closesAt: Timestamp.fromMillis(Date.now() + d.claimHours * 3600e3),
     stashTo: d.stashTo,
     loggedBy: me.id,
     loggedByName: me.name,
     repStatus: 'pending',
     createdAt: serverTimestamp(),
   });
-  await Promise.all([
-    ...loot.map((t) =>
-      addDoc(collection(db, 'blacksites', ref.id, 'loot'), { label: t.label.slice(0, 60), item: t.item ?? null, strain: t.strain ?? null, field: t.field, qty: t.qty, claims: {} }),
+  await Promise.all(
+    loot.map((t) =>
+      addDoc(collection(db, 'blacksites', ref.id, 'loot'), { label: t.label.slice(0, 60), item: t.item ?? null, strain: t.strain ?? null, field: t.field, qty: t.qty, claims: {}, assigned: {}, collected: {} }),
     ),
-    ...photos.map((image) => addDoc(collection(db, 'blacksites', ref.id, 'photos'), { image, by: me.id, at: serverTimestamp() })),
-  ]);
+  );
   return ref.id;
 }
 
@@ -122,7 +160,7 @@ export const removePhoto = (id: string, pid: string) => deleteDoc(doc(db, 'black
 export async function decideRep(s: Blacksite, me: string, ok: boolean) {
   const b = writeBatch(db);
   b.update(doc(db, 'blacksites', s.id), { repStatus: ok ? 'confirmed' : 'rejected', repBy: me });
-  if (ok) b.set(doc(db, 'stats', 'familyRep'), { total: increment(s.rep), lastBlacksite: s.id }, { merge: true });
+  if (ok) b.set(doc(db, 'stats', 'familyRep'), { total: increment(netRep(s)), lastBlacksite: s.id }, { merge: true });
   await b.commit();
 }
 
@@ -146,6 +184,26 @@ export function unclaimLoot(siteId: string, lootId: string, me: string, n: numbe
     return back;
   });
 }
+
+/** Leadership hands out loot: member → how many more, out of what's left in the pile. */
+export function assignLoot(siteId: string, lootId: string, give: Record<string, number>) {
+  return runTransaction(db, async (tx) => {
+    const ref = doc(db, 'blacksites', siteId, 'loot', lootId);
+    const cur = (await tx.get(ref)).data() as Loot;
+    let left = cur.qty;
+    const assigned = { ...(cur.assigned ?? {}) };
+    Object.entries(give).forEach(([m, n]) => {
+      const g = Math.max(0, Math.min(left, Math.round(n)));
+      if (!g) return;
+      assigned[m] = (assigned[m] ?? 0) + g;
+      left -= g;
+    });
+    tx.update(ref, { qty: left, assigned });
+    return cur.qty - left;
+  });
+}
+/** A fighter marks what they were given as put in their locker. */
+export const markCollected = (siteId: string, lootId: string, me: string, n: number) => updateDoc(doc(db, 'blacksites', siteId, 'loot', lootId), { [`collected.${me}`]: n });
 
 export const closeDraw = (id: string, me: string) => updateDoc(doc(db, 'blacksites', id), { lootStatus: 'closed', closedBy: me });
 export const markDumped = (siteId: string, lootId: string) => updateDoc(doc(db, 'blacksites', siteId, 'loot', lootId), { qty: 0, dumped: true });

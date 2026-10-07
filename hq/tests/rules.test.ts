@@ -576,6 +576,34 @@ describe('blacksites', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 1, 'claims.sol2': 2 }));
     await assertSucceeds(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { qty: 0, dumped: true }));
   });
+  it('takes the call-in cost off the rep when a called-in fight is confirmed', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'blacksites/c1'), fight('sol', { calledIn: true, rep: 400 })));
+    const d1 = as('capo');
+    const bad = writeBatch(d1);
+    bad.update(doc(d1, 'blacksites/c1'), { repStatus: 'confirmed', repBy: 'capo' });
+    bad.set(doc(d1, 'stats/familyRep'), { total: 500, lastBlacksite: 'c1' }, { merge: true });
+    await assertFails(bad.commit());
+    const d2 = as('capo');
+    const ok = writeBatch(d2);
+    ok.update(doc(d2, 'blacksites/c1'), { repStatus: 'confirmed', repBy: 'capo' });
+    ok.set(doc(d2, 'stats/familyRep'), { total: 350, lastBlacksite: 'c1' }, { merge: true });
+    await assertSucceeds(ok.commit());
+  });
+  it('lets leadership split the loot and each fighter collect only their share', async () => {
+    await assertFails(updateDoc(doc(as('sol'), 'blacksites/b1/loot/l1'), { qty: 1, assigned: { sol: 2 } }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'blacksites/b1/loot/l1'), { qty: 1, assigned: { sol: 2 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'blacksites/b1/loot/l1'), { 'collected.sol': 3 }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1/loot/l1'), { 'collected.sol': 2 }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'blacksites/b1/loot/l1'), { 'collected.sol': 2 }));
+  });
+  it('lets anyone add a location; only leadership edits or removes one', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'blacksiteSpots/s1'), { name: 'Docks', x: null, y: null, notes: '', by: 'sol' }));
+    await assertFails(updateDoc(doc(as('sol'), 'blacksiteSpots/s1'), { x: 0.5, y: 0.5 }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'blacksiteSpots/s1'), { x: 0.5, y: 0.5, notes: 'Park behind the crane' }));
+    await assertFails(deleteDoc(doc(as('sol'), 'blacksiteSpots/s1')));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'blacksites/b1'), { spotId: 's1', zone: 'Docks' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'blacksites/b1'), { spotId: 's2', zone: 'Pier' }));
+  });
 });
 
 describe('gear & loadouts', () => {

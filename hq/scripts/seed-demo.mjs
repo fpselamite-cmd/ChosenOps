@@ -398,11 +398,30 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'pending',
   });
   await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MX-18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
-  await setDoc(doc(db, 'blacksites/bs3/loot/l2'), { label: 'Armor Plate', item: 'ar_armor_plate', strain: null, field: 'meth', qty: 6, claims: { [ids['Kira Lane']]: 2 } });
-  await setDoc(doc(db, 'blacksites/bs3/loot/l3'), { label: '9x19mm Box', item: 'ammo_9x19mm_box', strain: null, field: 'meth', qty: 3, claims: { [ids['Rocco Vale']]: 1 } });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l2'), { label: 'Armor Plate', item: 'ar_armor_plate', strain: null, field: 'meth', qty: 4, claims: {}, assigned: { [ids['Kira Lane']]: 2, [ids['Don Vito']]: 2 }, collected: { [ids['Kira Lane']]: 2 } });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l3'), { label: '9x19mm Box', item: 'ammo_9x19mm_box', strain: null, field: 'meth', qty: 3, claims: {} });
   await setDoc(doc(db, 'blacksites/bs3/loot/l4'), { label: 'Machete', item: 'm_machete', strain: null, field: 'meth', qty: 1, claims: {} });
   await setDoc(doc(db, 'blacksites/bs3/photos/ph1'), { image: shot('MIRROR PARK · HOLD', '#22c55e'), by: ids['Rocco Vale'], at: Timestamp.fromMillis(now - H) });
   await setDoc(doc(db, 'blacksites/bs3/photos/ph2'), { image: shot('MIRROR PARK · LOOT', '#d4af37'), by: ids['Kira Lane'], at: Timestamp.fromMillis(now - H) });
+  // Blacksite locations, with a couple more fights so the records fill in
+  const spot = (id, name, x, y, notes) => setDoc(doc(db, 'blacksiteSpots', id), { name, x, y, notes, by: ids['Don Vito'], at: Timestamp.fromMillis(now - 30 * D) });
+  await spot('sp_docks', 'Docks blacksite', 0.62, 0.86, 'Come in from the warehouse side. Park behind the containers; the crane gives a long angle on the gate.');
+  await spot('sp_mirror', 'Mirror Park hill', 0.74, 0.42, '');
+  await spot('sp_sandy', 'Sandy airfield', 0.55, 0.28, 'Wide open. Bring snipers and a fast car.');
+  await spot('sp_paleto', 'Paleto sawmill', null, null, '');
+  for (const [id, sp] of [['bs1', 'sp_docks'], ['bs2', 'sp_docks'], ['bs3', 'sp_mirror']]) await setDoc(doc(db, 'blacksites', id), { spotId: sp }, { merge: true });
+  await fight('bs4', {
+    zone: 'Sandy airfield', spotId: 'sp_sandy', at: Timestamp.fromMillis(now - 5 * D), result: 'win', rivals: ['Vagos'], holdMins: 28, rep: 220, calledIn: true,
+    participants: P(['Dani Cruz', 'Ghost', 'Jax Holt', 'Don Vito']),
+    stats: { [ids['Dani Cruz']]: st(8, 1, 0), [ids['Ghost']]: st(2, 1, 3, ['plates']), [ids['Jax Holt']]: st(3, 2, 0) },
+    votes: { [ids['Ghost']]: ids['Dani Cruz'], [ids['Jax Holt']]: ids['Dani Cruz'] },
+    loggedBy: ids['Don Vito'], loggedByName: 'Don Vito', repStatus: 'confirmed', repBy: ids['Lena Russo'],
+  });
+  await fight('bs5', {
+    zone: 'Paleto sawmill', spotId: 'sp_paleto', at: Timestamp.fromMillis(now - 9 * D), result: 'draw', rivals: ['Families'], holdMins: 15, rep: 60,
+    participants: P(['Rocco Vale', 'Kira Lane', 'Nico Bruno']), stats: { [ids['Rocco Vale']]: st(4, 3, 0) }, votes: {},
+    loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'confirmed', repBy: ids['Lena Russo'],
+  });
   await fight('bs4', {
     zone: 'Sandy airfield', pinId: null, at: Timestamp.fromMillis(now - 10 * D), result: 'draw', rivals: ['Lost MC'], holdMins: 20, rep: 120,
     participants: P(['Rocco Vale', 'Dani Cruz', 'Kira Lane', 'Ghost', 'Jax Holt']),
