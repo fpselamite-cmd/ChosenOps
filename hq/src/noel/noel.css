@@ -1412,3 +1412,25 @@
 .noel .dx-growbar-in.multi > .dx-cookbar:nth-child(3) { padding-left: 0; border-left: 0; }
 .noel .dx-growbar-in.multi > .dx-cookbar #dx-cooks,
 .noel .dx-growbar-in.multi > .dx-cookbar #dx-runs { flex: 1; min-width: 0; display: flex; gap: 10px; overflow-x: auto; }
+
+/* ---------- BlackMarket in the HQ's gold ----------
+ * The BlackMarket keeps NoelOps' layout but wears the HQ colors: the night sky behind it
+ * (from .page-theme), gold accents and black glass panels, no leaf texture, no red. */
+.noel.noel-gold { --acc-h: 45; --bg-h: 45; background: transparent; background-image: none; font-family: inherit; }
+.noel.noel-gold .dx-glass,
+.noel.noel-gold .bm-page .dx-glass { background: rgba(10, 9, 7, 0.82); border-color: rgb(var(--acc) / 0.2); }
+.noel.noel-gold .dx-tab { background: rgba(10, 9, 7, 0.78); color: #a89c7a; border-color: rgb(var(--acc) / 0.16); }
+.noel.noel-gold .dx-tab.on,
+.noel.noel-gold .bm-page .dx-tab.on { color: #0a0805; background: linear-gradient(180deg, rgb(var(--acc-hi)), rgb(var(--acc))); border-color: transparent; box-shadow: 0 0 18px rgb(var(--acc) / 0.4); }
+.noel.noel-gold .dx-input { background: #070605; border-color: rgb(var(--acc) / 0.25); color: #f4ead0; }
+.noel.noel-gold .dx-input:focus { border-color: rgb(var(--acc-hi)); box-shadow: 0 0 0 3px rgb(var(--acc) / 0.15); }
+.noel.noel-gold .dx-sec h2,
+.noel.noel-gold .bm-page .dx-sec h2 { color: #f8e7a8; }
+.noel.noel-gold .dx-muted { color: #8f8668; }
+.noel.noel-gold .bm-page .qs-step span { background: rgb(var(--acc) / 0.25); color: #f8e7a8; border: 1px solid rgb(var(--acc) / 0.5); }
+.noel.noel-gold .bm-page .qs-submit:not(:disabled) { color: #0a0805; background: linear-gradient(180deg, rgb(var(--acc-hi)), rgb(var(--acc))); box-shadow: 0 8px 24px rgb(var(--acc) / 0.35); }
+.noel.noel-gold .bm-narco { color: rgb(var(--acc-hi)); background: transparent; box-shadow: 0 0 0 1px rgb(var(--acc-hi) / 0.8), 0 0 14px rgb(var(--acc) / 0.45), inset 0 0 10px rgb(var(--acc) / 0.2); }
+.noel.noel-gold .bm-tag { color: #f8e7a8; background: rgb(var(--acc) / 0.15); border-color: rgb(var(--acc) / 0.5); }
+.noel.noel-gold .dx-act { border-color: rgb(var(--acc) / 0.35); color: #e9dcb4; background: rgba(10, 9, 7, 0.7); }
+.noel.noel-gold .dx-act:hover { border-color: rgb(var(--acc-hi)); color: #fff6d8; }
+.noel.noel-gold ::-webkit-scrollbar-track { background: #070605; }

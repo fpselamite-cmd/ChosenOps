@@ -1,6 +1,6 @@
-import { Cannabis, Crown, FlaskConical, Minus, Package, Pencil, Plus, Settings2, Snowflake, Trash2, Vault, Warehouse } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Cannabis, Crown, ExternalLink, FlaskConical, Minus, Package, Pencil, Plus, Snowflake, Trash2, Vault, Warehouse } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CrewChip } from '../components/Badges';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
@@ -12,7 +12,8 @@ import { db } from '../lib/firebase';
 import { ago } from '../lib/format';
 import type { Signout } from '../lib/locker';
 import { useHub } from '../hooks/useHub';
-import { BRICK_SIZE, COKE_INGREDIENTS, MAIN_STASH, STRAINS, budCell, n, rootOf, toCount, type CokeRecipe, type OpsLocation } from '../noel/data';
+import { BRICK_SIZE, MAIN_STASH, STRAINS, budCell, n, rootOf, toCount, type OpsLocation } from '../noel/data';
+import { NOELOPS_URL } from '../lib/noelops';
 import { ItemPicker } from '../components/ItemPicker';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { useOps } from '../noel/ops';
@@ -30,42 +31,25 @@ function placeIcon(l: OpsLocation) {
 
 // ---------- Add / edit a place ----------
 
-function PlaceForm({ place, kind, onClose }: { place?: OpsLocation; kind: 'stash' | 'grow'; onClose: () => void }) {
+function PlaceForm({ place, onClose }: { place?: OpsLocation; onClose: () => void }) {
   const { crews } = useHub();
-  const { locations } = useNarcotics();
   const ops = useOps('stash');
-  const grow = kind === 'grow';
   const [name, setName] = useState(place?.name ?? '');
   const [postal, setPostal] = useState(place?.postal ?? '');
   const [crewId, setCrewId] = useState(place?.crewId ?? '');
   const [note, setNote] = useState(place?.note ?? '');
-  const [pots, setPots] = useState(String(place?.pots ?? 10));
-  const [hours, setHours] = useState(String(place?.durationHours ?? 36));
-  const [storage, setStorage] = useState(place?.storage ?? false);
-  const [stashTo, setStashTo] = useState(place?.stashTo ?? MAIN_STASH);
   const [error, setError] = useState<string | null>(null);
-  const houses = locations.filter((l) => l.kind === 'stash');
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (grow && !postal.trim()) return setError('Grows are known by their postal.');
-    if (!grow && !name.trim()) return setError('Give the stash house a name.');
+    if (!name.trim()) return setError('Give the stash house a name.');
     try {
       await ops.saveLocation(place?.id ?? null, {
-        kind,
+        kind: 'stash',
         name: name.trim().slice(0, 40),
         postal: postal.trim().slice(0, 12) || undefined,
         crewId: crewId || null,
-        note: note.trim().slice(0, 80),
-        ...(grow
-          ? {
-              pots: Math.max(1, toCount(pots) || 10),
-              durationHours: Math.max(0.25, Number(hours) || 36),
-              storage,
-              stashTo,
-              ...(place ? {} : { startTime: null, strainPots: {}, alertSent: false }),
-            }
-          : {}),
+        note: note.trim().slice(0, 60),
       });
       onClose();
     } catch {
@@ -74,28 +58,16 @@ function PlaceForm({ place, kind, onClose }: { place?: OpsLocation; kind: 'stash
   }
 
   return (
-    <Modal title={place ? `Edit ${grow ? `Postal ${place.postal}` : place.name}` : grow ? 'Add a grow' : 'Add a stash house'} onClose={onClose}>
+    <Modal title={place ? `Edit ${place.name}` : 'Add a stash house'} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-smoke">Stash houses are shared with NoelOps: the name and note show there too.</p>
         <div className="grid grid-cols-2 gap-3">
-          {grow ? (
-            <>
-              <Field label="Postal">
-                <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} autoFocus />
-              </Field>
-              <Field label="Alias">
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Docks" />
-              </Field>
-            </>
-          ) : (
-            <>
-              <Field label="Name">
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-              </Field>
-              <Field label="Postal">
-                <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="Optional" />
-              </Field>
-            </>
-          )}
+          <Field label="Name">
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Postal">
+            <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="Optional" />
+          </Field>
         </div>
         {place?.id !== MAIN_STASH && (
           <Field label="Run by" hint="A crew's places show first for its members. Gang-wide places are for everyone.">
@@ -109,34 +81,11 @@ function PlaceForm({ place, kind, onClose }: { place?: OpsLocation; kind: 'stash
             </select>
           </Field>
         )}
-        {grow && (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Pots">
-                <input className="input font-mono" inputMode="numeric" value={pots} onChange={(e) => setPots(e.target.value)} />
-              </Field>
-              <Field label="Cycle (hours)">
-                <input className="input font-mono" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
-              </Field>
-            </div>
-            <Field label="Harvests go to">
-              <select className="input" value={stashTo} onChange={(e) => setStashTo(e.target.value)}>
-                {houses.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <label className="flex items-center gap-2 text-sm text-ash">
-              <input type="checkbox" className="accent-gold-400" checked={storage} onChange={(e) => setStorage(e.target.checked)} />
-              Keeps stock on site (most grows don&apos;t)
-            </label>
-          </>
+        {place?.id !== MAIN_STASH && (
+          <Field label="Note">
+            <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Optional" />
+          </Field>
         )}
-        <Field label="Note">
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={80} placeholder="Optional" />
-        </Field>
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -283,8 +232,7 @@ function Items({ loc, types }: { loc: OpsLocation; types: ItemType[] }) {
 }
 
 function Drugs({ loc }: { loc: OpsLocation }) {
-  const { stock } = useNarcotics();
-  const { canSee } = useHub();
+  const { stock, noelDown } = useNarcotics();
   const s = stock.get(loc.id);
   const strains = STRAINS.map((st) => ({ st, c: budCell(s, st.id) })).filter(({ c }) => c.bricks || c.trimmed || c.untrimmed);
   const coke = { coca: rootOf(s, 'coca'), small: rootOf(s, 'cokeSmall'), large: rootOf(s, 'cokeLarge') };
@@ -294,14 +242,14 @@ function Drugs({ loc }: { loc: OpsLocation }) {
     <Panel
       title="Narcotics here"
       right={
-        canSee('narcotics') && (
-          <Link to="/narcotics?tab=weed" className="label hover:text-gold-300">
-            Open Narcotics →
-          </Link>
-        )
+        <a href={NOELOPS_URL} target="_blank" rel="noopener" className="label inline-flex items-center gap-1 hover:text-gold-300">
+          Live from NoelOps <ExternalLink className="size-3" />
+        </a>
       }
     >
-      {empty ? (
+      {noelDown ? (
+        <p className="text-sm text-amber-200">Can’t reach NoelOps right now, so drug counts aren’t showing.</p>
+      ) : empty ? (
         <p className="text-sm text-smoke">No drugs kept here.</p>
       ) : (
         <div className="space-y-3">
@@ -383,63 +331,14 @@ function SignedOut() {
   );
 }
 
-function RecipeEditor({ onClose }: { onClose: () => void }) {
-  const { recipe } = useNarcotics();
-  const ops = useOps('stash');
-  const [r, setR] = useState<CokeRecipe>(recipe);
-  return (
-    <Modal title="Coke brick recipe" onClose={onClose}>
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          await ops.saveRecipe(r);
-          onClose();
-        }}
-      >
-        <p className="text-sm text-ash">What one brick takes. Only the leaves are counted as stock; the rest is shown as what to bring.</p>
-        {(['small', 'large'] as const).map((size) => (
-          <div key={size}>
-            <p className="label mb-1.5">{size} brick</p>
-            <div className="grid grid-cols-4 gap-2">
-              {COKE_INGREDIENTS.map((i) => (
-                <Field key={i.key} label={i.short}>
-                  <input
-                    className="input font-mono"
-                    inputMode="numeric"
-                    value={r[size][i.key]}
-                    onChange={(e) => setR({ ...r, [size]: { ...r[size], [i.key]: toCount(e.target.value) } })}
-                  />
-                </Field>
-              ))}
-            </div>
-          </div>
-        ))}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn-gold">Save</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 function Body() {
-  const { ready, locations, locById, visible, totalsFor, stock, crewFilter, setCrewFilter } = useNarcotics();
+  const { ready, locations, locById, visible, totalsFor, stock, crewFilter, setCrewFilter, noelGrows } = useNarcotics();
   const { can, crewById, myCrews } = useHub();
   const ops = useOps('stash');
   const types = useCollection<ItemType>('itemTypes') ?? [];
   const [params, setParams] = useSearchParams();
-  const [form, setForm] = useState<{ kind: 'stash' | 'grow'; place?: OpsLocation } | null>(null);
-  const [recipe, setRecipe] = useState(false);
+  const [form, setForm] = useState<{ place?: OpsLocation } | null>(null);
   const manage = can('manageOps');
-
-  // The gang-wide Main Stash always exists.
-  useEffect(() => {
-    if (ready && manage && !locById.has(MAIN_STASH)) ops.ensureMainStash().catch(() => {});
-  }, [ready, manage, locById, ops]);
 
   if (!ready) return null;
   const places = locations.filter((l) => (l.kind === 'stash' || l.storage) && visible(l));
@@ -453,7 +352,7 @@ function Body() {
         icon={Warehouse}
         kicker="Ops"
         title="Stash"
-        sub="Every place the family keeps things: drugs, guns, attachments and gear. The Main Stash belongs to the whole gang."
+        sub="Every place the family keeps things. Drug counts are live from NoelOps; guns, attachments and gear are kept here. The Main Stash belongs to the whole gang."
         actions={
           <>
             {myCrews.length > 0 && (
@@ -471,13 +370,10 @@ function Body() {
             )}
             {manage && (
               <>
-                <button className="btn-ghost" onClick={() => setRecipe(true)} title="Coke brick recipe">
-                  <Settings2 className="size-4" />
-                </button>
-                <button className="btn-ghost" onClick={() => setForm({ kind: 'grow' })}>
-                  <Cannabis className="size-4" /> Add grow
-                </button>
-                <button className="btn-gold" onClick={() => setForm({ kind: 'stash' })}>
+                <a className="btn-ghost" href={NOELOPS_URL} target="_blank" rel="noopener" title="Grows, cooks and coke runs are run in NoelOps">
+                  <Cannabis className="size-4" /> Grows in NoelOps <ExternalLink className="size-3" />
+                </a>
+                <button className="btn-gold" onClick={() => setForm({})}>
                   <Plus className="size-4" /> Add stash house
                 </button>
               </>
@@ -523,15 +419,6 @@ function Body() {
                 {grows.length} {grows.length === 1 ? 'grow keeps' : 'grows keep'} no stock on site: {grows.map((g) => g.postal).join(', ')}.
               </p>
             )}
-            {manage && grows.length > 0 && (
-              <div className="flex flex-wrap gap-1 px-1">
-                {grows.map((g) => (
-                  <button key={g.id} className="btn-ghost btn-sm" onClick={() => setForm({ kind: 'grow', place: g })}>
-                    <Pencil className="size-3" /> {g.postal}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {sel && (
@@ -551,17 +438,17 @@ function Body() {
                       </p>
                     )}
                   </div>
-                  {manage && (
+                  {manage && sel.kind === 'stash' && (
                     <div className="flex gap-2">
-                      <button className="btn-ghost btn-sm" onClick={() => setForm({ kind: sel.kind, place: sel })}>
+                      <button className="btn-ghost btn-sm" onClick={() => setForm({ place: sel })}>
                         <Pencil className="size-3.5" /> Edit
                       </button>
                       {sel.id !== MAIN_STASH && (
                         <button
                           className="btn-danger btn-sm"
                           onClick={async () => {
-                            if (!confirm(`Remove ${sel.kind === 'grow' ? `Postal ${sel.postal}` : sel.name}? Everything in it moves to the Main Stash.`)) return;
-                            await ops.deleteLocation(sel, stock.get(sel.id));
+                            if (!confirm(`Remove ${sel.name}? Everything in it moves to the Main Stash, here and in NoelOps.`)) return;
+                            await ops.deleteLocation(sel, stock.get(sel.id), noelGrows);
                             setParams({});
                           }}
                         >
@@ -579,8 +466,7 @@ function Body() {
           )}
         </div>
       )}
-      {form && <PlaceForm kind={form.kind} place={form.place} onClose={() => setForm(null)} />}
-      {recipe && <RecipeEditor onClose={() => setRecipe(false)} />}
+      {form && <PlaceForm place={form.place} onClose={() => setForm(null)} />}
     </>
   );
 }

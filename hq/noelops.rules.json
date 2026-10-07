@@ -1,0 +1,5 @@
+{
+  "rules": {
+    "noelops": { ".read": true, ".write": true }
+  }
+}

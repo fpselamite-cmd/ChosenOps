@@ -7,7 +7,10 @@ import { countOf, useLocker } from '../lib/locker';
 import { SALE_ITEMS, money, saleItem, unitWord, useMoney, useMoneyOps, type Sale, type Wish } from '../lib/money';
 import { toCount } from '../noel/data';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
-import { NoelAvatar, relTime } from '../noel/TimerBar';
+import { NoelAvatar, relTime } from '../noel/avatar';
+import { VenetianMask } from 'lucide-react';
+import { PageHeader } from '../components/Page';
+import { NOELOPS_URL } from '../lib/noelops';
 import { Empty, Logo, NoelModal, ToastProvider, useChartTips, useToast } from '../noel/ui';
 
 type View = 'sell' | 'wish' | 'wash';
@@ -1255,48 +1258,46 @@ function Body() {
   useChartTips();
   if (!m.ready || !ready)
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-red-400">
+      <div className="flex min-h-[50vh] items-center justify-center text-gold-400">
         <i className="fa-solid fa-mask fa-beat text-3xl" />
       </div>
     );
   return (
     <div className="bm-page">
-      <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h1 className="dx-title bm-title text-2xl font-black text-white">
-            <i className="fa-solid fa-mask mr-2" />
-            BlackMarket
-          </h1>
-          <p className="mt-1 text-xs text-slate-400">
-            Product sells for <b className="bm-dirty">dirty money</b> at the BlackMarket, usually from a Narco call. Selling takes it out of the stash.
-          </p>
-        </div>
-        <div className="dx-plan-actions">
-          <button
-            type="button"
-            className="bm-narco"
-            title="Got a Narco call? Start a sale"
-            onClick={() => {
-              setView('sell');
-              setNarco(true);
-              setTimeout(() => document.getElementById('sale-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-            }}
-          >
-            <i className="fa-solid fa-phone-volume mr-1" />
-            Narco call
-          </button>
-          <button type="button" className="dx-act" onClick={() => exportCsv(m.sales)}>
-            <i className="fa-solid fa-file-csv mr-1" />
-            Export CSV
-          </button>
-          {m.all && (
-            <button type="button" className="dx-act" onClick={() => setSettings(true)} title="Prices, cuts and wash %">
-              <i className="fa-solid fa-gear mr-1" />
-              Settings
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        icon={VenetianMask}
+        kicker="Money"
+        title="BlackMarket"
+        sub="Product sells for dirty money at the Narco. Selling takes it out of the stash, and NoelOps sees the sale and the new counts straight away."
+        actions={
+            <div className="dx-plan-actions">
+              <button
+                type="button"
+                className="bm-narco"
+                title="Got a Narco call? Start a sale"
+                onClick={() => {
+                  setView('sell');
+                  setNarco(true);
+                  setTimeout(() => document.getElementById('sale-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+              >
+                <i className="fa-solid fa-phone-volume mr-1" />
+                Narco call
+              </button>
+              <button type="button" className="dx-act" onClick={() => exportCsv(m.sales)}>
+                <i className="fa-solid fa-file-csv mr-1" />
+                Export CSV
+              </button>
+              {m.all && (
+                <button type="button" className="dx-act" onClick={() => setSettings(true)} title="Prices, cuts and wash %">
+                  <i className="fa-solid fa-gear mr-1" />
+                  Settings
+                </button>
+              )}
+            </div>
+        }
+      />
+      <NoelStatus />
       <div className="dx-tabs bm-tabs mb-4">
         <button type="button" className={`dx-tab ${view === 'sell' ? 'on' : ''}`} onClick={() => setView('sell')}>
           <i className="fa-solid fa-sack-dollar" />
@@ -1319,11 +1320,29 @@ function Body() {
   );
 }
 
-/** NoelOps' BlackMarket, in its red and black. Money is gang-wide; the Treasurer sees it all. */
+/** Live link to NoelOps: drug counts and sales go both ways. */
+function NoelStatus() {
+  const { noelDown } = useNarcotics();
+  return noelDown ? (
+    <p className="mb-4 border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+      Can’t reach NoelOps right now, so drug counts aren’t showing. Sales will work again once it’s back.
+    </p>
+  ) : (
+    <p className="mb-4 flex items-center gap-2 text-xs text-smoke">
+      <span className="size-2 rounded-full bg-ok shadow-[0_0_6px_currentColor] text-ok" /> Live with{' '}
+      <a href={NOELOPS_URL} target="_blank" rel="noopener" className="text-gold-300 hover:text-gold-100">
+        NoelOps
+      </a>
+      : stock counts and sales sync both ways.
+    </p>
+  );
+}
+
+/** The BlackMarket: NoelOps' layout in the HQ's gold. Money is gang-wide; the Treasurer sees it all. */
 export default function BlackMarket() {
   return (
     <NarcoticsProvider>
-      <ToastProvider>
+      <ToastProvider gold>
         <Body />
       </ToastProvider>
     </NarcoticsProvider>

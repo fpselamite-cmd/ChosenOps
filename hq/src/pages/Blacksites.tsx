@@ -394,8 +394,10 @@ function LootPanel({ s }: { s: Blacksite }) {
     await ops.applyDeltas([{ loc: lockerPath(me.id, into), field: l.field as Thing['field'], strain: (l.strain ?? undefined) as Thing['strain'], item: l.item ?? undefined, delta: got }]);
     toast.done({ text: `Took ${got} × ${l.label} into ${locker.storages.find((x) => x.id === into)?.name}.` });
   }
+  // Drug loot isn't dumped here: NoelOps owns drug stock, so it's added there by hand.
+  const dumpable = leftovers.filter((l) => !!l.item);
   async function dump() {
-    for (const l of leftovers) {
+    for (const l of dumpable) {
       await ops.applyDeltas([{ loc: s.stashTo, field: l.field as Thing['field'], strain: (l.strain ?? undefined) as Thing['strain'], item: l.item ?? undefined, delta: l.qty }]);
       await markDumped(s.id, l.id);
     }
@@ -474,14 +476,17 @@ function LootPanel({ s }: { s: Blacksite }) {
             <Lock className="size-3.5" /> Close claims{canStash ? ' & stash the rest' : ''}
           </button>
         )}
-        {!open && leftovers.length > 0 &&
+        {!open && dumpable.length > 0 &&
           (canStash ? (
             <button className="btn-gold btn-sm" onClick={dump}>
-              Put {leftovers.reduce((t, l) => t + l.qty, 0)} leftovers in {locLabel(s.stashTo)}
+              Put {dumpable.reduce((t, l) => t + l.qty, 0)} leftovers in {locLabel(s.stashTo)}
             </button>
           ) : (
             <span className="text-xs text-smoke">Waiting for someone with stash access to put the leftovers in {locLabel(s.stashTo)}.</span>
           ))}
+        {!open && leftovers.length > dumpable.length && (
+          <span className="text-xs text-smoke">Leftover drugs go into a stash in NoelOps by hand.</span>
+        )}
       </div>
     </Panel>
   );

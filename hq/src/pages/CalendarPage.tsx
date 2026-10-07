@@ -6,7 +6,6 @@ import { Field } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel } from '../components/Page';
-import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft } from '../lib/audience';
 import {
@@ -29,7 +28,8 @@ import {
   type Repeat,
   type Rsvp,
 } from '../lib/calendar';
-import type { Cook, OpsLocation, Run } from '../noel/data';
+import { METH_SIZES } from '../noel/data';
+import { useNoel, type NoelCook, type NoelGrow, type NoelRun } from '../lib/noelops';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DURATIONS = [
@@ -217,9 +217,10 @@ export default function CalendarPage() {
   const { roster, canSee } = useHub();
   const events = useVisible<CalEvent>('events');
   const ops = canSee('narcotics');
-  const locations = useCollection<OpsLocation>('locations', ops);
-  const cooks = useCollection<Cook>('cooks', ops);
-  const runs = useCollection<Run>('runs', ops);
+  // Grow, cook and coke-run timers come live from NoelOps.
+  const locations = useNoel<Record<string, NoelGrow>>('locations', ops).data;
+  const cooks = useNoel<Record<string, NoelCook>>('cooks', ops).data;
+  const runs = useNoel<Record<string, NoelRun>>('runs', ops).data;
   const today = keyOf(Date.now());
   const t = parseKey(today);
   const [month, setMonth] = useState({ y: t.y, m: t.m });
@@ -238,23 +239,24 @@ export default function CalendarPage() {
     const out: Occurrence[] = [];
     (events ?? []).forEach((e) => out.push(...occurrences(e, from, to)));
     if (ops) {
-      (locations ?? [])
-        .filter((l) => l.kind === 'grow' && l.startTime)
-        .forEach((l) => {
-          const at = new Date(l.startTime!.toMillis() + (l.durationHours ?? 36) * 3600e3);
-          out.push({ key: `g${l.id}`, day: keyOf(at), at, title: `${l.name} ready to harvest`, color: '#22c55e', kind: 'grow', sub: l.postal ? `Postal ${l.postal}` : undefined });
+      Object.entries(locations ?? {})
+        .filter(([, l]) => l && Number(l.startTime) > 0)
+        .forEach(([k, l]) => {
+          const at = new Date(Number(l.startTime) + (Number(l.durationHours) || 36) * 3600e3);
+          const postal = String(l.id ?? k);
+          out.push({ key: `g${k}`, day: keyOf(at), at, title: `${l.alias || `Postal ${postal}`} ready to harvest`, color: '#22c55e', kind: 'grow', sub: `Postal ${postal}` });
         });
-      (cooks ?? [])
-        .filter((c) => !c.done && c.at)
-        .forEach((c) => {
-          const at = new Date(c.at!.toMillis() + c.mins * 60e3);
-          out.push({ key: `k${c.id}`, day: keyOf(at), at, title: `Meth cook done (${c.size})`, color: '#22d3ee', kind: 'cook', sub: c.by });
+      Object.entries(cooks ?? {})
+        .filter(([, c]) => c && Number(c.ts) > 0)
+        .forEach(([id, c]) => {
+          const at = new Date(Number(c.ts) + (Number(c.mins) || 0) * 60e3);
+          out.push({ key: `k${id}`, day: keyOf(at), at, title: `Meth cook done (${METH_SIZES[Number(c.size)] ?? c.size})`, color: '#22d3ee', kind: 'cook', sub: c.who });
         });
-      (runs ?? [])
-        .filter((r) => !r.done && r.at)
-        .forEach((r) => {
-          const at = new Date(r.at!.toMillis() + r.mins * 60e3);
-          out.push({ key: `r${r.id}`, day: keyOf(at), at, title: `Coke run back (${r.n} ${r.size})`, color: '#e5e7eb', kind: 'run', sub: r.crew });
+      Object.entries(runs ?? {})
+        .filter(([, r]) => r && Number(r.ts) > 0)
+        .forEach(([id, r]) => {
+          const at = new Date(Number(r.ts) + (Number(r.mins) || 0) * 60e3);
+          out.push({ key: `r${id}`, day: keyOf(at), at, title: `Coke run back (${r.n ?? 1} ${r.size ?? ''})`, color: '#e5e7eb', kind: 'run', sub: r.crew });
         });
     }
     // Character birthdays and join anniversaries, for every year the window touches.

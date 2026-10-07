@@ -28,11 +28,13 @@ npm run test:rules   # security rule tests
   the crew's motto, color and emblem. People can be in several crews.
 - **Petty Crime**: everyone tracks their own petty rep (quick +/− and a crime log) and can send rep to the family.
   A Lieutenant or above confirms it before it counts toward the family's gang rep; turned-down rep goes back.
-- **Narcotics** is NoelOps rebuilt inside HQ, in its own green grow-light style: the timer bar (grows, meth cooks,
-  coke runs) and LIVE ticker across the top, then **Overview · Weed · Meth · Coke**. Stock per location, trim, press,
-  move, harvests, pot plans with Smart Balance and learned yields, lab and warehouse supplies, the guides, and Undo.
-- **Stash** (gold) lists every place and everything in it: drugs, guns, attachments, ammo and gear. The **Main Stash**
-  is gang-wide; other stash houses and grows can be run by a crew. Adding and editing places needs **Manage ops**.
+- **Narcotics** opens NoelOps in a new tab. NoelOps runs the grows, cooks and coke runs and owns the drug stock; the
+  HQ reads its Realtime Database live (`src/lib/noelops.ts`) and writes drug sales and stock changes straight back.
+- **Stash** (gold) lists every place and everything in it. Drug counts come live from NoelOps; guns, attachments, ammo
+  and gear are kept in Firestore. Stash houses are shared with NoelOps (the HQ adds its own crew and postal); grows are
+  managed in NoelOps. The **Main Stash** is gang-wide. Adding and editing places needs **Manage ops**.
+- **BlackMarket** (gold) is where narcotics are sold. A sale takes the product out of NoelOps' stock and is written to
+  NoelOps' sales log as well as the HQ's.
 - Every ops write is signed with who did it and what opened the page (rank or crew role); the rules check both.
 - **Map** and **Calendar** are buttons in the header.
 - The NoelOps pages keep their original colors: green grow-light (Stash, Timers), cyan (Meth), ice blue (Coke),

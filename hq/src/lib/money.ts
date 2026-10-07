@@ -6,6 +6,7 @@ import { PRODUCTS, STRAINS, toCount, type BudField, type RootField, type StrainI
 import { useOps } from '../noel/ops';
 import { countSale } from './boards';
 import { db } from './firebase';
+import { bucketOf, noelSale, removeNoelSale } from './noelops';
 
 /** What the BlackMarket sells: every strain's bricks, coke bricks and meth bins. */
 export const SALE_ITEMS = [
@@ -31,6 +32,8 @@ export interface Sale {
   cut: number;
   price: number | null;
   narco?: boolean;
+  /** The same sale in NoelOps' log. */
+  noelKey?: string;
   note?: string;
   byName?: string;
   at?: Timestamp;
@@ -185,7 +188,13 @@ export function useMoneyOps() {
         if (taken.length) await ops.reverse(taken)();
         return null;
       }
-      const ref = await addDoc(collection(db, 'sales'), {
+      // NoelOps gets the sale too (its sales log and feed); the HQ copy remembers its key so it can be taken back out.
+      const ref = doc(collection(db, 'sales'));
+      const noelKey = await noelSale({
+        strain: p.product, bricks: p.qty, bucket: bucketOf(p.from) ?? `HQ · ${p.fromLabel}`, who: p.seller.name, by: me.name,
+        cut: p.cut, price: p.price, note: p.note.slice(0, 60), narco: p.narco, hqId: ref.id,
+      }).catch(() => null);
+      await setDoc(ref, {
         product: p.product,
         qty: p.qty,
         from: p.from,
@@ -198,12 +207,17 @@ export function useMoneyOps() {
         note: p.note.slice(0, 60),
         byName: me.name,
         at: serverTimestamp(),
+        ...(noelKey ? { noelKey } : {}),
         ...sign,
+      }).catch(async (e) => {
+        if (noelKey) await removeNoelSale(noelKey);
+        await ops.reverse(taken)();
+        throw e;
       });
       if (p.price) countSale(sign, p.seller.id, p.price);
       return {
         text: `Sold ${p.qty} × ${item.name}${p.price ? ` for ${money(p.price)} dirty` : ''}.`,
-        undo: () => Promise.all([ops.reverse(taken)(), deleteDoc(ref).catch(() => {}), p.price ? countSale(sign, p.seller.id, -p.price) : null]),
+        undo: () => Promise.all([ops.reverse(taken)(), deleteDoc(ref).catch(() => {}), noelKey ? removeNoelSale(noelKey) : null, p.price ? countSale(sign, p.seller.id, -p.price) : null]),
       };
     },
     /** Money power: take a sale back out and return the product to where it came from. */
@@ -211,6 +225,7 @@ export function useMoneyOps() {
       const item = saleItem(x.product)!;
       await ops.applyDeltas([{ loc: x.from, strain: item.strain, field: item.field, delta: x.qty }]);
       await deleteDoc(doc(db, 'sales', x.id));
+      if (x.noelKey) await removeNoelSale(x.noelKey);
       if (x.price) await countSale(sign, x.sellerId, -x.price, x.at);
     },
     wash: (w: { memberId: string; memberName: string; dirty: number; pct: number; note: string }) =>

@@ -11,8 +11,8 @@ on:
         default: https://noelops-default-rtdb.firebaseio.com/.json
         required: true
       only:
-        description: "Sections, comma-separated (blank = all): places,stock,sales,history,yields,activity,stats"
-        default: ""
+        description: "Sections, comma-separated (blank = all): places,stock,sales,history,yields,activity,stats. Stock and places are live from NoelOps now, so they don't need importing."
+        default: "sales,history,stats"
         required: false
       dry_run:
         description: Dry run (write nothing)

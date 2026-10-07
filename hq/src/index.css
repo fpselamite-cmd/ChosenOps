@@ -410,16 +410,6 @@
   --t-panel: rgba(9, 16, 24, 0.9);
   --t-line: #15293a;
 }
-.page-theme[data-theme='blackmarket'] {
-  --t-1: #fecaca;
-  --t-2: #ef4444;
-  --t-3: #7f1d1d;
-  --t-glow: rgba(220, 38, 38, 0.14);
-  --t-glow-2: rgba(69, 10, 10, 0.25);
-  --t-ink: #ffffff;
-  --t-panel: rgba(14, 8, 8, 0.85);
-  --t-line: rgba(220, 38, 38, 0.22);
-}
 .page-theme:not([data-theme='gold']) {
   background:
     radial-gradient(900px 500px at 15% -5%, var(--t-glow), transparent 60%),
