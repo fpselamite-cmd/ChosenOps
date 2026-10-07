@@ -474,6 +474,10 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'tributes', ids['Tommy Reyes']), { candles: { [ids['Lena Russo']]: true, [ids['Rocco Vale']]: true, [ids['Kira Lane']]: true } });
   await setDoc(doc(db, 'tributes', ids['Tommy Reyes'], 'memories', 'mm1'), { by: ids['Rocco Vale'], byName: 'Rocco Vale', text: 'Best tank I ever ran with.', at: Timestamp.fromMillis(now - 5 * 86400_000) });
 
+  // Star colors in the Family sky.
+  for (const [who, star] of [['Lena Russo', 'rose'], ['Rocco Vale', 'crimson'], ['Kira Lane', 'ice'], ['Marco Gallo', 'emerald'], ['Nico Bruno', 'violet'], ['Ghost', 'white']])
+    await setDoc(doc(db, 'sheets', ids[who]), { star }, { merge: true });
+
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',
