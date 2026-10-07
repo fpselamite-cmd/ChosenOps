@@ -27,7 +27,9 @@ import {
   weekStart,
   type FamilyGoal,
 } from '../lib/petty';
-import { PETTY_CRIMES, type PettyCrime as Crime, type PettyRep, type RepTransfer } from '../lib/types';
+import { type PettyCrime as Crime, type PettyRep, type RepTransfer } from '../lib/types';
+import { useLists, useDefaults } from '../lib/adminData';
+import { CrimeIcon } from '../components/CrimeIcon';
 
 const n = (v: number) => v.toLocaleString('en-US');
 const money = (v: number) => `$${v.toLocaleString('en-US')}`;
@@ -47,16 +49,22 @@ function LogSession({ memberId, onClose, onLogged }: { memberId: string; onClose
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const crimeList = useLists().crimes;
   const jobs = Object.values(tally).reduce((s, v) => s + v, 0);
+  // The usual rep and cash per job (set in Admin) prefill when left blank.
+  const usual = (f: 'rep' | 'cash') => crimeList.reduce((t, c) => t + (tally[c.name] ?? 0) * (c[f] ?? 0), 0);
+  const usualRep = usual('rep');
+  const usualCash = usual('cash');
   const missionRep = perJob.slice(0, jobs).map((v) => Math.round(Number(v) || 0));
-  const total = mode === 'session' ? Math.round(Number(rep) || 0) : missionRep.reduce((s, v) => s + v, 0);
+  const total = mode === 'session' ? Math.round(Number(rep) || usualRep || 0) : missionRep.reduce((s, v) => s + v, 0);
+  const cashTotal = Math.round(Number(cash) || usualCash || 0);
   const bump = (k: string, d: number) => setTally((t) => ({ ...t, [k]: Math.max(0, Math.min(999, (t[k] ?? 0) + d)) }));
-  const types = [...PETTY_CRIMES, ...(other.trim() ? [other.trim().slice(0, 30)] : [])];
+  const types = [...crimeList.map((c) => c.name), ...(other.trim() ? [other.trim().slice(0, 30)] : [])];
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!jobs) return setError('Tally at least one job.');
-    const c = Math.round(Number(cash) || 0);
+    const c = cashTotal;
     setBusy(true);
     try {
       const crimes = Object.fromEntries(Object.entries(tally).filter(([k, v]) => v > 0 && types.includes(k)));
@@ -74,7 +82,9 @@ function LogSession({ memberId, onClose, onLogged }: { memberId: string; onClose
           <div className="divide-y divide-line-soft border border-line-soft">
             {types.map((k) => (
               <div key={k} className="flex items-center gap-2 px-3 py-1.5">
-                <span className={`flex-1 text-sm ${tally[k] ? 'text-gold-100' : 'text-ash'}`}>{k}</span>
+                <span className={`flex flex-1 items-center gap-2 text-sm ${tally[k] ? 'text-gold-100' : 'text-ash'}`}>
+                  <CrimeIcon icon={crimeList.find((c) => c.name === k)?.icon} className="size-3.5 text-gold-500" /> {k}
+                </span>
                 <button type="button" className="btn-ghost btn-sm px-2" onClick={() => bump(k, -1)} disabled={!tally[k]} aria-label={`One less ${k}`}>
                   <Minus className="size-3" />
                 </button>
@@ -109,7 +119,7 @@ function LogSession({ memberId, onClose, onLogged }: { memberId: string; onClose
             ))}
           </div>
           {mode === 'session' ? (
-            <input className="input font-mono" inputMode="numeric" value={rep} onChange={(e) => setRep(digits(e.target.value))} placeholder="0" />
+            <input className="input font-mono" inputMode="numeric" value={rep} onChange={(e) => setRep(digits(e.target.value))} placeholder={usualRep ? `${n(usualRep)} (usual)` : '0'} />
           ) : jobs ? (
             <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
               {Array.from({ length: Math.min(jobs, 50) }, (_, i) => (
@@ -131,7 +141,7 @@ function LogSession({ memberId, onClose, onLogged }: { memberId: string; onClose
         </Field>
 
         <Field label="Dirty money made" hint="Goes into your locker as dirty money">
-          <input className="input font-mono" inputMode="numeric" value={cash} onChange={(e) => setCash(digits(e.target.value))} placeholder="$0" />
+          <input className="input font-mono" inputMode="numeric" value={cash} onChange={(e) => setCash(digits(e.target.value))} placeholder={usualCash ? `${money(usualCash)} (usual)` : '$0'} />
         </Field>
         <Field label="Notes">
           <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={140} placeholder="Optional" />
@@ -139,7 +149,7 @@ function LogSession({ memberId, onClose, onLogged }: { memberId: string; onClose
         <ErrorText error={error} />
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-smoke">
-            {n(jobs)} {jobs === 1 ? 'job' : 'jobs'} · {n(total)} rep · {money(Math.round(Number(cash) || 0))}
+            {n(jobs)} {jobs === 1 ? 'job' : 'jobs'} · {n(total)} rep · {money(cashTotal)}
           </span>
           <span className="flex gap-2">
             <button type="button" className="btn-ghost" onClick={onClose}>
@@ -299,7 +309,8 @@ function WeeklyGoal({ memberId, week }: { memberId: string; week: number }) {
   const goal = useDoc<{ weekly?: number }>(`pettyGoals/${memberId}`);
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState('');
-  const target = goal?.weekly ?? 0;
+  const fallback = useDefaults().weeklyGoal;
+  const target = goal?.weekly ?? fallback ?? 0;
   return (
     <div className="hud flex flex-col justify-between gap-2 px-4 py-3">
       <div className="flex items-center justify-between">
@@ -606,11 +617,12 @@ const STATUS = {
 // ---------- page ----------
 
 export default function PettyCrime() {
-  const { me, can, familyRep, memberById, myRank } = useHub();
+  const { me, can, familyRep, memberById, myRank, isLead } = useHub();
   const reps = useCollection<PettyRep>('petty') ?? [];
   const transfers = useCollection<RepTransfer>('repTransfers') ?? [];
   const all = useCollection<Crime>('pettyLog') ?? [];
   const goal = useDoc<FamilyGoal>('settings/pettyGoal');
+  const lists = useLists();
   const [logging, setLogging] = useState(false);
   const [sending, setSending] = useState(false);
   const [fixing, setFixing] = useState(false);
@@ -634,10 +646,11 @@ export default function PettyCrime() {
   const givers = top(transfers.filter((t) => t.status === 'confirmed').reduce((m, t) => m.set(t.memberId, (m.get(t.memberId) ?? 0) + t.amount), new Map<string, number>()));
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
   const cashMonth = top(all.filter((c) => (c.at?.toMillis() ?? Date.now()) >= monthStart).reduce((m, c) => m.set(c.memberId, (m.get(c.memberId) ?? 0) + c.cash), new Map<string, number>()));
+  const crimeNames = lists.crimes.map((c) => c.name);
   const byType = new Map<string, Map<string, number>>();
   all.forEach((c) =>
     Object.entries(crimesIn(c)).forEach(([k, v]) => {
-      if (!PETTY_CRIMES.includes(k)) return;
+      if (!crimeNames.includes(k)) return;
       const m = byType.get(k) ?? new Map<string, number>();
       m.set(c.memberId, (m.get(c.memberId) ?? 0) + v);
       byType.set(k, m);
@@ -679,7 +692,7 @@ export default function PettyCrime() {
           )}
         </div>
         <WeeklyGoal memberId={me.id} week={week} />
-        <FamilyGoalCard goal={goal} transfers={transfers} familyRep={familyRep} canSet={confirmer || myRank?.order === 0 || !!myRank?.leadership} />
+        <FamilyGoalCard goal={goal} transfers={transfers} familyRep={familyRep} canSet={confirmer || isLead} />
         <div className="hud px-4 py-3">
           <p className="label">You’ve sent</p>
           <p className="mt-1 font-mono text-2xl text-gold-100">{n(sent)}</p>
@@ -772,7 +785,7 @@ export default function PettyCrime() {
           <Board title="Dirty money made · this month" rows={cashMonth} fmt={money} />
           <Panel title="Kings of the street">
             <ul className="space-y-2.5">
-              {PETTY_CRIMES.map((k) => {
+              {crimeNames.map((k) => {
                 const lead = top(byType.get(k) ?? new Map())[0];
                 return (
                   <li key={k} className="flex items-center gap-3">

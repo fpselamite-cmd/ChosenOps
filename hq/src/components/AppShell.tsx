@@ -1,10 +1,10 @@
-import { ExternalLink, LogOut, Menu, Palette, X } from 'lucide-react';
+import { ExternalLink, Eye, LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
 import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
-import { TZ } from '../lib/format';
+import { TZ, TZ_LABEL } from '../lib/format';
 import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
@@ -18,6 +18,7 @@ import { AchievementWatcher } from '../lib/cabinet';
 import { MonthlyAwarder } from '../lib/boards';
 import { useApplyPrefs } from '../lib/appearance';
 import { ShootingStars } from './ShootingStars';
+import { useAttention } from '../pages/admin/useAttention';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -28,11 +29,30 @@ function useClock() {
   return now.toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
 }
 
+/** While an admin views the app as someone else: who, and a way out. Nothing can be saved meanwhile. */
+function PreviewBar() {
+  const { preview, setPreview, me, rankById } = useHub();
+  if (!preview) return null;
+  const rank = rankById.get(me.rankId ?? '');
+  return (
+    <div className="preview-bar mb-4 flex flex-wrap items-center gap-3 border border-sky-400/50 bg-sky-500/10 px-4 py-2.5 text-sm text-sky-100">
+      <Eye className="size-4 shrink-0 text-sky-300" />
+      <span className="min-w-0 flex-1">
+        Viewing as <b>{preview.memberId ? me.name : `a ${rank?.name ?? 'member'}`}</b>
+        {preview.memberId && rank ? ` (${rank.name})` : ''} · read-only, nothing you do here is saved
+      </span>
+      <button className="btn-ghost btn-sm" onClick={() => setPreview(null)}>
+        <X className="size-3.5" /> Stop
+      </button>
+    </div>
+  );
+}
+
 function Brand({ compact }: { compact?: boolean }) {
   const { settings } = useHub();
   return (
     <Link to="/" className="flex items-center gap-3">
-      <img src="/brand/logo-192.png" alt="" className={`drop-shadow-[0_0_12px_rgba(212,175,55,0.35)] ${compact ? 'size-9' : 'size-11'}`} />
+      <img src={settings.logo || '/brand/logo-192.png'} alt="" className={`rounded-full object-cover drop-shadow-[0_0_12px_rgba(212,175,55,0.35)] ${compact ? 'size-9' : 'size-11'}`} />
       <span className={`leading-none ${compact ? 'hidden sm:block' : ''}`}>
         <span className="foil foil-animate block font-display text-lg font-black tracking-[0.08em]">CHOSENOPS</span>
         <span className="label mt-1 block text-[10px] text-gold-600">{settings.name} · HQ</span>
@@ -41,7 +61,7 @@ function Brand({ compact }: { compact?: boolean }) {
   );
 }
 
-function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void }) {
+function NavLinkItem({ item, onClick, badge }: { item: NavItem; onClick?: () => void; badge?: number }) {
   const Icon = item.icon;
   if (item.href)
     return (
@@ -75,7 +95,12 @@ function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void })
           <span className={`absolute inset-y-1 left-0 w-0.5 ${isActive ? 'bg-gold-400 shadow-[0_0_8px_#d4af37]' : 'bg-transparent'}`} />
           <Icon className={`size-4 transition ${isActive ? 'text-gold-300 drop-shadow-[0_0_6px_rgb(var(--acc-hi)/0.8)]' : 'text-gold-600 group-hover:text-gold-400'}`} />
           {item.label}
-          {isActive && <span className="star4 twinkle ml-auto size-2" aria-hidden />}
+          {!!badge && (
+            <span className="ml-auto min-w-5 rounded-full bg-red-500/90 px-1.5 text-center font-mono text-[10px] leading-5 font-bold text-white shadow-[0_0_10px_rgba(239,68,68,0.6)]" aria-label={`${badge} need attention`}>
+              {badge}
+            </span>
+          )}
+          {isActive && !badge && <span className="star4 twinkle ml-auto size-2" aria-hidden />}
         </>
       )}
     </NavLink>
@@ -92,6 +117,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const { can } = useHub();
   const nav = useNav();
   const admin = can('approveMembers') || can('manageMembers') || can('manageCrews') || can('manageRanks') || can('manageSettings');
+  const waiting = useAttention().reduce((t, a) => t + a.n, 0);
   return (
     <nav className="flex flex-col gap-5">
       {nav.map((g) => (
@@ -107,7 +133,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
       {admin && (
         <div>
           <p className="label mb-1 px-3 text-[10px] text-gold-700">Command</p>
-          <NavLinkItem item={ADMIN_NAV} onClick={onNavigate} />
+          <NavLinkItem item={ADMIN_NAV} onClick={onNavigate} badge={waiting} />
         </div>
       )}
     </nav>
@@ -204,7 +230,7 @@ export function AppShell() {
           <Brand compact />
         </div>
         <p className="label hidden lg:block">
-          <span className="text-gold-500">●</span> City time <span className="font-mono text-gold-200">{clock} ET</span>
+          <span className="text-gold-500">●</span> City time <span className="font-mono text-gold-200">{clock} {TZ_LABEL}</span>
         </p>
         <div className="flex items-center gap-2 sm:gap-3">
           <HeaderButtons />
@@ -217,6 +243,7 @@ export function AppShell() {
         data-theme="gold"
       >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
+          <PreviewBar />
           <EventBanner />
           <Outlet />
         </main>

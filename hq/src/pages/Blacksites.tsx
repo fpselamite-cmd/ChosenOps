@@ -356,7 +356,7 @@ function MyLine({ s }: { s: Blacksite }) {
 
 /** Loot from the fight: leadership splits it between the people who were there; the rest goes into the stash. */
 function LootPanel({ s }: { s: Blacksite }) {
-  const { me, can, canSee, myRank } = useHub();
+  const { me, can, canSee, isLead } = useHub();
   const { locLabel } = useNarcotics();
   const locker = useLocker();
   const ops = useOps('stash');
@@ -364,7 +364,7 @@ function LootPanel({ s }: { s: Blacksite }) {
   const loot = useCollection<Loot>(`blacksites/${s.id}/loot`) ?? [];
   const [into, setInto] = useState('onme');
   const [give, setGive] = useState<Record<string, Record<string, string>>>({});
-  const lead = can('manageOps') || myRank?.order === 0 || !!myRank?.leadership;
+  const lead = can('manageOps') || isLead;
   const open = s.lootStatus === 'open';
   const leftovers = loot.filter((l) => l.qty > 0 && !l.dumped);
   const canStash = canSee('stash') || canSee('narcotics');
@@ -900,7 +900,7 @@ function RivalsTab({ list }: { list: Blacksite[] }) {
 }
 
 function Body() {
-  const { can, myRank, memberById } = useHub();
+  const { can, isLead, memberById } = useHub();
   const sites = useCollection<Blacksite>('blacksites');
   const spots = useCollection<Spot>('blacksiteSpots') ?? [];
   const [tab, setTab] = useState<'map' | 'fights' | 'people' | 'rivals'>('map');
@@ -911,7 +911,7 @@ function Body() {
   const list = useMemo(() => [...(sites ?? [])].sort((a, b) => b.at.toMillis() - a.at.toMillis()), [sites]);
   const recs = useMemo(() => records(list), [list]);
   const open = list.find((s) => s.id === openId);
-  const lead = can('manageOps') || myRank?.order === 0 || !!myRank?.leadership;
+  const lead = can('manageOps') || isLead;
 
   const wins = list.filter((s) => s.result === 'win').length;
   const repIn = list.filter((s) => s.repStatus === 'confirmed').reduce((t, s) => t + netRep(s), 0);

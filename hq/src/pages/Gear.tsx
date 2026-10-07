@@ -20,8 +20,9 @@ import { BAG_SLOTS, blankKit, createKit, equipKit, fromLoadout, HOTBAR, kitNeeds
 import { BUILD_TAGS, keepBuild, likeBuild, markBuildPublic, removeBuild, saveBuild, type Build, type CharLoadout } from '../lib/loadouts';
 import type { Wish } from '../lib/money';
 import { WishlistButton } from '../components/WishlistButton';
+import { useLists } from '../lib/adminData';
 import { addToShopping, askGang, useShopping, type ShopItem } from '../lib/shopping';
-import { COMMON_VEHICLES, VEHICLE_CLASSES } from '../lib/vehicles';
+import { VEHICLE_CLASSES } from '../lib/vehicles';
 import { toCount } from '../noel/data';
 
 const count = (m?: Record<string, boolean>) => Object.values(m ?? {}).filter(Boolean).length;
@@ -1190,7 +1191,9 @@ function LookEditor({ value, onSave, onClose }: { value: string; onSave: (v: str
 function CarEditor({ value, onSave, onClose }: { value: { name: string; cls: string } | null; onSave: (v: { name: string; cls: string } | null) => void; onClose: () => void }) {
   const [name, setName] = useState(value?.name ?? '');
   const [cls, setCls] = useState(value?.cls ?? 'sedan');
-  const known = COMMON_VEHICLES.find(([n]) => n.toLowerCase() === name.trim().toLowerCase());
+  // The car list is kept in Admin → Lists; hidden cars don't show.
+  const cars = useLists().vehicles.filter((v) => !v.hidden).map((v): [string, string] => [v.name, v.cls]);
+  const known = cars.find(([n]) => n.toLowerCase() === name.trim().toLowerCase());
   return (
     <Modal title="Car" onClose={onClose}>
       <div className="space-y-4">
@@ -1203,13 +1206,13 @@ function CarEditor({ value, onSave, onClose }: { value: { name: string; cls: str
             autoFocus
             onChange={(e) => {
               setName(e.target.value);
-              const k = COMMON_VEHICLES.find(([n]) => n.toLowerCase() === e.target.value.trim().toLowerCase());
+              const k = cars.find(([n]) => n.toLowerCase() === e.target.value.trim().toLowerCase());
               if (k) setCls(k[1]);
             }}
             placeholder="e.g. Sultan RS"
           />
           <datalist id="kit-cars">
-            {COMMON_VEHICLES.map(([n]) => (
+            {cars.map(([n]) => (
               <option key={n} value={n} />
             ))}
           </datalist>

@@ -1,7 +1,8 @@
 import { addDoc, collection, deleteDoc, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import type { Audience, AudienceDraft } from './audience';
 import { db } from './firebase';
-import { TZ } from './format';
+import { TZ, TZ_LABEL } from './format';
+export { TZ_LABEL };
 
 /** Calendar days are Eastern time days, like the city clock. */
 export interface ETParts {
@@ -13,10 +14,12 @@ export interface ETParts {
   /** 0 = Sunday */
   wd: number;
 }
-const fmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', weekday: 'short', hourCycle: 'h23' });
+let fmtZone = '';
+let fmtCache: Intl.DateTimeFormat;
+const fmtFor = () => (fmtZone === TZ ? fmtCache : ((fmtZone = TZ), (fmtCache = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', weekday: 'short', hourCycle: 'h23' }))));
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export function et(t: Date | number): ETParts {
-  const p = Object.fromEntries(fmt.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(fmtFor().formatToParts(new Date(t)).map((x) => [x.type, x.value]));
   return { y: +p.year!, m: +p.month!, d: +p.day!, h: +p.hour! % 24, mi: +p.minute!, wd: WD.indexOf(p.weekday!) };
 }
 /** The moment an Eastern wall-clock time happens. Day overflow is fine (day 32 rolls into next month). */

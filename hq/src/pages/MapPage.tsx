@@ -7,7 +7,7 @@ import { Modal } from '../components/Modal';
 import { PageHeader, Panel } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft, type Scope } from '../lib/audience';
-import { ago } from '../lib/format';
+import { ago, NIGHT } from '../lib/format';
 import { addPin, PIN_TYPES, pinType, removePin, savePin, type Pin } from '../lib/pins';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
@@ -23,8 +23,8 @@ const PLACEHOLDER = '/map/placeholder.svg';
 const MAX = 8;
 
 function useLead() {
-  const { myRank } = useHub();
-  return !!myRank && (myRank.order === 0 || !!myRank.leadership);
+  const { isLead } = useHub();
+  return isLead;
 }
 
 function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: number }; onClose: () => void }) {
@@ -169,11 +169,12 @@ function Extra({ x, y, k, kind, label, sub, tone }: { x: number; y: number; k: n
   );
 }
 
-/** City time is night: 8pm to 6am ET. */
+/** City time is night: 8pm to 6am unless an admin changes it. */
 function useNight() {
   const isNight = () => {
     const h = et(Date.now()).h;
-    return h >= 20 || h < 6;
+    // Night can wrap past midnight (8pm–6am) or not (1am–5am).
+    return NIGHT.from > NIGHT.to ? h >= NIGHT.from || h < NIGHT.to : h >= NIGHT.from && h < NIGHT.to;
   };
   const [night, setNight] = useState(isNight);
   useEffect(() => {

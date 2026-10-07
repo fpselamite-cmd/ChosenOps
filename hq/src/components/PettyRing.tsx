@@ -6,6 +6,7 @@ import { useHub } from '../hooks/useHub';
 import { db } from '../lib/firebase';
 import { weekStart } from '../lib/petty';
 import type { PettyCrime } from '../lib/types';
+import { useDefaults } from '../lib/adminData';
 
 /** My weekly petty rep goal as a ring, for the Dashboard header. Hidden until I set a goal. */
 export function PettyRing() {
@@ -13,7 +14,8 @@ export function PettyRing() {
   const goal = useDoc<{ weekly?: number }>(`pettyGoals/${me.id}`);
   const q = useMemo(() => query(collection(db, 'pettyLog'), where('memberId', '==', me.id)), [me.id]);
   const rows = useCollection<PettyCrime>(q);
-  const target = goal?.weekly ?? 0;
+  const fallback = useDefaults().weeklyGoal;
+  const target = goal?.weekly ?? fallback ?? 0;
   if (!target || !rows) return null;
   const since = weekStart();
   const week = rows.filter((c) => (c.at?.toMillis() ?? Date.now()) >= since).reduce((s, c) => s + c.rep, 0);

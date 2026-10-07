@@ -56,7 +56,11 @@ export interface Blacksite {
 }
 
 /** What calling in a blacksite costs the family. */
-export const CALL_IN_COST = 150;
+/** Gang rep a call-in costs (an admin can change it in Admin → Gang settings). */
+export let CALL_IN_COST = 150;
+export const setCallInCost = (n?: number) => {
+  if (n && n > 0) CALL_IN_COST = n;
+};
 /** What a fight does to family rep once confirmed: rep earned, minus the call-in cost. */
 export const netRep = (s: Pick<Blacksite, 'rep' | 'calledIn'>) => s.rep - (s.calledIn ? CALL_IN_COST : 0);
 

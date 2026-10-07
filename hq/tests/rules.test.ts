@@ -472,10 +472,8 @@ describe('money', () => {
 });
 
 describe('crew list on member files', () => {
-  it('lets anyone sync crewIds, but only to crews that really have the member', async () => {
-    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { crewIds: ['grow'] }));
-    await assertFails(updateDoc(doc(as('sol2'), 'members/sol2'), { crewIds: ['grow'] }));
-    // Dropping a crew they've left is fine.
+  it('crews are retired: an old crew list can be cleared but not added to', async () => {
+    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { crewIds: ['grow'] }));
     await assertSucceeds(updateDoc(doc(as('capo'), 'members/sol'), { crewIds: [] }));
   });
   it('a crew leader removes someone and clears their crewIds in one go', async () => {
@@ -904,5 +902,63 @@ describe('personal cash', () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'myCash/c1'), { memberId: 'sol', dirty: 5000, clean: 0, note: 'Store job', at: serverTimestamp() }));
     await assertFails(setDoc(doc(as('sol'), 'myCash/c2'), { memberId: 'sol2', dirty: 5000, clean: 0, note: '', at: serverTimestamp() }));
     await assertFails(getDoc(doc(as('sol2'), 'myCash/c1')));
+  });
+});
+
+describe('admin', () => {
+  const makeAdmin = (id: string) => env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members', id), { admin: true }));
+  it('treats an admin of any rank as leadership, and lets them pick their own rank (not the top)', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'settings/pettyGoal'), { title: 'Q', target: 100, by: '2026-12-01' }));
+    await makeAdmin('sol');
+    await assertSucceeds(setDoc(doc(as('sol'), 'settings/pettyGoal'), { title: 'Q', target: 100, by: '2026-12-01' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'capo', reportsTo: 'boss' }));
+    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'members/sol2'), { rankId: 'capo' }));
+  });
+  it('keeps the feed to admins; anyone writes their own line', async () => {
+    const line = (by: string) => ({ kind: 'rank', text: 'Sol moved to Capo', by, byName: by, target: 'sol', reason: '', at: serverTimestamp() });
+    await assertSucceeds(setDoc(doc(as('capo'), 'adminFeed/f1'), line('capo')));
+    await assertFails(setDoc(doc(as('capo'), 'adminFeed/f2'), line('boss')));
+    await assertFails(getDocs(collection(as('boss'), 'adminFeed')));
+    await makeAdmin('sol');
+    await assertSucceeds(getDocs(collection(as('sol'), 'adminFeed')));
+  });
+  it('lets admins fix numbers: petty rep, locker cash, streaks, stats', async () => {
+    const cash = { memberId: 'sol2', dirty: 500, clean: 0, note: 'Admin fix', at: serverTimestamp() };
+    await assertFails(setDoc(doc(as('capo'), 'myCash/c1'), cash));
+    await assertFails(setDoc(doc(as('capo'), 'petty/sol2'), { rep: 10 }));
+    await makeAdmin('capo');
+    await assertSucceeds(setDoc(doc(as('capo'), 'myCash/c1'), cash));
+    await assertSucceeds(setDoc(doc(as('capo'), 'petty/sol2'), { rep: 10 }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'streaks/sol2'), { current: 3, best: 9, last: '2026-10-01', freezes: {}, loaFrom: null, loaUntil: null, at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'stats/sol2'), { harvests: 4 }));
+  });
+  it('lets approvers leave a welcome note the newcomer can read and dismiss', async () => {
+    await assertSucceeds(setDoc(doc(as('capo'), 'welcomes/newbie'), { text: 'Welcome in.', by: 'capo', byName: 'Capo', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'welcomes/sol2'), { text: 'Hi', by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertSucceeds(getDoc(doc(as('capo'), 'welcomes/newbie')));
+    await assertFails(getDoc(doc(as('sol'), 'welcomes/newbie')));
+  });
+  it('lets an admin rename someone and add their new sign-in name', async () => {
+    const rename = (db: ReturnType<typeof as>) => {
+      const b = writeBatch(db);
+      b.update(doc(db, 'members/sol2'), { name: 'Solo', nameLower: 'solo' });
+      b.set(doc(db, 'names/solo'), { uid: 'sol2', v: 0 });
+      return b.commit();
+    };
+    await assertFails(rename(as('capo')));
+    await makeAdmin('capo');
+    await assertSucceeds(rename(as('capo')));
+    await assertFails(updateDoc(doc(as('capo'), 'members/sol2'), { name: 'X', nameLower: 'y' }));
+  });
+  it('lets admins edit lists and defaults; only owners merge or delete accounts', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [] }));
+    await makeAdmin('sol');
+    await assertSucceeds(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [{ id: 'heist', name: 'Heist', icon: 'gem' }] }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'settings/defaults'), { callInCost: 200 }));
+    await assertFails(deleteDoc(doc(as('sol'), 'members/sol2')));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'meta/owners'), { ids: ['boss'] }));
+    await assertSucceeds(getDocs(query(collection(as('boss'), 'sales'), where('sellerId', '==', 'sol2'))));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'members/sol2')));
   });
 });

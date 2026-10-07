@@ -35,10 +35,11 @@ import { BOARDS, monthKey, monthName, ranked, useBoards } from '../lib/boards';
 import { useCabinet } from '../lib/cabinet';
 import { addDays, et, fromET, keyOf, occurrences, rsvp, timeLabel, type CalEvent, type Rsvp } from '../lib/calendar';
 import { db } from '../lib/firebase';
-import { ago, fmtDate } from '../lib/format';
+import { ago, fmtDate, TZ, TZ_LABEL } from '../lib/format';
 import { KitStrip } from '../components/Kit';
 import type { Signout, Trade } from '../lib/locker';
 import type { Nudge } from '../lib/stash';
+import { dismissWelcome, type Welcome } from '../lib/adminData';
 import { LowStockLine } from './Stash';
 import { useMoney } from '../lib/money';
 import { BASICS, CITY, LOOKS, STORY, type Sheet } from '../lib/sheet';
@@ -373,7 +374,7 @@ function UpNext() {
             <li key={o.key} className="border-l-2 pl-3" style={{ borderColor: o.color }}>
               <p className="font-semibold text-gold-100">{o.title}</p>
               <p className="text-xs text-smoke">
-                {o.at.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric' })} · {timeLabel(o.at)} ET{o.sub ? ` · ${o.sub}` : ''}
+                {o.at.toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' })} · {timeLabel(o.at)} {TZ_LABEL}{o.sub ? ` · ${o.sub}` : ''}
               </p>
               {o.event && (
                 <div className="mt-1.5 flex gap-1">
@@ -422,7 +423,7 @@ function Birthdays() {
                 </span>
                 <span className={`flex items-center gap-1 text-xs ${r.day === today ? 'font-bold text-gold-300' : 'text-smoke'}`}>
                   {r.kind === 'birthday' ? <Cake className="size-3.5" /> : <Gift className="size-3.5" />}
-                  {r.day === today ? 'Today!' : fromET(+r.day.slice(0, 4), +r.day.slice(5, 7), +r.day.slice(8)).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/New_York' })}
+                  {r.day === today ? 'Today!' : fromET(+r.day.slice(0, 4), +r.day.slice(5, 7), +r.day.slice(8)).toLocaleDateString('en-US', { weekday: 'short', timeZone: TZ })}
                 </span>
               </Link>
             </li>
@@ -473,7 +474,7 @@ function Todos() {
   upcoming.forEach((o) => {
     if (o.event && !o.event.rsvp?.[me.id] && !seen.has(o.event.id)) {
       seen.add(o.event.id);
-      items.push({ group: 'Events', to: '/calendar', text: `RSVP to ${o.title} (${o.at.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' })})` });
+      items.push({ group: 'Events', to: '/calendar', text: `RSVP to ${o.title} (${o.at.toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short' })})` });
     }
   });
   const groups = ['Mine', 'Leadership', 'Events'].map((g) => [g, items.filter((i) => i.group === g)] as const).filter(([, l]) => l.length);
@@ -504,6 +505,26 @@ function Todos() {
       )}
       {can('manageOps') && <LowStockLine />}
     </Panel>
+  );
+}
+
+/** A newcomer's welcome note from whoever let them in, until they dismiss it. */
+function WelcomeNote() {
+  const { me } = useHub();
+  const w = useDoc<Welcome>(`welcomes/${me.id}`);
+  if (!w) return null;
+  return (
+    <div className="hud mb-6 flex items-start gap-3 border-gold-400/50 p-4">
+      <Sparkles className="mt-0.5 size-5 shrink-0 text-gold-300" />
+      <div className="min-w-0 flex-1">
+        <p className="label text-gold-400">Welcome to the family</p>
+        <p className="mt-1 text-gold-100">“{w.text}”</p>
+        <p className="mt-1 text-xs text-smoke">— {w.byName}</p>
+      </div>
+      <button className="btn-ghost btn-sm" onClick={() => dismissWelcome(me.id)}>
+        Thanks
+      </button>
+    </div>
   );
 }
 
@@ -582,7 +603,7 @@ export default function Dashboard() {
   const { me, roster, isOnline, rankById, ranks, settings, familyRep } = useHub();
   const online = roster.filter((m) => isOnline(m.id));
   const leadership = roster.filter((m) => rankById.get(m.rankId ?? '')?.leadership);
-  const hour = Number(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+  const hour = Number(new Date().toLocaleString('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }));
   const greet = hour < 5 ? 'Late night' : hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
 
   return (
@@ -594,6 +615,7 @@ export default function Dashboard() {
           </div>
         } />
 
+      <WelcomeNote />
       <div className="mb-6 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Hero />
         <Spotlight />
