@@ -18,6 +18,7 @@ import Locker from './pages/Locker';
 import HallOfFame from './pages/HallOfFame';
 import Blacksites from './pages/Blacksites';
 import Rivals from './pages/rivals/Rivals';
+import Welcome from './pages/welcome/Welcome';
 import Gear from './pages/Gear';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
@@ -133,6 +134,7 @@ function MemberRoutes() {
           }
         />
         <Route path="rivals" element={<Rivals />} />
+        <Route path="welcome" element={<Welcome />} />
         <Route
           path="gear"
           element={

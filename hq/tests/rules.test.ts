@@ -1073,3 +1073,37 @@ describe('rivals', () => {
     await assertSucceeds(getDoc(doc(as('sol'), 'rivalBoard/main')));
   });
 });
+
+describe('welcome center', () => {
+  const mkHandler = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', 'sol2'), { roles: ['welcome'], perms: { approveMembers: true }, pages: {}, lead: false }));
+  it('lets handlers set up the checklist, not everyone', async () => {
+    await mkHandler();
+    const w = { steps: [{ id: 't1', title: 'Weed run' }], sections: [], repTarget: 300, rulesVersion: 1 };
+    await assertFails(setDoc(doc(as('sol'), 'settings/welcome'), w));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'settings/welcome'), w));
+    await assertSucceeds(getDoc(doc(as('sol'), 'settings/welcome')));
+  });
+  it('associates accept the rules and mark steps; handlers confirm and recommend', async () => {
+    await mkHandler();
+    await assertSucceeds(setDoc(doc(as('sol'), 'onboarding/sol'), { rulesAccepted: 1, rulesAt: serverTimestamp() }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'onboarding/sol'), { recommended: { by: 'sol' } }, { merge: true }));
+    await assertFails(getDoc(doc(as('capo'), 'onboarding/sol')));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'onboarding/sol')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'welcomeStamps/sol_t1'), { memberId: 'sol', stepId: 't1', status: 'pending', by: 'sol', byName: 'Sol', confirmedBy: null, at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'welcomeStamps/sol_t2'), { memberId: 'sol', stepId: 't2', status: 'done', by: 'sol', byName: 'Sol', confirmedBy: 'sol', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'welcomeStamps/sol_t1'), { memberId: 'sol', stepId: 't1', status: 'done', by: 'sol2', byName: 'Sol2', confirmedBy: 'sol2', at: serverTimestamp() }));
+    await assertFails(deleteDoc(doc(as('sol'), 'welcomeStamps/sol_t1')));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'onboarding/sol'), { recommended: { by: 'sol2', byName: 'Sol2', note: '', at: serverTimestamp() } }, { merge: true }));
+  });
+  it('keeps handler notes private; anyone vouches; only High Table patches in', async () => {
+    await mkHandler();
+    await assertFails(setDoc(doc(as('capo'), 'handlerNotes/h1'), { memberId: 'sol', text: 'x', by: 'capo', byName: 'Capo', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'handlerNotes/h1'), { memberId: 'sol', text: 'Good', by: 'sol2', byName: 'Sol2', at: serverTimestamp() }));
+    await assertFails(getDoc(doc(as('sol'), 'handlerNotes/h1')));
+    await assertSucceeds(setDoc(doc(as('capo'), 'vouches/v1'), { memberId: 'sol', kind: 'vouch', text: '', by: 'capo', byName: 'Capo', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'vouches/v2'), { memberId: 'sol', kind: 'vouch', text: '', by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertFails(getDoc(doc(as('sol'), 'vouches/v1')));
+    await assertFails(setDoc(doc(as('sol2'), 'graduations/sol'), { name: 'Sol', rankName: 'Soldier', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'graduations/sol'), { name: 'Sol', rankName: 'Soldier', at: serverTimestamp() }));
+  });
+});
