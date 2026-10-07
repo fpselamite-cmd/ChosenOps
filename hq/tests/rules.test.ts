@@ -987,3 +987,37 @@ describe('roles', () => {
     await assertSucceeds(setDoc(doc(as('boss'), 'hqRoles/r1'), { name: 'Washer', perms: { washMoney: true }, pages: {}, order: 1 }));
   });
 });
+
+describe('money & dues', () => {
+  const mkTreasurer = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', 'capo'), { roles: [], perms: { money: true }, pages: {}, lead: false }));
+  it('keeps the gang books to the Treasurer and leadership', async () => {
+    const e = (by: string) => ({ dir: 'in', cash: 'clean', amount: 5000, category: 'Other', note: '', memberId: null, source: 'manual', ref: null, by, byName: by, at: serverTimestamp() });
+    await assertFails(setDoc(doc(as('sol'), 'gangBook/b1'), e('sol')));
+    await mkTreasurer();
+    await assertSucceeds(setDoc(doc(as('capo'), 'gangBook/b1'), e('capo')));
+    await assertFails(getDoc(doc(as('sol'), 'gangBook/b1')));
+    await assertSucceeds(getDoc(doc(as('boss'), 'gangBook/b1')));
+  });
+  it('pays out in two steps: Treasurer sends, member confirms', async () => {
+    await mkTreasurer();
+    await assertSucceeds(setDoc(doc(as('capo'), 'payouts/p1'), { memberId: 'sol', memberName: 'Sol', cash: 'dirty', amount: 2000, reason: 'Loot', status: 'owed', by: 'capo', at: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('sol'), 'payouts/p1'), { status: 'received' }));
+    await assertSucceeds(updateDoc(doc(as('capo'), 'payouts/p1'), { status: 'sent', sentAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('sol2'), 'payouts/p1'), { status: 'received' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'payouts/p1'), { status: 'received' }));
+  });
+  it('lets members pay dues from their safe; the Treasurer confirms', async () => {
+    await mkTreasurer();
+    const db = as('sol');
+    const b = writeBatch(db);
+    b.set(doc(db, 'myCash/c1'), { memberId: 'sol', dirty: -3000, clean: 0, note: 'Dinner dues', at: serverTimestamp() });
+    b.set(doc(db, 'duesPay/d1'), { memberId: 'sol', week: '2026-10-11', cash: 'dirty', amount: 3000, status: 'pending', cashId: 'c1', at: serverTimestamp() });
+    await assertSucceeds(b.commit());
+    await assertFails(updateDoc(doc(as('sol'), 'duesPay/d1'), { status: 'confirmed', decidedBy: 'sol' }));
+    await assertSucceeds(updateDoc(doc(as('capo'), 'duesPay/d1'), { status: 'confirmed', decidedBy: 'capo' }));
+    await assertFails(setDoc(doc(as('sol'), 'settings/dues'), { day: 0, byRank: {} }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'settings/dues'), { day: 0, byRank: { soldier: { rep: 50, clean: 1000, dirty: 2000 } } }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'duesWeeks/2026-10-11'), { owe: { sol: { rep: 50, clean: 1000, dirty: 2000 } }, excused: {} }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'repTransfers/t9'), { memberId: 'sol', amount: 50, status: 'pending', dues: '2026-10-11', at: serverTimestamp() }));
+  });
+});

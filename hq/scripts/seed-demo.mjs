@@ -563,6 +563,45 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await hold('Kira Lane', ['welcome', 'event_planner'], { approveMembers: true, manageEvents: true }, { calendar: true });
   await hold('Marco Gallo', ['washer'], { washMoney: true }, { blackmarket: true });
   await hold('Sal Moretti', ['high_table', 'archivist'], all, {}, true);
+  // Money: dinner dues (Sundays), the gang books, payouts, a budget, savings goals and requests.
+  const etDay = (back) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(now - back * 86400_000));
+  const wdNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay();
+  const sun = (k) => etDay(wdNow + 7 * k);
+  const byRank = { boss: { rep: 500, clean: 10000, dirty: 15000 }, consigliere: { rep: 400, clean: 8000, dirty: 12000 }, underboss: { rep: 400, clean: 8000, dirty: 12000 }, treasurer: { rep: 300, clean: 6000, dirty: 10000 }, caporegime: { rep: 300, clean: 6000, dirty: 10000 }, lieutenant: { rep: 200, clean: 4000, dirty: 6000 }, enforcer: { rep: 100, clean: 2000, dirty: 3000 }, soldier: { rep: 100, clean: 2000, dirty: 3000 }, associate: { rep: 50, clean: 1000, dirty: 1500 } };
+  await setDoc(doc(db, 'settings', 'dues'), { day: 0, byRank });
+  const owe = Object.fromEntries(PEOPLE.filter(([n]) => n !== 'Tommy Reyes').map(([n, r]) => [ids[n], byRank[r]]));
+  for (const k of [0, 1, 2]) await setDoc(doc(db, 'duesWeeks', sun(k)), { owe, excused: k === 0 ? { [ids['Ghost']]: true } : {}, at: Timestamp.fromMillis(now - (wdNow + 7 * k) * 86400_000) });
+  let dp = 0;
+  const pay = async (who, week, cash, amount, status) => setDoc(doc(db, 'duesPay', `dp${dp++}`), { memberId: ids[who], week, cash, amount, status, cashId: 'seed', at: Timestamp.fromMillis(now - 3 * H) });
+  const tr = async (who, week, amount, status) => setDoc(doc(db, 'repTransfers', `dues${dp++}`), { memberId: ids[who], amount, status, dues: week, at: Timestamp.fromMillis(now - 2 * H), ...(status === 'confirmed' ? { decidedBy: vito } : {}) });
+  for (const k of [1, 2]) for (const [n, r] of PEOPLE) {
+    if (n === 'Tommy Reyes' || (k === 1 && n === 'Kira Lane')) continue;
+    await pay(n, sun(k), 'clean', byRank[r].clean, 'confirmed');
+    if (!(k === 1 && n === 'Rocco Vale')) await pay(n, sun(k), 'dirty', byRank[r].dirty, 'confirmed');
+    await tr(n, sun(k), byRank[r].rep, 'confirmed');
+  }
+  await pay('Don Vito', sun(0), 'dirty', 15000, 'confirmed');
+  await tr('Don Vito', sun(0), 500, 'confirmed');
+  await pay('Don Vito', sun(0), 'clean', 10000, 'pending');
+  for (const k of ['rep', 'clean', 'dirty']) k === 'rep' ? await tr('Rocco Vale', sun(0), 300, 'pending') : await pay('Rocco Vale', sun(0), k, byRank.caporegime[k], 'pending');
+  await tr('Marco Gallo', sun(0), 100, 'confirmed');
+  await pay('Marco Gallo', sun(0), 'clean', 1000, 'pending');
+  const be = (id, dir, cash, amount, category, note, back, source = 'manual') => setDoc(doc(db, 'gangBook', id), { dir, cash, amount, category, note, memberId: null, source, ref: null, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H) });
+  await be('be0', 'in', 'clean', 120000, 'Income', 'Car dealership front', 120);
+  await be('be1', 'out', 'dirty', 45000, 'Weapons', '6 carbines from the docks contact', 70);
+  await be('be2', 'out', 'clean', 30000, 'Property', 'Rent on the Grove St house', 50);
+  await be('be3', 'out', 'dirty', 12000, 'Bail & lawyers', "Getting Jax out", 20);
+  await be('be4', 'out', 'clean', 8000, 'Vehicles', 'Repairs on the Sultan', 6);
+  await be('be5', 'out', 'dirty', 25000, 'Savings', 'Clubhouse', 4, 'goal');
+  await setDoc(doc(db, 'savingsGoals', 'g1'), { name: 'Clubhouse on Grove St', cash: 'dirty', target: 250000, saved: 25000, done: false, at: Timestamp.fromMillis(now - 100 * H) });
+  await setDoc(doc(db, 'savingsGoals', 'g2'), { name: 'Armored Kuruma', cash: 'clean', target: 60000, saved: 0, done: false, at: Timestamp.fromMillis(now - 90 * H) });
+  const month = new Date(now).toISOString().slice(0, 7);
+  await setDoc(doc(db, 'budgets', month), { cats: { Weapons: { dirty: 60000, clean: 0 }, Vehicles: { dirty: 0, clean: 20000 }, Property: { dirty: 0, clean: 30000 }, 'Bail & lawyers': { dirty: 10000, clean: 0 }, Supplies: { dirty: 5000, clean: 5000 } } });
+  await setDoc(doc(db, 'payouts', 'po1'), { memberId: ids['Rocco Vale'], memberName: 'Rocco Vale', cash: 'dirty', amount: 8000, reason: 'Loot from the docks blacksite', status: 'owed', by: vito, at: Timestamp.fromMillis(now - 10 * H) });
+  await setDoc(doc(db, 'payouts', 'po2'), { memberId: vito, memberName: 'Don Vito', cash: 'clean', amount: 5000, reason: 'Fronted the plates', status: 'sent', by: vito, at: Timestamp.fromMillis(now - 8 * H) });
+  await setDoc(doc(db, 'spendRequests', 'sr1'), { by: ids['Kira Lane'], byName: 'Kira Lane', cash: 'dirty', amount: 6000, category: 'Supplies', why: 'Radios and lockpicks for the next run', status: 'open', at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'washRequests', 'gw1'), { memberId: 'gang', memberName: 'The gang', dirty: 40000, pct: 50, clean: 20000, status: 'done', claimerId: ids['Marco Gallo'], claimerName: 'Marco Gallo', note: 'Gang money', at: Timestamp.fromMillis(now - 30 * H), doneAt: Timestamp.fromMillis(now - 26 * H) });
+
   // Admin: editable lists, a price history, the feed, and a welcome note.
   await setDoc(doc(db, 'settings', 'lists'), {
     crimes: [

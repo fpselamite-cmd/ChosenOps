@@ -1,5 +1,5 @@
 import { collection, query } from 'firebase/firestore';
-import { Crown, Feather, Flame, Hourglass, Landmark, Luggage, Medal, Pencil, Plus, Scroll, Skull, Swords, Trash2, Trophy as TrophyIcon, X } from 'lucide-react';
+import { Crown, HandCoins, Feather, Flame, Hourglass, Landmark, Luggage, Medal, Pencil, Plus, Scroll, Skull, Swords, Trash2, Trophy as TrophyIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
@@ -32,7 +32,9 @@ import {
   type Ranked,
   type Tribute,
 } from '../lib/hall';
-import type { Member } from '../lib/types';
+import type { Member, RepTransfer } from '../lib/types';
+import type { DuesPay } from '../lib/books';
+import { lifetime } from './money/duesCalc';
 
 /** Gold, silver and bronze steps for the top 3. Shared with the Dashboard. */
 export function Podium({ rows, board, compact = false, flames }: { rows: Ranked[]; board: { unit: (v: number) => string }; compact?: boolean; flames?: Map<string, number> }) {
@@ -277,6 +279,37 @@ function PastPlaque({ m, past }: { m: Member; past: Past }) {
       >
         <input className="input py-1 text-xs" placeholder="Leave a memory…" maxLength={140} value={text} onChange={(e) => setText(e.target.value)} />
       </form>
+    </div>
+  );
+}
+
+/** The family's biggest givers: dinner dues cash and rep sent in, over their whole time. */
+function BiggestGivers() {
+  const { roster } = useHub();
+  const pays = useCollection<DuesPay>('duesPay') ?? [];
+  const transfers = useCollection<RepTransfer>('repTransfers') ?? [];
+  const top = roster
+    .map((m) => ({ m, l: lifetime(m.id, transfers, pays) }))
+    .filter((x) => x.l.clean + x.l.dirty + x.l.rep > 0)
+    .sort((a, b) => b.l.clean + b.l.dirty - (a.l.clean + a.l.dirty) || b.l.rep - a.l.rep)
+    .slice(0, 3);
+  if (!top.length) return null;
+  return (
+    <div className="mb-10">
+      <p className="label mb-3 flex items-center gap-1.5 text-gold-400">
+        <HandCoins className="size-3.5" /> Biggest givers
+      </p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {top.map(({ m, l }, i) => (
+          <Link key={m.id} to={`/members/${m.id}`} className="legend-plaque relative block p-5 text-center">
+            <p className="font-display text-3xl font-black">{['I', 'II', 'III'][i]}</p>
+            <p className="mt-1 font-display text-lg font-bold">{m.name}</p>
+            <p className="mt-1 text-sm">
+              ${(l.clean + l.dirty).toLocaleString('en-US')} given · {l.rep.toLocaleString('en-US')} rep
+            </p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -544,6 +577,8 @@ export default function HallOfFame() {
           </div>
         );
       })()}
+
+      <BiggestGivers />
 
       <div className="mb-10">
         <div className="mb-3 flex items-center justify-between">

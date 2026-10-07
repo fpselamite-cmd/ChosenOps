@@ -467,11 +467,11 @@ service cloud.firestore {
     // Cash members add to or take out of their own locker (city money, not gang sales).
     match /myCash/{id} {
       allow read: if active() && (wasMine('memberId') || can('money'));
-      allow create: if active() && (mine('memberId') || isAdmin()) && request.resource.data.at == request.time
+      allow create: if active() && (mine('memberId') || isAdmin() || can('money')) && request.resource.data.at == request.time
         && request.resource.data.keys().hasOnly(['memberId', 'dirty', 'clean', 'note', 'at'])
         && request.resource.data.dirty is int && request.resource.data.clean is int
         && str(request.resource.data.get('note', ''), 60);
-      allow delete: if active() && wasMine('memberId');
+      allow delete: if active() && (wasMine('memberId') || can('money'));
     }
     // Money that changed hands in a finished trade (one per direction), checked against the trade.
     match /cashMoves/{id} {
@@ -554,7 +554,8 @@ service cloud.firestore {
     // Wash requests: a member sends dirty money; a washer claims it and marks it done.
     match /washRequests/{id} {
       allow read: if active() && (wasMine('memberId') || can('washMoney') || can('money'));
-      allow create: if active() && mine('memberId') && request.resource.data.at == request.time
+      // A member's own wash, or the Treasurer sending the gang's dirty money (memberId 'gang').
+      allow create: if active() && (mine('memberId') || (request.resource.data.memberId == 'gang' && can('money'))) && request.resource.data.at == request.time
         && request.resource.data.keys().hasOnly(['memberId', 'memberName', 'dirty', 'pct', 'clean', 'status', 'claimerId', 'claimerName', 'note', 'at'])
         && request.resource.data.status == 'open' && request.resource.data.claimerId == null
         && request.resource.data.dirty is int && request.resource.data.dirty > 0
@@ -569,7 +570,7 @@ service cloud.firestore {
         || (can('washMoney') && onlyChanges(['status', 'doneAt']) && resource.data.status == 'claimed'
           && resource.data.claimerId == myId() && request.resource.data.status == 'done' && request.resource.data.doneAt == request.time)
         // The member cancels one nobody has claimed yet.
-        || (wasMine('memberId') && onlyChanges(['status', 'doneAt']) && resource.data.status == 'open'
+        || ((wasMine('memberId') || (resource.data.memberId == 'gang' && can('money'))) && onlyChanges(['status', 'doneAt']) && resource.data.status == 'open'
           && request.resource.data.status == 'cancelled' && request.resource.data.doneAt == request.time));
     }
     // Payouts and expenses. A member can see payouts made to them.
@@ -643,7 +644,8 @@ service cloud.firestore {
     match /repTransfers/{tid} {
       allow read: if active();
       allow create: if active()
-        && request.resource.data.keys().hasOnly(['memberId', 'amount', 'status', 'at'])
+        && request.resource.data.keys().hasOnly(['memberId', 'amount', 'status', 'at', 'dues'])
+        && str(request.resource.data.get('dues', ''), 10)
         && request.resource.data.memberId == myId() && request.resource.data.status == 'pending'
         && request.resource.data.amount is int && request.resource.data.amount > 0
         && request.resource.data.at == request.time;
@@ -878,6 +880,60 @@ service cloud.firestore {
 
     // ── Gear & Loadouts ─────────────────────────────────────────
     // Shared weapon builds: anyone makes one; anyone likes (their own like only).
+    // ---------- Money: the gang's books ----------
+    function treasury() { return can('money') || lead(); }
+    match /gangBook/{id} {
+      allow read: if active() && treasury();
+      allow create: if active() && can('money') && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.dir in ['in', 'out'] && request.resource.data.cash in ['dirty', 'clean']
+        && request.resource.data.amount is int && request.resource.data.amount > 0
+        && str(request.resource.data.category, 30) && str(request.resource.data.get('note', ''), 140)
+        && request.resource.data.source in ['manual', 'dues', 'payout', 'spend', 'goal'];
+      allow delete: if active() && can('money');
+    }
+    match /payouts/{id} {
+      allow read: if active() && (resource.data.memberId == myId() || treasury());
+      allow create: if active() && treasury() && request.resource.data.status == 'owed'
+        && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.cash in ['dirty', 'clean'];
+      allow update: if active() && (
+        (can('money') && resource.data.status == 'owed' && request.resource.data.status == 'sent' && onlyChanges(['status', 'sentAt']))
+        || (resource.data.memberId == myId() && resource.data.status == 'sent' && request.resource.data.status == 'received' && onlyChanges(['status'])));
+      allow delete: if active() && treasury() && resource.data.status == 'owed';
+    }
+    match /budgets/{month} {
+      allow read, write: if active() && treasury();
+    }
+    match /savingsGoals/{id} {
+      allow read: if active();
+      allow write: if active() && treasury();
+    }
+    match /spendRequests/{id} {
+      allow read: if active() && (resource.data.by == myId() || treasury());
+      allow create: if active() && mine('by') && request.resource.data.status == 'open'
+        && request.resource.data.amount is int && request.resource.data.amount > 0 && str(request.resource.data.why, 140);
+      allow update: if active() && treasury() && resource.data.status == 'open'
+        && request.resource.data.status in ['approved', 'denied'] && onlyChanges(['status', 'decidedBy']) && request.resource.data.decidedBy == myId();
+    }
+    // Weekly dinner dues: amounts by rank (High Table), a snapshot per dinner, and cash payments.
+    match /settings/dues {
+      allow read: if active();
+      allow write: if active() && lead();
+    }
+    match /duesWeeks/{week} {
+      allow read: if active();
+      allow create, update: if active() && (lead() || can('money') || can('confirmRep')) && week.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+    match /duesPay/{id} {
+      allow read: if active();
+      allow create: if active() && mine('memberId') && request.resource.data.status == 'pending'
+        && request.resource.data.cash in ['dirty', 'clean'] && request.resource.data.amount is int && request.resource.data.amount > 0
+        && getAfter(/databases/$(database)/documents/myCash/$(request.resource.data.cashId)).data.memberId == myId();
+      // The Treasurer confirms or rejects; nobody confirms their own (except the top rank).
+      allow update: if active() && can('money') && resource.data.status == 'pending'
+        && (resource.data.memberId != myId() || myOrder() == 0)
+        && request.resource.data.status in ['confirmed', 'rejected'] && onlyChanges(['status', 'decidedBy']) && request.resource.data.decidedBy == myId();
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();

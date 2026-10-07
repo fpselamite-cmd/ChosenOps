@@ -73,9 +73,11 @@ import {
 import { keyOf } from '../lib/calendar';
 import { setLoa, useStreak } from '../lib/streak';
 import { markPast, PAST_KINDS, restoreMember, type Past, type PastKind } from '../lib/hall';
-import { PRESENCE_STATUSES, type Member } from '../lib/types';
+import { PRESENCE_STATUSES, type Member, type RepTransfer } from '../lib/types';
 import { KitCard } from '../components/Kit';
 import { RoleChips } from '../components/RoleChips';
+import type { DuesPay } from '../lib/books';
+import { lifetime } from './money/duesCalc';
 
 const BMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -231,6 +233,10 @@ function StatBlock({ m }: { m: Member }) {
 function Glance({ m }: { m: Member }) {
   const st = useStats(m);
   const v = (g: string, l: string) => st[g]?.find(([x]) => x === l)?.[1] ?? 0;
+  // Lifetime giving to the family: dinner dues cash, and all rep sent in.
+  const pays = useCollection<DuesPay>('duesPay') ?? [];
+  const transfers = useCollection<RepTransfer>('repTransfers') ?? [];
+  const given = lifetime(m.id, transfers, pays);
   const tiles: [string, string | number][] = [
     ['This month', v('Money', 'This month')],
     ['Lifetime sales', v('Money', 'Lifetime sales')],
@@ -240,9 +246,10 @@ function Glance({ m }: { m: Member }) {
     ['Petty rep', v('Street', 'Petty rep')],
     ['Days in', v('Standing', 'Days in the family')],
     ['Trophies', v('Standing', 'Trophies')],
+    ['Given', `${money(given.clean + given.dirty)} · ${given.rep.toLocaleString()}r`],
   ];
   return (
-    <div className="grid grid-cols-4 gap-px border-t border-line-soft bg-line-soft sm:grid-cols-8">
+    <div className="grid grid-cols-3 gap-px border-t border-line-soft bg-line-soft sm:grid-cols-9">
       {tiles.map(([l, x]) => (
         <div key={l} className="bg-panel px-2 py-2.5 text-center">
           <p className="truncate font-mono text-sm text-gold-100 sm:text-base">{x}</p>

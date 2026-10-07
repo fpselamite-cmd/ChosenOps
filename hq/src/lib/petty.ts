@@ -63,9 +63,9 @@ export const setFamilyGoal = (g: Omit<FamilyGoal, 'from'> | null) =>
   setDoc(doc(db, 'settings', 'pettyGoal'), g ? { ...g, from: serverTimestamp() } : { title: '', target: 0, by: '', from: serverTimestamp() });
 
 /** Sends rep to the family. It leaves your total now and waits for a Lieutenant+ to confirm. */
-export async function requestTransfer(memberId: string, amount: number) {
+export async function requestTransfer(memberId: string, amount: number, dues?: string) {
   const batch = writeBatch(db);
-  batch.set(doc(collection(db, 'repTransfers')), { memberId, amount, status: 'pending', at: serverTimestamp() });
+  batch.set(doc(collection(db, 'repTransfers')), { memberId, amount, status: 'pending', at: serverTimestamp(), ...(dues ? { dues } : {}) });
   batch.set(doc(db, 'petty', memberId), { rep: increment(-amount) }, { merge: true });
   await batch.commit();
 }

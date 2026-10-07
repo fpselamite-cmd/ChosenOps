@@ -1,6 +1,6 @@
 import { Check, Crown, Download, HandCoins, ListChecks, Minus, Package, Pin, Plus, Settings2, ShoppingBag, Siren, Sparkles, Trash2, Users, VenetianMask, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { ItemPicker } from '../components/ItemPicker';
@@ -951,7 +951,7 @@ function WishView() {
 
 // ---------- washing (washers) ----------
 
-function WashingView() {
+export function WashingView() {
   const { me } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
@@ -1116,11 +1116,9 @@ function Body() {
   const m = useMoney();
   const { ready } = useNarcotics();
   const [settings, setSettings] = useState(false);
-  const washTab = m.washer || m.all;
   const asked = params.get('tab');
-  const view = (asked === 'money' || asked === 'wish' || (asked === 'washing' && washTab) ? asked : 'sell') as View;
+  const view = (asked === 'money' || asked === 'wish' || asked === 'washing' ? asked : 'sell') as View;
   const openWishes = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').length;
-  const openWashes = m.washReqs.filter((w) => w.status === 'open').length;
   if (!m.ready || !ready)
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-gold-400">
@@ -1151,14 +1149,15 @@ function Body() {
             { id: 'sell', label: 'Sell' },
             { id: 'money', label: 'Money' },
             { id: 'wish', label: `Wish list${openWishes ? ` · ${openWishes}` : ''}` },
-            ...(washTab ? [{ id: 'washing', label: `Washing${openWashes ? ` · ${openWashes}` : ''}` }] : []),
+
           ]}
         />
       </div>
       {view === 'sell' && <SellView />}
       {view === 'money' && <MoneyView />}
       {view === 'wish' && <WishView />}
-      {view === 'washing' && <WashingView />}
+      {/* Washing moved to the Money page. */}
+      {view === 'washing' && <Navigate to="/money?tab=washing" replace />}
       {settings && <Settings onClose={() => setSettings(false)} />}
     </>
   );

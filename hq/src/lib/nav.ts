@@ -1,4 +1,5 @@
 import {
+  Banknote,
   CalendarDays,
   Cannabis,
   Crosshair,
@@ -47,6 +48,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Business',
     items: [
       { to: '/blackmarket', label: 'BlackMarket', icon: VenetianMask, page: 'blackmarket' },
+      { to: '/money', label: 'Money', icon: Banknote },
       { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
       { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics', href: NOELOPS_URL },
       { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
