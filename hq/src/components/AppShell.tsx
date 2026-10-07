@@ -10,6 +10,7 @@ import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
 import { StreakKeeper } from './Streak';
 import { TradeAlerts } from './TradeAlerts';
+import { EventBanner } from './EventBanner';
 import { Modal } from './Modal';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
@@ -216,6 +217,7 @@ export function AppShell() {
         data-theme="gold"
       >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
+          <EventBanner />
           <Outlet />
         </main>
         <div id="modal-root" />

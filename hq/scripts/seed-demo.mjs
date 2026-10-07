@@ -362,6 +362,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await ev('e4', 'Marco Gallo', 'Coca leaves harvest', 'op', at(-2, 18), 60, 'weekly', 'limited', { ranks: LEAD, crewIds: ['grow'] });
   await ev('e5', 'Lena Russo', 'Payout day', 'other', at(-5, 17), 30, 'biweekly', 'gang', { place: 'Laundromat' });
   await ev('e8', 'Don Vito', 'Buyer meet', 'meeting', at(2, 22), 30, 'none', 'gang', { place: 'Pier meet', pinId: 'p8' });
+  await ev('e9', 'Sal Moretti', 'Quick sit-down', 'meeting', Timestamp.fromMillis(now + 40 * 60_000), 30, 'none', 'gang', { place: 'Pier meet', pinId: 'p8', rsvp: { [ids['Sal Moretti']]: 'yes', [ids['Don Vito']]: 'yes', [ids['Rocco Vale']]: 'maybe' } });
   await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD, crewIds: ['hit'] });
   await ev('e7', 'Mia Santos', 'Rooftop party', 'party', at(10, 23), 240, 'none', 'gang', { place: 'Vinewood rooftop' });
 

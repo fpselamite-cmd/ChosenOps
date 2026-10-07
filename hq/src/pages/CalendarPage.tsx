@@ -9,7 +9,8 @@ import { PageHeader, Panel } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft } from '../lib/audience';
 import { useCollection } from '../hooks/useCollection';
-import type { Spot } from '../lib/blacksites';
+import { RESULTS, type Blacksite, type Spot } from '../lib/blacksites';
+import { Link } from 'react-router-dom';
 import type { Pin } from '../lib/pins';
 import {
   addDays,
@@ -181,11 +182,25 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
   const canEdit = e && (e.owner === me.id || (lead && e.scope !== 'personal'));
   const going = e ? Object.entries(e.rsvp ?? {}) : [];
   const mine = e?.rsvp?.[me.id];
+  const left = o.at.getTime() - Date.now();
+  const d = Math.floor(left / 86400e3);
+  const h = Math.floor((left % 86400e3) / 3600e3);
+  const m = Math.floor((left % 3600e3) / 60e3);
+  const countdown = !e ? null : left > 0 && left < 7 * 86400e3 ? `Starts in ${[d && `${d}d`, (d || h) && `${h}h`, `${m}m`].filter(Boolean).join(' ')}` : left <= 0 && -left < e.mins * 60e3 ? 'Happening now' : null;
   return (
     <div className="border-l-2 bg-raised/40 px-3 py-2" style={{ borderColor: o.color }}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="font-hud font-bold text-gold-100">{o.title}</p>
+          <p className="flex flex-wrap items-center gap-2 font-hud font-bold text-gold-100">
+            {o.href ? (
+              <Link to={o.href} className="hover:underline">
+                {o.title}
+              </Link>
+            ) : (
+              o.title
+            )}
+            {countdown && <span className={`cal-countdown ${countdown === 'Happening now' ? 'live' : ''}`}>{countdown}</span>}
+          </p>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-smoke">
             {!o.allDay && (
               <span className="inline-flex items-center gap-1">
@@ -237,13 +252,28 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
               .filter(([, v]) => v === 'yes')
               .slice(0, 8)
               .map(([id]) => (
-                <Avatar key={id} member={memberById.get(id)} size="xs" />
+                <span key={id} title={`${memberById.get(id)?.name} · going`}>
+                  <Avatar member={memberById.get(id)} size="xs" />
+                </span>
+              ))}
+            {going
+              .filter(([, v]) => v === 'maybe')
+              .slice(0, 5)
+              .map(([id]) => (
+                <span key={id} className="opacity-45" title={`${memberById.get(id)?.name} · maybe`}>
+                  <Avatar member={memberById.get(id)} size="xs" />
+                </span>
               ))}
           </span>
           <span className="text-xs text-smoke">
             {going.filter(([, v]) => v === 'yes').length} going · {going.filter(([, v]) => v === 'maybe').length} maybe
           </span>
         </div>
+      )}
+      {e?.pinId && (
+        <Link to={e.pinId.startsWith('spot:') ? '/blacksites' : `/map?pin=${e.pinId}`} className="btn-ghost btn-sm mt-2 inline-flex">
+          <MapPin className="size-3.5" /> Show on map
+        </Link>
       )}
       {o.memberId && (
         <p className="mt-0.5 text-xs">
@@ -257,6 +287,7 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
 export default function CalendarPage() {
   const { roster, canSee } = useHub();
   const events = useVisible<CalEvent>('events');
+  const fights = useCollection<Blacksite>('blacksites');
   const ops = canSee('narcotics');
   // Grow, cook and coke-run timers come live from NoelOps.
   const locations = useNoel<Record<string, NoelGrow>>('locations', ops).data;
@@ -300,6 +331,12 @@ export default function CalendarPage() {
           out.push({ key: `r${id}`, day: keyOf(at), at, title: `Coke run back (${r.n ?? 1} ${r.size ?? ''})`, color: '#e5e7eb', kind: 'run', sub: r.crew });
         });
     }
+    // Logged blacksite fights.
+    (fights ?? []).forEach((f) => {
+      const at = f.at.toDate();
+      const r = RESULTS.find((x) => x.id === f.result)!;
+      out.push({ key: `f${f.id}`, day: keyOf(at), at, title: `${f.zone} · ${r.label}`, color: r.color, kind: 'fight', sub: f.rivals.length ? `vs ${f.rivals.join(', ')}` : undefined, href: '/blacksites' });
+    });
     // Character birthdays and join anniversaries, for every year the window touches.
     const years = [...new Set([parseKey(from).y, parseKey(to).y])];
     roster.forEach((m) => {
@@ -318,7 +355,7 @@ export default function CalendarPage() {
       });
     });
     return out.filter((o) => o.day >= from && o.day <= to).sort((a, b) => a.day.localeCompare(b.day) || (a.allDay === b.allDay ? a.at.getTime() - b.at.getTime() : a.allDay ? -1 : 1));
-  }, [events, locations, cooks, runs, roster, ops, from, to]);
+  }, [events, fights, locations, cooks, runs, roster, ops, from, to]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, Occurrence[]>();
@@ -343,7 +380,7 @@ export default function CalendarPage() {
         icon={CalendarDays}
         kicker="City"
         title="Calendar"
-        sub="Eastern time. Posted events, ops timers, birthdays and anniversaries."
+        sub="Eastern time. Posted events, ops timers, blacksite fights, birthdays and anniversaries."
         actions={
           <button className="btn-gold" onClick={() => setAdding(true)}>
             <Plus className="size-4" /> New event
@@ -382,12 +419,12 @@ export default function CalendarPage() {
                 <button
                   key={k}
                   onClick={() => setDay(k)}
-                  className={`flex min-h-16 flex-col items-stretch gap-0.5 p-1 text-left sm:min-h-24 ${k === day ? 'bg-gold-400/15 ring-1 ring-gold-400 ring-inset' : 'bg-coal hover:bg-raised'} ${out ? 'opacity-40' : ''}`}
+                  className={`cal-day flex min-h-16 flex-col items-stretch gap-0.5 p-1 text-left sm:min-h-24 ${k === today ? 'cal-today' : ''} ${k === day ? 'bg-gold-400/15 ring-1 ring-gold-400 ring-inset' : 'bg-coal hover:bg-raised'} ${out ? 'opacity-40' : ''}`}
                 >
                   <span className={`self-end px-1 font-mono text-xs ${k === today ? 'rounded bg-gold-400 font-bold text-void' : 'text-ash'}`}>{p.d}</span>
                   <span className="hidden flex-col gap-0.5 sm:flex">
                     {list.slice(0, 3).map((o) => (
-                      <span key={o.key} className="truncate rounded-sm px-1 text-[10px] leading-4 font-semibold text-black/85" style={{ background: o.color }}>
+                      <span key={o.key} className={`cal-chip ${k === today && o.at.getTime() > Date.now() ? 'tonight' : ''}`} style={{ '--c': o.color } as React.CSSProperties}>
                         {o.kind === 'birthday' ? '🎂 ' : ''}
                         {o.title}
                       </span>
@@ -416,6 +453,9 @@ export default function CalendarPage() {
             )}
             <span className="inline-flex items-center gap-1">
               <Cake className="size-3 text-pink-400" /> Birthdays
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-full bg-ok" /> Blacksite fights
             </span>
           </div>
         </Panel>
