@@ -1,5 +1,6 @@
 import { doc, updateDoc } from 'firebase/firestore';
-import { Palette } from 'lucide-react';
+import { Lock, Palette } from 'lucide-react';
+import { useStreak } from '../lib/streak';
 import { useHub } from '../hooks/useHub';
 import { ACCENTS, applyPrefs, DEFAULT_PREFS, SKIES, type Prefs } from '../lib/appearance';
 import { db } from '../lib/firebase';
@@ -22,6 +23,7 @@ function Toggle({ on, onChange, label, hint }: { on: boolean; onChange: (v: bool
 /** Your own look: accent, sky, motion, text size. Only you see it. */
 export function Appearance({ bare }: { bare?: boolean } = {}) {
   const { me } = useHub();
+  const best = useStreak(me.id)?.best ?? 0;
   const p = { ...DEFAULT_PREFS, ...(me.prefs ?? {}) };
   const set = (patch: Prefs) => {
     const next = { ...(me.prefs ?? {}), ...patch };
@@ -38,11 +40,19 @@ export function Appearance({ bare }: { bare?: boolean } = {}) {
               <button
                 key={a.id}
                 type="button"
+                disabled={!!a.unlock && best < a.unlock}
                 onClick={() => set({ accent: a.id })}
-                className={`flex flex-col items-center gap-1 rounded-md border p-2 text-[11px] transition ${p.accent === a.id ? 'border-gold-300 text-gold-100 shadow-[0_0_12px_rgb(var(--acc)/0.4)]' : 'border-line text-smoke hover:border-gold-600'}`}
+                title={a.unlock && best < a.unlock ? `Unlocks at a ${a.unlock}-day login streak` : undefined}
+                className={`relative flex flex-col items-center gap-1 rounded-md border p-2 text-[11px] transition disabled:cursor-not-allowed disabled:opacity-45 ${p.accent === a.id ? 'border-gold-300 text-gold-100 shadow-[0_0_12px_rgb(var(--acc)/0.4)]' : 'border-line text-smoke hover:border-gold-600'}`}
               >
-                <span className="size-8 rounded-full ring-1 ring-black/40" style={{ background: a.swatch }} />
+                <span className="size-8 rounded-full ring-1 ring-black/40" style={{ background: a.swatch, filter: a.unlock && best < a.unlock ? 'grayscale(0.7)' : undefined }} />
                 {a.label}
+                {a.unlock && best < a.unlock && (
+                  <span className="absolute top-1 right-1 flex items-center gap-0.5 text-[9px] text-smoke">
+                    <Lock className="size-2.5" />
+                    {a.unlock}d
+                  </span>
+                )}
               </button>
             ))}
           </div>

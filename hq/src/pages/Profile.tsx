@@ -16,6 +16,7 @@ import {
   Music,
   NotebookPen,
   Pencil,
+  Plane,
   Plus,
   Printer,
   Save,
@@ -69,6 +70,8 @@ import {
   type Relation,
   type Sheet,
 } from '../lib/sheet';
+import { keyOf } from '../lib/calendar';
+import { setLoa, useStreak } from '../lib/streak';
 import { PRESENCE_STATUSES, type Member } from '../lib/types';
 import { LoadoutCard } from './Gear';
 
@@ -307,7 +310,7 @@ function ShareMenu({ target }: { target: React.RefObject<HTMLElement | null> }) 
   );
 }
 
-function MoodPicker({ id, status }: { id: string; status?: string }) {
+export function MoodPicker({ id, status }: { id: string; status?: string }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
   return (
@@ -736,17 +739,58 @@ function BlacksiteRecord({ id }: { id: string }) {
   );
 }
 
+/** Admin: a leave of absence, so the days away don't break the member's login streak. */
+function LoaDialog({ m, onClose }: { m: Member; onClose: () => void }) {
+  const s = useStreak(m.id);
+  const [from, setFrom] = useState(s?.loaFrom ?? keyOf(Date.now()));
+  const [until, setUntil] = useState(s?.loaUntil ?? '');
+  return (
+    <Modal title={`Leave of absence · ${m.name}`} onClose={onClose} portal>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!from || !until || until < from) return;
+          await setLoa(m.id, from, until);
+          onClose();
+        }}
+      >
+        <p className="text-sm text-ash">Days missed between these dates won’t break {m.name}’s login streak.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From">
+            <input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="Until">
+            <input type="date" className="input" value={until} onChange={(e) => setUntil(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex justify-between gap-2">
+          {s?.loaUntil ? (
+            <button type="button" className="btn-ghost" onClick={() => setLoa(m.id, null, null).then(onClose)}>
+              End leave
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="btn-gold">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 type Draft = Omit<Sheet, 'id'> & { alias: string; phone: string; bMonth: number; bDay: number };
 
 export default function Profile() {
   const { id = '' } = useParams();
-  const { memberById, rankById, crewsOf, me, isOnline, presence, roster } = useHub();
+  const { memberById, rankById, crewsOf, me, isOnline, presence, roster, isAdmin } = useHub();
   const m = memberById.get(id);
   const sheet = useDoc<Sheet>(`sheets/${id}`);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
+  const [loaOpen, setLoaOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
@@ -904,6 +948,11 @@ export default function Profile() {
               {mine && !edit && (
                 <button className="btn-ghost btn-sm" onClick={() => setPinOpen(true)}>
                   <KeyRound className="size-3.5" /> PIN
+                </button>
+              )}
+              {isAdmin && !mine && (
+                <button className="btn-ghost btn-sm" onClick={() => setLoaOpen(true)} title="Leave of absence: protects their login streak">
+                  <Plane className="size-3.5" /> LOA
                 </button>
               )}
             </div>
@@ -1125,6 +1174,7 @@ export default function Profile() {
       </div>
 
       {pinOpen && <ChangePin onClose={() => setPinOpen(false)} />}
+      {loaOpen && <LoaDialog m={m} onClose={() => setLoaOpen(false)} />}
     </>
   );
 }

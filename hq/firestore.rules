@@ -322,6 +322,32 @@ service cloud.firestore {
       allow delete: if can('manageMembers');
     }
 
+    // Daily login streaks. The member counts their own days; only an admin sets leave (LOA).
+    match /streaks/{memberId} {
+      allow read: if active();
+      allow create, update: if active() && myId() == memberId
+        && request.resource.data.keys().hasOnly(['current', 'best', 'last', 'freezes', 'loaFrom', 'loaUntil', 'at'])
+        && request.resource.data.current is int && request.resource.data.best is int
+        && request.resource.data.best >= request.resource.data.current
+        && request.resource.data.at == request.time
+        && request.resource.data.get('loaFrom', null) == (resource == null ? null : resource.data.get('loaFrom', null))
+        && request.resource.data.get('loaUntil', null) == (resource == null ? null : resource.data.get('loaUntil', null));
+      allow update: if isAdmin() && onlyChanges(['loaFrom', 'loaUntil']);
+      allow create: if isAdmin() && request.resource.data.keys().hasOnly(['loaFrom', 'loaUntil']);
+    }
+    // Today's spotlight, when leadership picks someone.
+    match /spotlight/{id} {
+      allow read: if active();
+      allow write: if can('manageMembers') && request.resource.data.keys().hasOnly(['memberId', 'why', 'day', 'by'])
+        && str(request.resource.data.get('why', ''), 140);
+    }
+    // Family news for the briefing: who joined, who got promoted.
+    match /news/{id} {
+      allow read: if active();
+      allow create: if (can('approveMembers') || can('manageMembers')) && request.resource.data.at == request.time
+        && request.resource.data.kind in ['joined', 'promoted'];
+    }
+
     match /lockers/{memberId} {
       allow read, write: if active() && myId() == memberId;
     }
@@ -564,6 +590,14 @@ service cloud.firestore {
     function boardChange(k) {
       return request.resource.data.get(k, {}).diff(boardMap(resource == null ? null : resource.data, k)).affectedKeys();
     }
+    // A sale's dirty money per day, for the Dashboard's daily briefing.
+    match /daily/{day} {
+      allow read: if active();
+      allow create, update: if active() && day.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['sales', '_by', '_via'])
+        && (opens('blackmarket') || can('money'));
+    }
+
     match /boards/{ym} {
       allow read: if active();
       allow create, update: if active() && ym.matches('[0-9]{4}-[0-9]{2}')

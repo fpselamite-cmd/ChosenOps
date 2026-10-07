@@ -2,6 +2,7 @@ import { doc, increment, serverTimestamp, setDoc, updateDoc, type Timestamp } fr
 import { useEffect, useMemo, useRef } from 'react';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { keyOf } from './calendar';
 import { db } from './firebase';
 import { TZ } from './format';
 import type { Tier, TrophyDesign } from './trophies';
@@ -47,7 +48,11 @@ export const countBricks = (me: string, n: number) =>
 /** Counts a sale's dirty money for its seller, in the month it happened. */
 export const countSale = (sign: { _by: string; _via: string | null }, sellerId: string, amount: number, at?: Timestamp | Date) =>
   amount
-    ? setDoc(doc(db, 'boards', monthKey(at ?? new Date())), { sales: { [sellerId]: increment(amount) }, ...sign }, { merge: true }).catch(() => {})
+    ? Promise.all([
+        setDoc(doc(db, 'boards', monthKey(at ?? new Date())), { sales: { [sellerId]: increment(amount) }, ...sign }, { merge: true }).catch(() => {}),
+        // …and per day, for the Dashboard's briefing.
+        setDoc(doc(db, 'daily', keyOf(at ? (at instanceof Date ? at : at.toDate()) : new Date())), { sales: { [sellerId]: increment(amount) }, ...sign }, { merge: true }).catch(() => {}),
+      ])
     : Promise.resolve();
 
 export function useBoards() {
