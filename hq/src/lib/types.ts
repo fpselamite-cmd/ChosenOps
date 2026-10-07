@@ -135,6 +135,8 @@ export interface RepTransfer {
   memberId: string;
   amount: number;
   status: TransferStatus;
+  /** The dinner (YYYY-MM-DD) this rep was paid as dues for. */
+  dues?: string;
   at?: Timestamp;
   decidedBy?: string;
   decidedAt?: Timestamp;

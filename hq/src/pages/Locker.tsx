@@ -2,6 +2,7 @@ import { ShoppingCart, ArrowLeftRight, Backpack, Box, Zap, Camera, Check, Handsh
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { squareImage } from '../lib/image';
 import { Avatar } from '../components/Avatar';
+import { Safe } from '../components/Safe';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
@@ -1028,7 +1029,7 @@ function ShoppingPanel({ name }: { name: (id: string) => string }) {
 }
 
 /** Send dirty money to the family's washers: it leaves your locker now, the clean comes back when it's done. */
-function WashDialog({ onClose }: { onClose: () => void }) {
+export function WashDialog({ onClose }: { onClose: () => void }) {
   const m = useMoney();
   const mops = useMoneyOps();
   const [amount, setAmount] = useState('');
@@ -1080,7 +1081,7 @@ function WashDialog({ onClose }: { onClose: () => void }) {
 }
 
 /** My wash requests that are still going, or finished lately. */
-function WashList() {
+export function WashList() {
   const { me } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
@@ -1157,7 +1158,8 @@ function Body() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Safe name={`${me.name}'s safe`}>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <button className="text-left" onClick={() => setCash('dirty')} title="Add or take out dirty cash">
           <Stat label="Dirty money" value={<span className="text-red-300">{money(m.mine.held)}</span>} sub={<span className="text-gold-300">+ add or take out</span>} />
         </button>
@@ -1173,6 +1175,7 @@ function Body() {
         </button>
         <Stat label="Owed to you" value={<span className={m.mine.owed ? 'text-gold-200' : ''}>{money(m.mine.owed)}</span>} sub="by the Treasurer" />
       </div>
+      </Safe>
 
       <WashList />
 

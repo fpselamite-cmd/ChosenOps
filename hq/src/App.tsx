@@ -8,6 +8,7 @@ import { Loading } from './components/Field';
 import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
 import Admin from './pages/admin/Admin';
+import Money from './pages/money/Money';
 import BlackMarket from './pages/BlackMarket';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
@@ -121,6 +122,7 @@ function MemberRoutes() {
             </Gate>
           }
         />
+        <Route path="money" element={<Money />} />
         <Route
           path="blacksites"
           element={

@@ -277,7 +277,8 @@ export function useMoney() {
       get(tp.to, '');
     });
     (washReqs ?? []).forEach((w) => {
-      if (w.status === 'cancelled') return;
+      // The gang's own washing is in the gang books, not anyone's pocket.
+      if (w.status === 'cancelled' || w.memberId === 'gang') return;
       add(w.memberId, -w.dirty, w.status === 'done' ? w.clean : 0);
       get(w.memberId, w.memberName);
     });
@@ -394,6 +395,11 @@ export function useMoneyOps() {
     requestWash: (dirty: number, pct: number, note: string) =>
       addDoc(collection(db, 'washRequests'), {
         memberId: me.id, memberName: me.name, dirty, pct, clean: Math.round((dirty * (100 - pct)) / 100), status: 'open', claimerId: null, claimerName: null, note: note.slice(0, 80), at: serverTimestamp(),
+      }),
+    /** The Treasurer sends the gang's dirty money to the washers; the clean comes back to the gang bank. */
+    requestGangWash: (dirty: number, pct: number, note: string) =>
+      addDoc(collection(db, 'washRequests'), {
+        memberId: 'gang', memberName: 'The gang', dirty, pct, clean: Math.round((dirty * (100 - pct)) / 100), status: 'open', claimerId: null, claimerName: null, note: note.slice(0, 80), at: serverTimestamp(),
       }),
     washStep(w: WashRequest, step: 'claim' | 'unclaim' | 'done' | 'cancel') {
       const ref = doc(db, 'washRequests', w.id);
