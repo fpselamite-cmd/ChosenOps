@@ -545,6 +545,24 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 
   // The demo boss is also an owner (normally set from GitHub), so the owner-only tools show.
   await setDoc(doc(db, 'meta', 'owners'), { ids: [vito] });
+  // Roles on top of rank: jobs with powers, and honors.
+  const all = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true, familyCards: true, washMoney: true, manageEvents: true, hallOfFame: true };
+  const role = (id, order, name, extra) => setDoc(doc(db, 'hqRoles', id), { name, order, perms: {}, pages: {}, ...extra });
+  await role('high_table', 0, 'High Table', { lead: true, perms: all, note: 'Leadership powers, whatever their rank.' });
+  await role('welcome', 1, 'Welcome Committee', { perms: { approveMembers: true }, note: 'Lets newcomers in and sends welcome notes.' });
+  await role('rep_keeper', 2, 'Rep Keeper', { perms: { confirmRep: true }, pages: { pettycrime: true, blacksites: true }, note: 'Confirms petty and blacksite rep.' });
+  await role('washer', 3, 'Washer', { perms: { washMoney: true }, pages: { blackmarket: true }, note: 'Takes and finishes wash requests.' });
+  await role('event_planner', 4, 'Event Planner', { perms: { manageEvents: true }, pages: { calendar: true }, note: "Edits and removes anyone's gang events." });
+  await role('archivist', 5, 'Archivist', { perms: { hallOfFame: true }, note: 'Keeps the Hall of Fame.' });
+  await role('enforcer', 6, 'Enforcer', { honor: true });
+  await role('cop_killer', 7, 'Cop Killer', { honor: true });
+  await role('founder', 8, 'Founder', { honor: true });
+  const hold = (who, roles, perms = {}, pages = {}, lead = false) => setDoc(doc(db, 'roleHolders', ids[who]), { roles, perms, pages, lead });
+  await hold('Don Vito', ['founder']);
+  await hold('Rocco Vale', ['enforcer', 'cop_killer', 'rep_keeper'], { confirmRep: true }, { pettycrime: true, blacksites: true });
+  await hold('Kira Lane', ['welcome', 'event_planner'], { approveMembers: true, manageEvents: true }, { calendar: true });
+  await hold('Marco Gallo', ['washer'], { washMoney: true }, { blackmarket: true });
+  await hold('Sal Moretti', ['high_table', 'archivist'], all, {}, true);
   // Admin: editable lists, a price history, the feed, and a welcome note.
   await setDoc(doc(db, 'settings', 'lists'), {
     crimes: [

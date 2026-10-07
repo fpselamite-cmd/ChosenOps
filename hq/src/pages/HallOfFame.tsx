@@ -259,7 +259,7 @@ function PastPlaque({ m, past }: { m: Member; past: Past }) {
               <span className="flex-1">
                 “{x.text}” <span className="text-smoke">— {x.byName}</span>
               </span>
-              {(x.by === me.id || can('manageMembers')) && (
+              {(x.by === me.id || can('manageMembers') || can('hallOfFame')) && (
                 <button onClick={() => removeMemory(m.id, x.id)} aria-label="Remove">
                   <X className="size-3 text-smoke" />
                 </button>
@@ -295,7 +295,7 @@ export default function HallOfFame() {
   const [open, setOpen] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [legendForm, setLegendForm] = useState(false);
-  const lead = can('manageMembers');
+  const lead = can('manageMembers') || can('hallOfFame');
   const past = usePastMembers(lead);
 
   // Top 3 for several months running (counting back from the last finished month).

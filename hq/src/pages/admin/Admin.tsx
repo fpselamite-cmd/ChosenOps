@@ -11,20 +11,22 @@ import ListsTab from './ListsTab';
 import MembersTab from './MembersTab';
 import PendingTab from './PendingTab';
 import RanksTab from './RanksTab';
+import RolesTab from './RolesTab';
 import SettingsTab from './SettingsTab';
 import { useAttention } from './useAttention';
 
-type Tab = 'pending' | 'members' | 'lists' | 'activity' | 'settings' | 'integrations' | 'ranks' | 'access';
+type Tab = 'pending' | 'members' | 'roles' | 'lists' | 'activity' | 'settings' | 'integrations' | 'ranks' | 'access';
 
 /** The control room: what needs attention up top, then the tools. */
 export default function Admin() {
-  const { can, members, isOwner, isAdmin } = useHub();
+  const { can, members, isOwner, isAdmin, isLead } = useHub();
   const [params, setParams] = useSearchParams();
   const pending = members.filter((m) => m.status === 'pending').length;
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'pending', label: `Waiting${pending ? ` · ${pending}` : ''}`, show: can('approveMembers') },
     { id: 'members', label: 'Members', show: isAdmin || can('resetPins') || can('manageMembers') },
+    { id: 'roles', label: 'Roles', show: isLead || can('manageRanks') },
     { id: 'lists', label: 'Lists & prices', show: isAdmin || can('manageOps') },
     { id: 'activity', label: 'Activity', show: isAdmin },
     { id: 'settings', label: 'Gang settings', show: can('manageSettings') },
@@ -45,6 +47,7 @@ export default function Admin() {
       </div>
       {tab === 'pending' && <PendingTab />}
       {tab === 'members' && <MembersTab />}
+      {tab === 'roles' && <RolesTab />}
       {tab === 'lists' && <ListsTab />}
       {tab === 'activity' && <ActivityTab />}
       {tab === 'settings' && <SettingsTab />}
