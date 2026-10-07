@@ -294,7 +294,8 @@ service cloud.firestore {
     match /sheets/{memberId} {
       allow read: if active();
       allow write: if active() && myId() == memberId
-        && request.resource.data.keys().hasOnly(['basics', 'looks', 'city', 'story', 'traits', 'skills', 'customSkills', 'customFields', 'relations', 'song', 'wanted'])
+        && request.resource.data.keys().hasOnly(['basics', 'looks', 'city', 'story', 'traits', 'skills', 'customSkills', 'customFields', 'relations', 'song', 'wanted', 'star'])
+        && request.resource.data.get('star', 'gold') in ['gold', 'white', 'ice', 'rose', 'ember', 'emerald', 'violet', 'crimson']
         && (!('traits' in request.resource.data) || request.resource.data.traits.size() <= 16)
         && (!('relations' in request.resource.data) || request.resource.data.relations.size() <= 24)
         && (!('customFields' in request.resource.data) || request.resource.data.customFields.size() <= 16)

@@ -996,3 +996,19 @@ html[data-motion='off'] .locker-door { display: none; }
 .confetti { position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 1px; animation: confetti-fall 3.2s cubic-bezier(.3, .6, .5, 1) forwards; }
 @keyframes confetti-fall { to { top: 105vh; transform: translateX(40px) rotate(720deg); opacity: 0.9; } }
 @keyframes flicker { 0%, 100% { transform: translateX(-50%) scale(1); } 30% { transform: translateX(-52%) scale(1.05, 0.95); } 60% { transform: translateX(-48%) scale(0.95, 1.05); } }
+
+/* ---------- Family ---------- */
+.family-sky { background: radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.10), transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(80, 90, 160, 0.10), transparent 60%), #040405; }
+.family-sky .sky-star { cursor: pointer; transform-box: fill-box; transform-origin: center; animation: sc-twinkle 4s ease-in-out infinite; }
+.family-sky .sky-star:hover polygon { filter: drop-shadow(0 0 6px #fff3c4); }
+.family-sky .sky-name { font: 600 17px var(--font-sans, sans-serif); fill: #f3e6bf; paint-order: stroke; stroke: rgba(0, 0, 0, 0.85); stroke-width: 3px; }
+.family-sky .sky-rank { font-size: 14px; fill: #f6dd8a; }
+.family-sky .sky-line { stroke-dasharray: 3 4; }
+.family-crest { background: radial-gradient(circle at 15% 50%, rgb(var(--acc) / 0.16), transparent 45%), rgba(10, 9, 7, 0.85); }
+.crest-seal { box-shadow: 0 0 0 2px rgb(var(--acc) / 0.5), 0 0 34px rgb(var(--acc) / 0.45); animation: seal-spin 60s linear infinite; }
+.anniv-ribbon { background: linear-gradient(90deg, transparent, rgb(var(--acc) / 0.18) 15%, rgb(var(--acc) / 0.18) 85%, transparent); border-top: 1px solid rgb(var(--acc) / 0.4); border-bottom: 1px solid rgb(var(--acc) / 0.4); }
+.card-fan { padding: 10px 0 30px; }
+.fan-card { position: relative; display: flex; width: 120px; aspect-ratio: 5 / 8; margin: 0 -22px; overflow: hidden; border-radius: 10px; border: 2px solid #a8822a; background: radial-gradient(circle at 50% 30%, #1b1810, #070605); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6); transform: rotate(var(--rot)) translateY(var(--lift)); transform-origin: 50% 120%; transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.fan-card:hover { transform: rotate(var(--rot)) translateY(calc(var(--lift) - 22px)) scale(1.06); z-index: 50 !important; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.7), 0 0 18px rgb(var(--acc) / 0.5); }
+.fan-name { position: absolute; inset: auto 0 0 0; padding: 3px 4px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.85)); font-size: 10px; color: #f3e6bf; text-align: center; }
+@media (max-width: 640px) { .fan-card { width: 86px; margin: 0 -18px; } }

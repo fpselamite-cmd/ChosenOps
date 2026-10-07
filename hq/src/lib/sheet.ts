@@ -19,6 +19,8 @@ export interface Sheet {
   relations?: Relation[];
   song?: string;
   wanted?: { on: boolean; bounty: number; crime: string };
+  /** Their star's color in the Family sky. */
+  star?: string;
 }
 
 export interface Relation {
@@ -76,6 +78,7 @@ export const SKILL_GROUPS = [
 export const RELATION_KINDS = ['Friend', 'Rival', 'Partner', 'Mentor', 'Protégé', 'Family', 'Owes me', 'I owe', 'Enemy', 'Contact'];
 
 export const saveSheet = (memberId: string, s: Omit<Sheet, 'id'>) => setDoc(doc(db, 'sheets', memberId), s);
+export const setStar = (memberId: string, star: string) => setDoc(doc(db, 'sheets', memberId), { star }, { merge: true });
 
 /** Turns a YouTube or Spotify link into something that plays inline. */
 export function songEmbed(url: string | undefined) {

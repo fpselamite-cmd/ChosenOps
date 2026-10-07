@@ -1,6 +1,9 @@
 import { doc, updateDoc } from 'firebase/firestore';
 import { Lock, Palette } from 'lucide-react';
 import { useStreak } from '../lib/streak';
+import { setStar, type Sheet } from '../lib/sheet';
+import { STARS } from '../lib/stars';
+import { useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ACCENTS, applyPrefs, DEFAULT_PREFS, SKIES, type Prefs } from '../lib/appearance';
 import { db } from '../lib/firebase';
@@ -24,6 +27,7 @@ function Toggle({ on, onChange, label, hint }: { on: boolean; onChange: (v: bool
 export function Appearance({ bare }: { bare?: boolean } = {}) {
   const { me } = useHub();
   const best = useStreak(me.id)?.best ?? 0;
+  const myStar = useDoc<Sheet>(`sheets/${me.id}`)?.star ?? 'gold';
   const p = { ...DEFAULT_PREFS, ...(me.prefs ?? {}) };
   const set = (patch: Prefs) => {
     const next = { ...(me.prefs ?? {}), ...patch };
@@ -56,6 +60,25 @@ export function Appearance({ bare }: { bare?: boolean } = {}) {
               </button>
             ))}
           </div>
+        </div>
+        <div>
+          <p className="label mb-2">Your star · how you shine in the Family sky</p>
+          <div className="flex flex-wrap gap-2">
+            {STARS.map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                disabled={st.locked}
+                onClick={() => setStar(me.id, st.id)}
+                title={st.locked ? `${st.label}: a reward for later` : st.label}
+                className={`relative grid size-10 place-items-center rounded-full border transition disabled:cursor-not-allowed ${myStar === st.id ? 'border-gold-300 shadow-[0_0_12px_rgb(var(--acc)/0.5)]' : 'border-line hover:border-gold-600'} ${st.locked ? 'opacity-40' : ''}`}
+              >
+                <span className="size-3 rounded-full" style={{ background: st.core, boxShadow: `0 0 10px 3px ${st.glow}` }} />
+                {st.locked && <Lock className="absolute -right-1 -bottom-1 size-3 text-smoke" />}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-smoke">The locked ones are rewards for later.</p>
         </div>
         <div>
           <p className="label mb-2">Sky</p>
