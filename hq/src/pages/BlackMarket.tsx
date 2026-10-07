@@ -18,6 +18,7 @@ import { toCount } from '../noel/data';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { Logo, ToastProvider, useToast } from '../noel/ui';
+import { WishlistButton } from '../components/WishlistButton';
 
 type View = 'sell' | 'money' | 'wish' | 'washing';
 const DAY = 86400e3;
@@ -835,6 +836,7 @@ function WishView() {
               </button>
             </>
           )}
+          {w.itemId && w.byId !== me.id && <WishlistButton label="Me too" items={[{ item: w.itemId, qty: 1, from: 'BlackMarket' }]} />}
           {lead && (
             <>
               <button className="btn-ghost btn-sm" onClick={() => mops.setWishPriority(w, w.priority === 'pinned' ? null : 'pinned')}>

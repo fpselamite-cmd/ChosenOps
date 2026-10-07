@@ -19,6 +19,7 @@ import { attachmentsFor, GUN_CLASSES, itemTitle, kindOf, slotLabel, slotsFor, ty
 import { BAG_SLOTS, blankKit, createKit, equipKit, fromLoadout, HOTBAR, kitNeeds, PLATE, removeKit, saveKit, useMyKits, type GearKit, type KitData, type KitSlot } from '../lib/kits';
 import { BUILD_TAGS, keepBuild, likeBuild, markBuildPublic, removeBuild, saveBuild, type Build, type CharLoadout } from '../lib/loadouts';
 import type { Wish } from '../lib/money';
+import { WishlistButton } from '../components/WishlistButton';
 import { addToShopping, askGang, useShopping, type ShopItem } from '../lib/shopping';
 import { COMMON_VEHICLES, VEHICLE_CLASSES } from '../lib/vehicles';
 import { toCount } from '../noel/data';
@@ -190,6 +191,11 @@ function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; in
           <button className="btn-ghost" onClick={() => setParts({})}>
             <X className="size-4" /> Strip it
           </button>
+          <WishlistButton
+            label="Wishlist what I'm missing"
+            className="btn-ghost"
+            items={[weaponId, ...Object.values(parts)].filter((id) => id && !owned.get(id)).map((id) => ({ item: id, qty: 1, from: w?.name }))}
+          />
         </div>
       </div>
 
@@ -405,6 +411,7 @@ function BuildCard({ b, cat, owned, onOpen, onCopy, onEquip }: { b: Build; cat: 
         <button className="btn-ghost btn-sm" onClick={onCopy}>
           <Copy className="size-3.5" /> Copy & tweak
         </button>
+        <WishlistButton label="Wishlist" items={[b.weaponId, ...parts.map(([, v]) => v)].filter((id) => id && !owned.get(id)).map((id) => ({ item: id, qty: 1, from: b.name }))} />
         {b.by === me.id && (
           <>
             <button className="btn-ghost btn-sm" onClick={onOpen}>
@@ -843,7 +850,7 @@ function KitEditor({ kit, cat, owned, equipped, onCopy }: { kit: GearKit; cat: C
   );
 }
 
-/** What a kit still needs, and a button to put it on my shopping list or ask the gang for it. */
+/** What a kit still needs, and a button to put it on my Personal Wishlist or ask the gang for it. */
 function StillToGet({ kitName, need, name }: { kitName: string; need: { id: string; short: number }[]; name: (id: string) => string }) {
   const { me } = useHub();
   const list = useShopping(me.id);
@@ -866,7 +873,7 @@ function StillToGet({ kitName, need, name }: { kitName: string; need: { id: stri
         {need.map((s) => (
           <span key={s.id} className="chip flex items-center gap-1 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 ring-1 ring-red-400/30">
             {name(s.id)} ×{s.short}
-            {listed(s.id) && <ShoppingCart className="size-3 text-gold-300" aria-label="On your shopping list" />}
+            {listed(s.id) && <ShoppingCart className="size-3 text-gold-300" aria-label="On your Personal Wishlist" />}
             {asked(s.id) && <HandHelping className="size-3 text-gold-300" aria-label="Asked the gang" />}
           </span>
         ))}
@@ -886,7 +893,7 @@ function GetThese({ kitName, need, name, inStash, list, onClose }: { kitName: st
   return (
     <Modal title={`Get what “${kitName}” needs`} onClose={onClose} wide>
       <div className="space-y-4">
-        <p className="text-sm text-ash">Things the family stash has go to the gang as a request on the BlackMarket wish list. The rest goes on your own shopping list. Change any of them.</p>
+        <p className="text-sm text-ash">Things the family stash has go to the gang as a request on the BlackMarket wish list. The rest goes on your Personal Wishlist (My Locker). Change any of them.</p>
         <ul className="divide-y divide-line-soft border border-line-soft">
           {need.map((n) => {
             const st = inStash(n.id);
@@ -899,7 +906,7 @@ function GetThese({ kitName, need, name, inStash, list, onClose }: { kitName: st
                 <span className="flex overflow-hidden rounded-full ring-1 ring-line">
                   {(
                     [
-                      ['me', 'My list'],
+                      ['me', 'My wishlist'],
                       ['gang', 'Ask the gang'],
                       ['skip', 'Skip'],
                     ] as const
@@ -927,7 +934,7 @@ function GetThese({ kitName, need, name, inStash, list, onClose }: { kitName: st
               onClose();
             }}
           >
-            <Check className="size-4" /> {[mine.length && `${mine.length} to my list`, gang.length && `${gang.length} to the gang`].filter(Boolean).join(' · ') || 'Nothing picked'}
+            <Check className="size-4" /> {[mine.length && `${mine.length} to my wishlist`, gang.length && `${gang.length} to the gang`].filter(Boolean).join(' · ') || 'Nothing picked'}
           </button>
         </div>
       </div>
