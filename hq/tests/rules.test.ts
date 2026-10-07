@@ -663,3 +663,28 @@ describe('character sheets', () => {
     await assertFails(deleteDoc(doc(as('sol'), 'leaderNotes/n1')));
   });
 });
+
+describe('dashboard', () => {
+  it('lets members count their own streak but not set their own leave', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'streaks/sol'), { current: 1, best: 1, last: '2026-10-07', freezes: {}, loaFrom: null, loaUntil: null, at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'streaks/sol'), { current: 2, best: 2, last: '2026-10-08', freezes: {}, loaFrom: '2026-10-01', loaUntil: '2026-12-01', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol2'), 'streaks/sol'), { current: 99, best: 99, last: '2026-10-08', freezes: {}, loaFrom: null, loaUntil: null, at: serverTimestamp() }));
+  });
+
+  it('lets an admin set leave on someone else’s streak', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'members/ub'), { ...member('Ub', 'underboss'), admin: true });
+      await setDoc(doc(ctx.firestore(), 'streaks/sol'), { current: 3, best: 3, last: '2026-10-07', freezes: {}, loaFrom: null, loaUntil: null });
+    });
+    await assertSucceeds(updateDoc(doc(as('ub'), 'streaks/sol'), { loaFrom: '2026-10-08', loaUntil: '2026-10-20' }));
+    await assertFails(updateDoc(doc(as('ub'), 'streaks/sol'), { current: 50 }));
+    await assertFails(updateDoc(doc(as('capo'), 'streaks/sol'), { loaFrom: '2026-10-08', loaUntil: '2026-10-20' }));
+  });
+
+  it('only lets leadership pick the spotlight and post family news', async () => {
+    await assertSucceeds(setDoc(doc(as('ub'), 'spotlight/today'), { memberId: 'sol', why: 'Held the hill', day: '2026-10-07', by: 'ub' }));
+    await assertFails(setDoc(doc(as('sol'), 'spotlight/today'), { memberId: 'sol', why: 'me!', day: '2026-10-07', by: 'sol' }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'news/n1'), { kind: 'joined', memberId: 'sol2', rankId: 'soldier', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'news/n2'), { kind: 'promoted', memberId: 'sol', rankId: 'boss', at: serverTimestamp() }));
+  });
+});

@@ -8,6 +8,7 @@ import { TZ } from '../lib/format';
 import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
+import { StreakKeeper } from './Streak';
 import { Modal } from './Modal';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
@@ -177,6 +178,7 @@ export function AppShell() {
   return (
     <div className="min-h-dvh lg:pl-64">
       <AchievementWatcher />
+      <StreakKeeper />
       <ShootingStars enabled />
       <MonthlyAwarder />
       <NoelDirectorySync />

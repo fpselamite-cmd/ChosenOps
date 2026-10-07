@@ -90,7 +90,7 @@ export default function MembersTab() {
                   </td>
                   <td className="px-2">
                     {manage ? (
-                      <select className="input py-1" value={m.rankId ?? ''} onChange={(e) => setRank(m.id, e.target.value)}>
+                      <select className="input py-1" value={m.rankId ?? ''} onChange={(e) => setRank(m.id, e.target.value, (rankById.get(e.target.value)?.order ?? 99) < (rankById.get(m.rankId ?? '')?.order ?? 99))}>
                         {grantable.map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.name}

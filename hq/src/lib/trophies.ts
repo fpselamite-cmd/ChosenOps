@@ -38,6 +38,8 @@ export interface AchievementStats {
   petty: number;
   repSent: number;
   days: number;
+  /** Best login streak. */
+  streak: number;
 }
 
 export interface Achievement {
@@ -61,6 +63,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'streetrat', name: 'Street Rat', design: 'mask', unit: 'petty crimes logged', stat: 'petty', at: [10, 50, 200, 500] },
   { id: 'loyal', name: 'Loyal Blood', design: 'crest', unit: 'petty rep given to the family', stat: 'repSent', at: [100, 1000, 5000, 20000] },
   { id: 'veteran', name: 'Veteran', design: 'shield', unit: 'days in the family', stat: 'days', at: [30, 90, 180, 365] },
+  { id: 'nightwatch', name: 'Night Watch', design: 'star', unit: 'days in a row in HQ', stat: 'streak', at: [7, 30, 100, 365] },
 ];
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 

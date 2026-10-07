@@ -457,6 +457,14 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'journal', 'j2'), { memberId: ids['Don Vito'], title: 'Note to self', text: 'Watch Marco.', public: false, reactions: {}, at: Timestamp.fromMillis(now - 2 * 86400_000) });
   await setDoc(doc(db, 'leaderNotes', 'n1'), { memberId: ids['Marco Gallo'], kind: 'warning', text: 'Late to the docks drop twice this week.', by: ids['Don Vito'], byName: 'Don Vito', at: Timestamp.fromMillis(now - 86400_000) });
 
+  // Dashboard: streaks, yesterday's sales, family news.
+  const dk = (back) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(now - back * 86400_000));
+  await setDoc(doc(db, 'streaks', ids['Don Vito']), { current: 11, best: 31, last: dk(1), freezes: {}, loaFrom: null, loaUntil: null, at: Timestamp.fromMillis(now - 86400_000) });
+  await setDoc(doc(db, 'streaks', ids['Lena Russo']), { current: 104, best: 104, last: dk(0), freezes: {}, loaFrom: null, loaUntil: null, at: Timestamp.fromMillis(now) });
+  await setDoc(doc(db, 'daily', dk(1)), { sales: { [ids['Marco Gallo']]: 51000, [ids['Don Vito']]: 26000, [ids['Rocco Vale']]: 18000 } });
+  await setDoc(doc(db, 'news', 'nw1'), { kind: 'joined', memberId: ids['Ghost'], rankId: 'associate', at: Timestamp.fromMillis(now - 2 * 86400_000) });
+  await setDoc(doc(db, 'news', 'nw2'), { kind: 'promoted', memberId: ids['Rocco Vale'], rankId: 'lieutenant', at: Timestamp.fromMillis(now - 5 * 3600_000) });
+
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',

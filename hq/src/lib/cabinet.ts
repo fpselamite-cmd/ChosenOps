@@ -50,7 +50,8 @@ export function useMyAchievementStats(): AchievementStats | null {
   const petty = useCollection<PettyCrime>(pettyQ);
   const reps = useCollection<RepTransfer>(repQ);
   const m = useMoney();
-  if (stats === undefined || !petty || !reps || !m.ready) return null;
+  const streak = useDoc<{ best?: number }>(`streaks/${me.id}`);
+  if (stats === undefined || !petty || !reps || !m.ready || streak === undefined) return null;
   return {
     harvests: stats?.harvests ?? 0,
     pressed: stats?.pressed ?? 0,
@@ -61,6 +62,7 @@ export function useMyAchievementStats(): AchievementStats | null {
     petty: petty.length,
     repSent: reps.filter((r) => r.status === 'confirmed').reduce((t, r) => t + r.amount, 0),
     days: me.joinedAt ? Math.floor((Date.now() - me.joinedAt.toMillis()) / 86400e3) : 0,
+    streak: streak?.best ?? 0,
   };
 }
 

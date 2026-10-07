@@ -887,3 +887,69 @@ html[data-sky='plain'] .sky-glass {
   .lg\:pl-64 { padding-left: 0 !important; }
   body { background: #0a0806 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Accents unlocked by login streaks (7 · 30 · 100 · 365 days). */
+html[data-accent='platinum'] {
+  --acc: 220 226 236; --acc-hi: 250 252 255;
+  --color-gold-50: #ffffff; --color-gold-100: #f1f4f9; --color-gold-200: #e2e8f1; --color-gold-300: #cdd5e2; --color-gold-400: #b2bdd0;
+  --color-gold-500: #8e9ab0; --color-gold-600: #6d788d; --color-gold-700: #4d5566; --color-gold-900: #1b1f27;
+}
+html[data-accent='crimson'] {
+  --acc: 220 60 70; --acc-hi: 250 130 135;
+  --color-gold-50: #fff0f1; --color-gold-100: #ffd9dc; --color-gold-200: #fbb2b7; --color-gold-300: #f4848b; --color-gold-400: #e25560;
+  --color-gold-500: #bf3843; --color-gold-600: #962832; --color-gold-700: #6b1c23; --color-gold-900: #2a0a0d;
+}
+html[data-accent='sapphire'] {
+  --acc: 70 130 240; --acc-hi: 150 190 255;
+  --color-gold-50: #eff5ff; --color-gold-100: #dae7ff; --color-gold-200: #b6cffd; --color-gold-300: #8bb2f9; --color-gold-400: #5f91ef;
+  --color-gold-500: #4372cf; --color-gold-600: #3358a3; --color-gold-700: #243f76; --color-gold-900: #0c162d;
+}
+html[data-accent='aurora'] {
+  --acc: 120 230 210; --acc-hi: 210 170 255;
+  --color-gold-50: #f2fffb; --color-gold-100: #d8fbf2; --color-gold-200: #b0f2e3; --color-gold-300: #8de6d6; --color-gold-400: #79d3e6;
+  --color-gold-500: #8aa3ee; --color-gold-600: #8a74d6; --color-gold-700: #5c4799; --color-gold-900: #1b1433;
+}
+
+/* ---------- Login streak constellation ---------- */
+.streak-cons .sc-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: sc-draw 1.6s ease-out forwards 0.2s; }
+.streak-cons .sc-star.on { animation: sc-twinkle 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.streak-cons .sc-dust { animation: sc-twinkle 2.4s ease-in-out infinite; }
+.streak-cons .sc-ring { animation: sc-pulse 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.streak-cons .sc-ring2 { animation: sc-spin 18s linear infinite; transform-box: fill-box; transform-origin: center; }
+.streak-cons .sc-nebula { animation: sc-breathe 6s ease-in-out infinite; }
+.streak-cons.tier-4 .sc-line { filter: drop-shadow(0 0 1.5px #a487f0); }
+.streak-cons .sc-burst { transform-box: fill-box; transform-origin: center; animation: sc-burst 1.4s ease-out forwards; }
+.streak-cons.burst .sc-star.on:last-of-type { animation: sc-pop 1s ease-out; }
+.streak-badge { background: linear-gradient(120deg, rgb(var(--acc) / 0.10), transparent 70%), rgba(10, 9, 7, 0.7); }
+.streak-badge.is-burst { box-shadow: 0 0 0 1px rgb(var(--acc-hi) / 0.8), 0 0 26px rgb(var(--acc) / 0.55); }
+.streak-toast { animation: sc-rise 2.4s ease-out forwards; text-shadow: 0 0 8px rgb(var(--acc) / 0.8); }
+@keyframes sc-draw { to { stroke-dashoffset: 0; } }
+@keyframes sc-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes sc-pulse { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.25); opacity: 0.2; } }
+@keyframes sc-spin { to { transform: rotate(360deg); } }
+@keyframes sc-breathe { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.35; } }
+@keyframes sc-burst { 0% { transform: scale(0.3); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
+@keyframes sc-pop { 0% { transform: scale(0.2); } 60% { transform: scale(1.8); } 100% { transform: scale(1); } }
+@keyframes sc-rise { 0% { transform: translateY(8px); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+html[data-motion='off'] .streak-cons * { animation: none !important; stroke-dashoffset: 0 !important; }
+
+/* ---------- Leaderboard podiums ---------- */
+.podium-block { position: relative; overflow: hidden; border-top: 2px solid; clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%); }
+.podium-block::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.18) 45%, transparent 60%); transform: translateX(-120%); animation: podium-shine 5s ease-in-out infinite; }
+.podium-gold.podium-block { border-color: #f6dd8a; color: #2a1f05; background: linear-gradient(180deg, #e9c766, #a8822a 60%, #5c4513); box-shadow: 0 0 24px rgb(var(--acc) / 0.35); }
+.podium-silver.podium-block { border-color: #f1f4f9; color: #1d2129; background: linear-gradient(180deg, #d9dfe8, #8e97a6 60%, #4a515d); }
+.podium-bronze.podium-block { border-color: #f0b27a; color: #2a1407; background: linear-gradient(180deg, #d58c4f, #8e5427 60%, #4f2c12); }
+.podium-silver.podium-block::after { animation-delay: 0.6s; }
+.podium-bronze.podium-block::after { animation-delay: 1.2s; }
+.podium-ring { display: inline-flex; border-radius: 9999px; padding: 2px; }
+.podium-gold.podium-ring { background: conic-gradient(#fff3c4, #d4af37, #6e5516, #d4af37, #fff3c4); box-shadow: 0 0 18px rgb(var(--acc) / 0.6); animation: podium-glow 2.6s ease-in-out infinite; }
+.podium-silver.podium-ring { background: conic-gradient(#ffffff, #a3b1cc, #49536a, #a3b1cc, #ffffff); }
+.podium-bronze.podium-ring { background: conic-gradient(#ffd7b0, #b8703f, #5c3214, #b8703f, #ffd7b0); }
+.podium-crown { filter: drop-shadow(0 0 6px rgb(var(--acc-hi) / 0.8)); animation: podium-bob 2.4s ease-in-out infinite; }
+.podium-rays { width: 220px; height: 160px; background: conic-gradient(from 180deg at 50% 0%, transparent 0deg, rgb(var(--acc) / 0.14) 20deg, transparent 40deg, rgb(var(--acc) / 0.1) 60deg, transparent 80deg, rgb(var(--acc) / 0.14) 100deg, transparent 120deg); mask-image: linear-gradient(to bottom, black, transparent); animation: podium-breathe 5s ease-in-out infinite; }
+.spotlight-ring { display: inline-flex; padding: 3px; background: conic-gradient(from 0deg, rgb(var(--acc-hi)), transparent 30%, rgb(var(--acc)) 50%, transparent 80%, rgb(var(--acc-hi))); animation: sc-spin 6s linear infinite; }
+.spotlight-ring > * { animation: sc-spin 6s linear infinite reverse; }
+@keyframes podium-shine { 0%, 60% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+@keyframes podium-glow { 0%, 100% { box-shadow: 0 0 12px rgb(var(--acc) / 0.45); } 50% { box-shadow: 0 0 26px rgb(var(--acc-hi) / 0.75); } }
+@keyframes podium-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes podium-breathe { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }

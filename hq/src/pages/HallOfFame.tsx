@@ -15,29 +15,29 @@ type Row = ReturnType<typeof ranked>[number];
 export function Podium({ rows, board, compact = false }: { rows: Row[]; board: (typeof BOARDS)[number]; compact?: boolean }) {
   const { memberById } = useHub();
   const order = [rows[1], rows[0], rows[2]];
-  const heights = compact ? ['h-10', 'h-14', 'h-7'] : ['h-16', 'h-24', 'h-11'];
+  const heights = compact ? ['h-14', 'h-20', 'h-10'] : ['h-20', 'h-28', 'h-14'];
+  const metal = ['podium-silver', 'podium-gold', 'podium-bronze'];
   return (
-    <div className="flex items-end justify-center gap-2 sm:gap-4">
+    <div className="podium relative flex items-end justify-center gap-2 pt-4 sm:gap-3">
+      {rows[0] && <div className="podium-rays pointer-events-none absolute top-0 left-1/2 -translate-x-1/2" aria-hidden />}
       {order.map((r, i) => {
         const place = [2, 1, 3][i]!;
         return (
-          <div key={place} className="flex w-1/3 max-w-40 flex-col items-center text-center">
+          <div key={place} className="relative flex w-1/3 max-w-40 flex-col items-center text-center">
             {r ? (
               <>
-                {place === 1 && <Crown className="mb-1 size-5 text-gold-300" />}
-                <Avatar member={memberById.get(r.memberId)} size={compact ? 'md' : 'lg'} />
-                <MemberName id={r.memberId} className="mt-1.5 truncate text-sm" />
-                <p className="font-mono text-xs text-gold-300">{board.unit(r.value)}</p>
+                {place === 1 && <Crown className="podium-crown mb-1 size-6 text-gold-300" />}
+                <span className={`podium-ring ${metal[i]}`}>
+                  <Avatar member={memberById.get(r.memberId)} size={compact ? 'md' : 'lg'} />
+                </span>
+                <MemberName id={r.memberId} className="mt-1.5 max-w-full truncate text-sm" />
+                <p className="mt-0.5 rounded-full border border-line-soft bg-black/40 px-2 font-mono text-[11px] text-gold-200">{board.unit(r.value)}</p>
               </>
             ) : (
               <p className="mb-2 text-xs text-smoke">—</p>
             )}
-            <div
-              className={`mt-2 flex w-full items-start justify-center ${heights[i]} border-t-2 pt-1 font-display text-lg font-bold ${
-                place === 1 ? 'border-gold-300 bg-gold-400/15 text-gold-200' : place === 2 ? 'border-zinc-300 bg-zinc-300/10 text-zinc-200' : 'border-amber-700 bg-amber-700/10 text-amber-500'
-              }`}
-            >
-              {place}
+            <div className={`podium-block ${metal[i]} mt-2 flex w-full items-start justify-center ${heights[i]} pt-1.5`}>
+              <span className="font-display text-xl font-bold">{place}</span>
             </div>
           </div>
         );
