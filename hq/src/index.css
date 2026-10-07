@@ -2105,3 +2105,14 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .vp-pays td { padding: 2px 12px; }
 .vp-pays tr.hit { background: rgba(250, 204, 21, 0.25); color: #fff; }
 @media (prefers-reduced-motion: reduce) { .pc, .slot-coin, .slot-machine.jackpot { animation: none; } }
+.live-lobby { display: flex; flex-direction: column; gap: 4px; padding: 14px; text-align: left; border-radius: 12px; background: radial-gradient(ellipse at 0% 0%, #1d6b3e55, transparent 60%), #0c0a07; border: 1px solid #3a3020; transition: border-color 0.2s; }
+.live-lobby:hover { border-color: #d4af37; }
+.live-lobby b { font: 700 17px var(--font-display); color: #f8e7a8; }
+.live-seat { padding: 8px 10px; text-align: center; border-radius: 10px; border: 1px solid rgba(248, 231, 168, 0.25); background: rgba(0, 0, 0, 0.18); transition: box-shadow 0.3s, border-color 0.3s; }
+.live-seat.me { border-color: rgba(248, 231, 168, 0.6); }
+.live-seat.turn { border-color: #facc15; box-shadow: 0 0 0 2px #facc15, 0 0 18px rgba(250, 204, 21, 0.5); }
+.live-seat.win { border-color: #4ade80; box-shadow: 0 0 18px rgba(74, 222, 128, 0.5); }
+.live-seat .pc { width: 52px; height: 74px; }
+.live-seat .pc-mid { font-size: 24px; }
+.live-seat .pc-corner { font-size: 11px; }
+.pc-mini { display: inline-block; width: 26px; height: 38px; border-radius: 4px; border: 1.5px solid #d4af37; background: repeating-linear-gradient(45deg, #1a1409 0 4px, #2a1f0d 4px 8px); }

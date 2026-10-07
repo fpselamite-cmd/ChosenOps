@@ -19,6 +19,7 @@ import { SoundToggle, useChips } from './common';
 import Roulette from './Roulette';
 import Slots from './Slots';
 import VideoPoker from './VideoPoker';
+import { Lobby, TableView } from './live/Live';
 
 type View = 'floor' | 'blackjack' | 'roulette' | 'slots' | 'poker' | 'shop' | 'boards' | 'cashier';
 const GAMES: { id: View; name: string; icon: typeof Spade; blurb: string }[] = [
@@ -28,7 +29,7 @@ const GAMES: { id: View; name: string; icon: typeof Spade; blurb: string }[] = [
   { id: 'poker', name: 'Video Poker', icon: Crown, blurb: 'Jacks or Better. Hold, draw, get paid.' },
 ];
 
-function Floor({ go }: { go: (v: View) => void }) {
+function Floor({ go, openTable }: { go: (v: View) => void; openTable: (id: string) => void }) {
   const { settings, event } = useChips();
   return (
     <div className="space-y-6">
@@ -36,7 +37,7 @@ function Floor({ go }: { go: (v: View) => void }) {
         <div className="hud flex items-center gap-3 border-gold-400/70 p-4">
           <Sparkles className="size-5 text-gold-300" />
           <p className="flex-1 text-gold-100">
-            <b>{settings.eventName || 'Dice night'}</b> is on: max bet raised to {chipsFmt(settings.eventMax)} until {settings.eventUntil?.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+            <b>{settings.eventName || 'Dice night'}</b> is on: max bet {chipsFmt(settings.eventMax)}, +{settings.eventBonus}% on every win until {settings.eventUntil?.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
           </p>
         </div>
       )}
@@ -49,9 +50,7 @@ function Floor({ go }: { go: (v: View) => void }) {
           </button>
         ))}
       </div>
-      <Panel title="Live tables">
-        <p className="text-sm text-smoke">Shared tables (blackjack, roulette, slots and 5-card draw poker against the family) open in the next update.</p>
-      </Panel>
+      <Lobby open={openTable} />
     </div>
   );
 }
@@ -207,6 +206,7 @@ function Cashier() {
                 ['min', 'Min bet'],
                 ['max', 'Max bet'],
                 ['eventMax', 'Event max bet'],
+                ['eventBonus', 'Event bonus %'],
                 ['perRun', 'Chips per run'],
                 ['perFight', 'Per blacksite'],
                 ['perDinner', 'Per dinner'],
@@ -257,6 +257,7 @@ export default function Casino() {
   ];
   const view = tabs.find((t) => t.id === params.get('tab'))?.id ?? 'floor';
   const go = (v: View) => setParams(v === 'floor' ? {} : { tab: v });
+  const table = params.get('table');
   return (
     <>
       <PageHeader
@@ -284,14 +285,18 @@ export default function Casino() {
       <div className="mb-5">
         <Tabs value={view} onChange={go} tabs={tabs.map((t) => ({ ...t, label: t.id === 'shop' ? <span className="inline-flex items-center gap-1"><ShoppingBag className="size-3.5" />{t.label}</span> : t.id === 'boards' ? <span className="inline-flex items-center gap-1"><Trophy className="size-3.5" />{t.label}</span> : t.label }))} />
       </div>
-      {view === 'floor' && <Floor go={go} />}
-      {view === 'blackjack' && <Blackjack />}
-      {view === 'roulette' && <Roulette />}
-      {view === 'slots' && <Slots />}
-      {view === 'poker' && <VideoPoker />}
-      {view === 'shop' && <Shop />}
-      {view === 'boards' && <Boards />}
-      {view === 'cashier' && <Cashier />}
+      {table ? <TableView id={table} onBack={() => setParams({})} /> : view === 'floor' && <Floor go={go} openTable={(id) => setParams({ table: id })} />}
+      {!table && (
+        <>
+          {view === 'blackjack' && <Blackjack />}
+          {view === 'roulette' && <Roulette />}
+          {view === 'slots' && <Slots />}
+          {view === 'poker' && <VideoPoker />}
+          {view === 'shop' && <Shop />}
+          {view === 'boards' && <Boards />}
+          {view === 'cashier' && <Cashier />}
+        </>
+      )}
     </>
   );
 }

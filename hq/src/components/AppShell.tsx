@@ -1,6 +1,7 @@
 import { ExternalLink, Eye, LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
@@ -121,6 +122,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const admin = can('approveMembers') || can('manageMembers') || can('manageCrews') || can('manageRanks') || can('manageSettings');
   const waiting = useAttention().reduce((t, a) => t + a.n, 0);
   const wl = useWelcomeAttention();
+  const liveTables = (useCollection<{ id: string; status: string }>('casinoTables') ?? []).filter((t) => t.status === 'open').length;
   return (
     <nav className="flex flex-col gap-5">
       {nav.map((g) => (
@@ -128,7 +130,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           <p className="label mb-1 px-3 text-[10px] text-gold-700">{g.group}</p>
           <div className="flex flex-col">
             {g.items.map((i) => (
-              <NavLinkItem key={i.to} item={i} onClick={onNavigate} badge={i.welcome ? wl.total + wl.door : undefined} />
+              <NavLinkItem key={i.to} item={i} onClick={onNavigate} badge={i.welcome ? wl.total + wl.door : i.to === '/casino' ? liveTables : undefined} />
             ))}
           </div>
         </div>

@@ -1231,3 +1231,25 @@ describe('casino', () => {
     await assertSucceeds(b.commit());
   });
 });
+
+describe('live tables', () => {
+  const table = { game: 'poker', name: 'T', host: 'sol', hostName: 'Sol', status: 'open', maxSeats: 3, minBet: 25, seats: { sol: { name: 'Sol', at: 1 } }, bets: {}, actions: {}, done: {}, last: {}, round: { n: 0, phase: 'idle' } };
+  it('lets the host deal and others touch only their own seat and moves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'casinoTables/t1'), { ...table, beat: serverTimestamp(), at: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { 'actions.sol2': { a: 'ante', n: 1, k: 1 } })); // not seated
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { 'seats.sol2': { name: 'Sol2', at: 2 } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { 'seats.capo': { name: 'Capo', at: 2 } }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { 'actions.sol2': { a: 'ante', n: 1, k: 1 } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { 'actions.sol': { a: 'fold', n: 1, k: 1 } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { round: { n: 9, phase: 'paid' } }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'casinoTables/t1'), { round: { n: 1, phase: 'ante' } }));
+    await assertFails(updateDoc(doc(as('sol2'), 'casinoTables/t1'), { host: 'sol2', hostName: 'Sol2', beat: serverTimestamp() })); // host isn't quiet
+  });
+  it('keeps poker hands private to the player and the dealer', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'casinoTables/t2'), { ...table, seats: { sol: { name: 'Sol', at: 1 }, sol2: { name: 'Sol2', at: 1 } } }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'casinoTables/t2/hands/sol2'), { cards: [], n: 1 }));
+    await assertFails(setDoc(doc(as('sol2'), 'casinoTables/t2/hands/sol2'), { cards: [], n: 1 }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'casinoTables/t2/hands/sol2')));
+    await assertFails(getDoc(doc(as('capo'), 'casinoTables/t2/hands/sol2')));
+  });
+});

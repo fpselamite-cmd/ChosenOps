@@ -1127,6 +1127,31 @@ service cloud.firestore {
       allow write: if active() && lead();
     }
 
+    // Live tables: the host deals (writes anything); everyone else touches only their own seat, bets and moves.
+    function ownKeyOnly(field) {
+      return request.resource.data.get(field, {}).diff(resource.data.get(field, {})).affectedKeys().hasOnly([myId()]);
+    }
+    match /casinoTables/{tid} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.host == myId() && request.resource.data.seats.keys().hasOnly([myId()])
+        && request.resource.data.game in ['roulette', 'blackjack', 'slots', 'poker'] && str(request.resource.data.name, 40);
+      allow update: if active() && resource.data.host == myId() && request.resource.data.seats.size() <= resource.data.maxSeats;
+      // Sitting down, leaving, betting, acting, settling, posting a spin: your own entries only.
+      allow update: if active() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seats', 'bets', 'actions', 'done', 'last'])
+        && ownKeyOnly('seats') && ownKeyOnly('bets') && ownKeyOnly('actions') && ownKeyOnly('done') && ownKeyOnly('last')
+        && request.resource.data.seats.size() <= resource.data.maxSeats
+        && (myId() in request.resource.data.seats || onlyChanges(['seats']));
+      // Taking over dealing when the host has gone quiet.
+      allow update: if active() && onlyChanges(['host', 'hostName', 'beat']) && request.resource.data.host == myId()
+        && myId() in resource.data.seats && resource.data.beat < request.time - duration.value(45, 's');
+      allow delete: if active() && (resource.data.host == myId() || lead());
+      // Poker hands: only the player (and the dealer who dealt them) can see them.
+      match /hands/{mid} {
+        allow read: if active() && (mid == myId() || get(/databases/$(database)/documents/casinoTables/$(tid)).data.host == myId());
+        allow write: if active() && get(/databases/$(database)/documents/casinoTables/$(tid)).data.host == myId();
+      }
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();

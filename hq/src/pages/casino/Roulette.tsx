@@ -107,7 +107,7 @@ export function Board({ bets, place, last }: { bets: Record<string, number>; pla
 /** Single-zero roulette against the house. */
 export default function Roulette() {
   const { me } = useHub();
-  const { balance, min, max } = useChips();
+  const { balance, min, max, bonus } = useChips();
   const [chip, setChip] = useState(25);
   const [bets, setBets] = useState<Record<string, number>>({});
   const [angle, setAngle] = useState(0);
@@ -143,7 +143,7 @@ export default function Roulette() {
       setMsg({ text: `${n} ${colorOf(n)}. ${net > 0 ? `+${chipsFmt(net)}` : net === 0 ? 'Even.' : `−${chipsFmt(-net)}`}`, tone: net > 0 ? 'win' : net === 0 ? 'push' : 'lose' });
       if (net > 0) sfx.win();
       else if (net < 0) sfx.lose();
-      await settle(me.id, total, paid);
+      await settle(me.id, total, paid, { bonus });
     }, 5100);
   }
   return (
