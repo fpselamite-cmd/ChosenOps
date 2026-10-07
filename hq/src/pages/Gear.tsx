@@ -30,6 +30,14 @@ const partsGun = (id: string, byId: Map<string, ItemType>) => byId.get(id)?.base
 
 /** Family builds plus my own private ones. */
 function useBuilds(me: string) {
+  const { can } = useHub();
+  const lead = can('manageOps');
+  // Older builds have no family/private flag yet; leadership's page marks them family so everyone sees them.
+  const allQ = useMemo(() => collection(db, 'builds'), []);
+  const all_ = useCollection<Build>(allQ, lead);
+  useEffect(() => {
+    all_?.filter((b) => b.public === undefined).forEach((b) => void markBuildPublic(b.id).catch(() => {}));
+  }, [all_]);
   const pubQ = useMemo(() => query(collection(db, 'builds'), where('public', '==', true)), []);
   const mineQ = useMemo(() => query(collection(db, 'builds'), where('by', '==', me)), [me]);
   const pub = useCollection<Build>(pubQ);
