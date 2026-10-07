@@ -738,3 +738,11 @@ describe('hall of fame', () => {
     await assertFails(setDoc(doc(as('capo'), 'tributes/sol/memories/m2'), { by: 'sol2', byName: 'Sol2', text: 'fake', at: serverTimestamp() }));
   });
 });
+
+describe('personal cash', () => {
+  it('lets members log their own cash only', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'myCash/c1'), { memberId: 'sol', dirty: 5000, clean: 0, note: 'Store job', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'myCash/c2'), { memberId: 'sol2', dirty: 5000, clean: 0, note: '', at: serverTimestamp() }));
+    await assertFails(getDoc(doc(as('sol2'), 'myCash/c1')));
+  });
+});

@@ -1,21 +1,22 @@
 import { ArrowLeftRight, Backpack, Bomb, Box, Camera, Check, Handshake, PackageCheck, Search, Star, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
-import { useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { squareImage } from '../lib/image';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
-import { useCollection } from '../hooks/useCollection';
+import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { ItemPicker } from '../components/ItemPicker';
 import { NewTrade, TradesPanel } from '../components/Trades';
 import { NO_CASH } from '../lib/trades';
-import { useDoc } from '../hooks/useCollection';
 import type { CharLoadout } from '../lib/loadouts';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Kit, type Locker as LockerApi, type Thing } from '../lib/locker';
-import { money, useMoney } from '../lib/money';
+import { addMyCash, money, useMoney, type MyCash } from '../lib/money';
+import { collection, query, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
@@ -589,6 +590,89 @@ function KitEditor({ locker, kit, types, name, onClose }: { locker: LockerApi; k
   );
 }
 
+/** Put cash you got in the city into your locker, or take some out. Counts toward your BlackMarket balances. */
+function CashDialog({ kind: start, onClose }: { kind: 'dirty' | 'clean'; onClose: () => void }) {
+  const { me } = useHub();
+  const m = useMoney();
+  const [kind, setKind] = useState(start);
+  const [dir, setDir] = useState<'in' | 'out'>('in');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const q = useMemo(() => query(collection(db, 'myCash'), where('memberId', '==', me.id)), [me.id]);
+  const history = (useCollection<MyCash>(q) ?? []).sort((a, b) => (b.at?.toMillis() ?? Date.now()) - (a.at?.toMillis() ?? Date.now())).slice(0, 8);
+  const have = kind === 'dirty' ? m.mine.held : m.mine.clean;
+  return (
+    <Modal title="Cash in your locker" onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const n = Math.round(+amount.replace(/\D/g, '') || 0);
+          if (!n) return setError('How much?');
+          if (dir === 'out' && n > have) return setError(`You only have ${money(have)} ${kind}.`);
+          const v = dir === 'in' ? n : -n;
+          await addMyCash(me.id, kind === 'dirty' ? v : 0, kind === 'clean' ? v : 0, note);
+          onClose();
+        }}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          {(['dirty', 'clean'] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setKind(k)} className={`border p-2 text-sm ${kind === k ? 'border-gold-400 bg-gold-400/10 text-gold-100' : 'border-line text-ash'}`}>
+              {k === 'dirty' ? 'Dirty' : 'Clean'} · <span className="font-mono">{money(k === 'dirty' ? m.mine.held : m.mine.clean)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {(['in', 'out'] as const).map((d) => (
+            <button key={d} type="button" onClick={() => setDir(d)} className={`chip px-3 py-1.5 text-xs ${dir === d ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+              {d === 'in' ? <Plus className="mr-1 inline size-3" /> : <Minus className="mr-1 inline size-3" />}
+              {d === 'in' ? 'Add' : 'Take out'}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-[140px_1fr] gap-3">
+          <Field label="Amount">
+            <input className="input font-mono" inputMode="numeric" placeholder="$" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Note">
+            <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder={dir === 'in' ? 'e.g. Store robbery' : 'e.g. Bought a car'} />
+          </Field>
+        </div>
+        <p className="text-xs text-smoke">For money you got (or spent) yourself in the city. It counts toward your dirty and clean balances, so you can wash it or trade it.</p>
+        <ErrorText error={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold">{dir === 'in' ? 'Add' : 'Take out'}</button>
+        </div>
+      </form>
+      {history.length > 0 && (
+        <div className="mt-5 border-t border-line-soft pt-3">
+          <p className="label mb-1">Recent</p>
+          <ul className="space-y-1 text-xs">
+            {history.map((h) => {
+              const v = h.dirty || h.clean;
+              return (
+                <li key={h.id} className="flex gap-2">
+                  <span className={`w-24 font-mono ${v < 0 ? 'text-red-300' : 'text-ok'}`}>
+                    {v < 0 ? '−' : '+'}
+                    {money(Math.abs(v))}
+                  </span>
+                  <span className="text-smoke">{h.dirty ? 'dirty' : 'clean'}</span>
+                  <span className="flex-1 truncate text-ash">{h.note}</span>
+                  <span className="text-smoke">{ago(h.at)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ---------- page ----------
 
 /** Tile border color by kind, like loot rarity. */
@@ -942,6 +1026,7 @@ function Body() {
   const [taking, setTaking] = useState(false);
   const [trading, setTrading] = useState(false);
   const [packing, setPacking] = useState(false);
+  const [cash, setCash] = useState<'dirty' | 'clean' | null>(null);
   const { name: itemName } = useItemTypes();
   const [open, setOpen] = useState<{ storageId: string; thing: Thing } | null>(null);
   const [acceptInto, setAcceptInto] = useState<Record<string, string>>({});
@@ -978,8 +1063,12 @@ function Body() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Dirty money" value={<span className="text-red-300">{money(m.mine.held)}</span>} sub="from your sales, not washed" />
-        <Stat label="Clean money" value={money(m.mine.clean)} sub={`washed from ${money(m.mine.washed)}`} />
+        <button className="text-left" onClick={() => setCash('dirty')} title="Add or take out dirty cash">
+          <Stat label="Dirty money" value={<span className="text-red-300">{money(m.mine.held)}</span>} sub={<span className="text-gold-300">+ add or take out</span>} />
+        </button>
+        <button className="text-left" onClick={() => setCash('clean')} title="Add or take out clean cash">
+          <Stat label="Clean money" value={money(m.mine.clean)} sub={<span className="text-gold-300">+ add or take out</span>} />
+        </button>
         <Stat label="Earned (your cut)" value={money(m.mine.earned)} sub={`${money(m.mine.paid)} paid to you`} />
         <Stat label="Owed to you" value={<span className={m.mine.owed ? 'text-gold-200' : ''}>{money(m.mine.owed)}</span>} sub="by the Treasurer" />
       </div>
@@ -1062,6 +1151,7 @@ function Body() {
       {taking && <TakeDialog locker={locker} onClose={() => setTaking(false)} />}
       {trading && <NewTrade locker={locker} itemName={itemName} onClose={() => setTrading(false)} />}
       {packing && <PackDialog locker={locker} onClose={() => setPacking(false)} />}
+      {cash && <CashDialog kind={cash} onClose={() => setCash(null)} />}
       {open && <ThingDialog locker={locker} storageId={open.storageId} thing={{ ...open.thing, qty: countOf(locker.stock.get(open.storageId), open.thing) || open.thing.qty }} onClose={() => setOpen(null)} />}
     </>
   );
