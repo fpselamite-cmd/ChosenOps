@@ -138,7 +138,8 @@ export interface DuesSettings {
 export interface DuesWeek {
   id: string;
   owe: Record<string, DuesAmounts>;
-  excused?: Record<string, boolean>;
+  /** Why someone is off the hook this dinner: 'LOA', 'Leadership excused', or a note (true on older dinners). */
+  excused?: Record<string, boolean | string>;
   at?: Timestamp;
 }
 /** A clean or dirty dues payment. It leaves the member's safe when marked; the Treasurer confirms it into the bank. */
@@ -154,8 +155,11 @@ export interface DuesPay {
   at?: Timestamp;
 }
 export const saveDuesSettings = (s: DuesSettings) => setDoc(doc(db, 'settings', 'dues'), s);
-export const openDinner = (week: string, owe: DuesWeek['owe']) => setDoc(doc(db, 'duesWeeks', week), { owe, excused: {}, at: serverTimestamp() });
-export const excuse = (week: string, memberId: string, on: boolean) => updateDoc(doc(db, 'duesWeeks', week), { [`excused.${memberId}`]: on });
+export const openDinner = (week: string, owe: DuesWeek['owe'], excused: Record<string, string> = {}) => setDoc(doc(db, 'duesWeeks', week), { owe, excused, at: serverTimestamp() });
+export const EXCUSES = ['LOA', 'Leadership excused'];
+/** Excuse someone from a dinner with a reason, or take it back (null). */
+export const excuse = (week: string, memberId: string, reason: string | null) => updateDoc(doc(db, 'duesWeeks', week), { [`excused.${memberId}`]: reason ? reason.slice(0, 40) : false });
+export const excuseText = (v: boolean | string | undefined) => (typeof v === 'string' && v ? `Excused · ${v}` : 'Excused');
 
 export function payDues(memberId: string, week: string, cash: Cash, amount: number) {
   const b = writeBatch(db);

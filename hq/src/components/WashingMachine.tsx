@@ -50,6 +50,11 @@ export function WashingMachine({ w, onTimer, onDone, onLetGo }: { w: WashRequest
   }, [finished]);
   const total = (w.timerMins ?? 1) * 60_000;
   const pct = end ? Math.min(100, ((total - left) / total) * 100) : 0;
+  // The bills turn from dirty red to clean green as the cycle runs.
+  const w8 = finished ? 100 : pct;
+  const mix = (clean: string, dirty: string) => `color-mix(in oklab, ${clean} ${w8}%, ${dirty})`;
+  const billBg = `linear-gradient(135deg, ${mix('#86efac', '#f87171')}, ${mix('#16a34a', '#991b1b')})`;
+  const billInk = mix('#14532d', '#450a0a');
   const mm = Math.floor(left / 60_000);
   const ss = Math.floor((left % 60_000) / 1000);
 
@@ -63,7 +68,7 @@ export function WashingMachine({ w, onTimer, onDone, onLetGo }: { w: WashRequest
       <div className="washer-door">
         <div className="washer-drum">
           {Array.from({ length: 7 }, (_, i) => (
-            <span key={i} className="washer-bill" style={{ transform: `rotate(${i * 51}deg) translateY(${-16 - (i % 3) * 9}px) rotate(${i * 37}deg)` }}>
+            <span key={i} className="washer-bill" style={{ transform: `rotate(${i * 51}deg) translateY(${-16 - (i % 3) * 9}px) rotate(${i * 37}deg)`, background: billBg, color: billInk, transition: 'background 1s linear, color 1s linear' }}>
               $
             </span>
           ))}

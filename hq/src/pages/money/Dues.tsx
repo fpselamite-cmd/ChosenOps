@@ -4,9 +4,10 @@ import { Avatar } from '../../components/Avatar';
 import { Empty, ErrorText, Field } from '../../components/Field';
 import { Modal } from '../../components/Modal';
 import { Panel } from '../../components/Page';
-import { useDoc } from '../../hooks/useCollection';
+import { useCollection, useDoc } from '../../hooks/useCollection';
+import type { Streak } from '../../lib/streak';
 import { useHub } from '../../hooks/useHub';
-import { confirmDues, dinnerOf, excuse, openDinner, payDues, rejectDues, saveDuesSettings, type DuesAmounts, type DuesPay, type DuesSettings, type DuesWeek } from '../../lib/books';
+import { confirmDues, dinnerOf, excuse, excuseText, EXCUSES, openDinner, payDues, rejectDues, saveDuesSettings, type DuesAmounts, type DuesPay, type DuesSettings, type DuesWeek } from '../../lib/books';
 import { et } from '../../lib/calendar';
 import { feed } from '../../lib/adminData';
 import { money } from '../../lib/money';
@@ -108,6 +109,37 @@ function DuesSettingsDialog({ current, onClose }: { current: DuesSettings | null
   );
 }
 
+/** Leadership excuses someone from a dinner, with a reason. */
+function ExcuseMenu({ value, onChange }: { value: boolean | string | undefined; onChange: (reason: string | null) => void }) {
+  const cur = typeof value === 'string' ? value : value ? 'Excused' : '';
+  const custom = cur && !EXCUSES.includes(cur);
+  return (
+    <label className="mt-1 flex items-center gap-1 text-smoke" title="Excuse them from this dinner">
+      <UserX className="size-3.5 shrink-0" />
+      <select
+        className="w-auto cursor-pointer border-0 bg-transparent p-0 text-[11px] text-smoke hover:text-gold-200 focus:outline-none"
+        value={custom ? '__custom' : cur}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === '__other') {
+            const why = prompt('Why are they excused?')?.trim();
+            if (why) onChange(why);
+          } else onChange(v || null);
+        }}
+      >
+        <option value="">Not excused</option>
+        {EXCUSES.map((x) => (
+          <option key={x} value={x}>
+            {x}
+          </option>
+        ))}
+        {custom && <option value="__custom">{cur}</option>}
+        <option value="__other">Other…</option>
+      </select>
+    </label>
+  );
+}
+
 /** A member pays one kind of dues for a dinner: rep from their petty rep, cash from their safe. */
 function PayDialog({ week, kind, left, onClose, b }: { week: string; kind: DueKind; left: number; onClose: () => void; b: Books }) {
   const { me } = useHub();
@@ -164,6 +196,12 @@ export default function Dues({ b }: { b: Books }) {
   const [pick, setPick] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const [paying, setPaying] = useState<{ week: string; kind: DueKind; left: number } | null>(null);
+  const streaks = useCollection<Streak>('streaks');
+  // On leave (LOA) on a dinner's date: excused for it.
+  const onLoa = (id: string, day: string) => {
+    const st = streaks?.find((x) => x.id === id);
+    return !!st?.loaFrom && !!st.loaUntil && day >= st.loaFrom && day <= st.loaUntil;
+  };
   const keeper = can('confirmRep');
   const treasurer = can('money');
   // Opens tonight's dinner with what everyone owes by their rank right now.
@@ -175,8 +213,19 @@ export default function Dues({ b }: { b: Books }) {
       const a = s.byRank?.[m.rankId ?? ''];
       if (a && (a.rep || a.clean || a.dirty)) owe[m.id] = a;
     });
-    if (Object.keys(owe).length) void openDinner(thisWeek, owe).catch(() => {});
-  }, [s, thisWeek, b.weeks, roster, isLead, keeper, treasurer, rankById]);
+    if (!streaks) return;
+    const excused = Object.fromEntries(Object.keys(owe).filter((id) => onLoa(id, thisWeek)).map((id) => [id, 'LOA']));
+    if (Object.keys(owe).length) void openDinner(thisWeek, owe, excused).catch(() => {});
+  }, [s, thisWeek, b.weeks, roster, isLead, keeper, treasurer, rankById, streaks]);
+  // Someone who went on LOA after the dinner opened gets excused too (leadership's page does it).
+  useEffect(() => {
+    if (!isLead || !thisWeek || !streaks) return;
+    const w = b.weeks.find((x) => x.id === thisWeek);
+    if (!w) return;
+    Object.keys(w.owe ?? {}).forEach((id) => {
+      if (w.excused?.[id] === undefined && onLoa(id, thisWeek)) void excuse(thisWeek, id, 'LOA').catch(() => {});
+    });
+  }, [isLead, thisWeek, b.weeks, streaks]);
 
   if (!b.duesReady) return null;
   if (!s)
@@ -267,10 +316,11 @@ export default function Dues({ b }: { b: Books }) {
                     <span className="min-w-[10rem] flex-1 basis-[calc(100%-3rem)] sm:basis-0">
                       <b className="text-gold-100">{m?.name ?? 'Someone'}</b> <span className="text-xs text-smoke">{rankById.get(m?.rankId ?? '')?.name}</span>
                       {excused ? (
-                        <span className="block text-[11px] text-smoke">Excused</span>
+                        <span className="block text-[11px] text-sky-300">{excuseText(week.excused?.[id])}</span>
                       ) : backText.length ? (
                         <span className="block text-[11px] text-red-300">+ {backText.join(', ')} from past dinners</span>
                       ) : null}
+                      {isLead && <ExcuseMenu value={week.excused?.[id]} onChange={(r) => void excuse(week.id, id, r)} />}
                     </span>
                     <span className="grid flex-1 grid-cols-3 gap-2 sm:flex sm:flex-none">
                     {KINDS.map((k) => {
@@ -310,11 +360,7 @@ export default function Dues({ b }: { b: Books }) {
                       );
                     })}
                     </span>
-                    {isLead && (
-                      <button className="text-smoke hover:text-gold-200" title={excused ? 'Not excused' : 'Excuse them this dinner'} onClick={() => excuse(week.id, id, !excused)}>
-                        <UserX className="size-4" />
-                      </button>
-                    )}
+
                   </li>
                 );
               })}
