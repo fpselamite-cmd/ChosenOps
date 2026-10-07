@@ -69,6 +69,9 @@ const ORNAMENTS: Record<string, { icon: LucideIcon; n: number } | null> = {
   flames: { icon: Flame, n: 8 },
   chips: { icon: Coins, n: 8 },
   cards: { icon: Spade, n: 4 },
+  stars: { icon: Star, n: 7 },
+  lightning: { icon: Zap, n: 6 },
+  hearts: { icon: Heart, n: 6 },
 };
 
 /** A Diablo-style portrait frame around someone's avatar: a theme, in the rarity's metal. */
