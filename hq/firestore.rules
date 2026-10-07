@@ -125,6 +125,12 @@ service cloud.firestore {
       // An owner granting or taking it away:
       allow update: if request.resource.data.get('admin', false) != resource.data.get('admin', false) && onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
 
+      // An admin setting their own in-character rank, even stepping down from the top rank (never up into it).
+      allow update: if id == myId() && onlyChanges(['rankId']) && resource.data.status == 'active' && request.resource.data.rankId is string
+        && active() && isAdmin() && orderOf(request.resource.data.rankId) > 0;
+      // An owner setting anyone's rank, the top rank included, so that seat can always be filled.
+      allow update: if onlyChanges(['rankId']) && resource.data.status == 'active' && request.resource.data.rankId is string
+        && active() && isOwner() && exists(/databases/$(database)/documents/hqRanks/$(request.resource.data.rankId));
       // An admin fixing someone's display name.
       allow update: if request.resource.data.name != resource.data.name && isAdmin() && onlyChanges(['name', 'nameLower'])
         && str(request.resource.data.name, 30) && request.resource.data.name.size() >= 2
