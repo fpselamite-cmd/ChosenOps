@@ -179,7 +179,8 @@ function TakeDialog({ locker, onClose }: { locker: LockerApi; onClose: () => voi
   const { name } = useItemTypes();
   const toast = useToast();
   const [from, setFrom] = useState(storage[0]?.id ?? '');
-  const things = thingsIn(stock.get(from), name).filter((t) => t.field !== 'trimmed' && t.field !== 'untrimmed');
+  // Drugs are signed out in NoelOps; here it's guns, gear and ammo.
+  const things = thingsIn(stock.get(from), name).filter((t) => !!t.item);
   const [pick, setPick] = useState(0);
   const [qty, setQty] = useState('1');
   const [to, setTo] = useState(locker.storages[0]?.id ?? 'onme');
@@ -278,7 +279,8 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
   const [who, setWho] = useState(roster.find((r) => r.id !== me.id)?.id ?? '');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const stashOk = canSee('stash') || canSee('narcotics');
+  // Drugs go back into a stash in NoelOps; items can go in from here.
+  const stashOk = (canSee('stash') || canSee('narcotics')) && !!thing.item;
   async function submit(e: FormEvent) {
     e.preventDefault();
     const q = Math.min(toCount(qty), thing.qty);

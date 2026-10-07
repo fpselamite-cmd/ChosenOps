@@ -10,9 +10,9 @@ import { Empty } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
-import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
-import { n, type OpsLocation, type StockDoc } from '../noel/data';
+import { n } from '../noel/data';
+import { NOEL_MAIN, NOELOPS_URL, useNoel, type NoelBucket, type NoelGrow, type NoelStash } from '../lib/noelops';
 import { sumStock } from '../noel/store';
 import { db } from '../lib/firebase';
 import { ago } from '../lib/format';
@@ -88,16 +88,22 @@ function WordFromTheTop() {
   );
 }
 
-/** Bricks on hand across every place that counts in totals, linking to Narcotics. */
+/** Bricks on hand across every place that counts in totals, live from NoelOps (opens it in a new tab). */
 function BricksTile() {
-  const stock = useCollection<StockDoc>('stock');
-  const locations = useCollection<OpsLocation>('locations');
-  const left = new Set((locations ?? []).filter((l) => l.excludeTotals).map((l) => l.id));
-  const t = sumStock((stock ?? []).filter((s) => !left.has(s.id)));
+  const stock = useNoel<Record<string, NoelBucket>>('stock').data;
+  const stashes = useNoel<Record<string, NoelStash>>('stashes').data;
+  const grows = useNoel<Record<string, NoelGrow>>('locations').data;
+  const main = useNoel<{ excludeTotals?: boolean }>('settings/mainStash').data;
+  const left = new Set<string>([
+    ...(main?.excludeTotals ? [NOEL_MAIN] : []),
+    ...Object.entries(stashes ?? {}).filter(([, x]) => x?.excludeTotals).map(([id]) => `%h${id}`),
+    ...Object.entries(grows ?? {}).filter(([, x]) => x?.excludeTotals).map(([k]) => k),
+  ]);
+  const t = sumStock(Object.entries(stock ?? {}).filter(([k]) => !left.has(k)).map(([, v]) => v));
   return (
-    <Link to="/narcotics" className="block">
-      <Stat label="Bricks on hand" value={stock ? n(t.bricks) : '—'} sub={`${n(t.potential)} ready to press · ${n(t.meth)} meth bins`} />
-    </Link>
+    <a href={NOELOPS_URL} target="_blank" rel="noopener" className="block">
+      <Stat label="Bricks on hand" value={stock !== undefined ? n(t.bricks) : '—'} sub={`${n(t.potential)} ready to press · ${n(t.meth)} meth bins`} />
+    </a>
   );
 }
 

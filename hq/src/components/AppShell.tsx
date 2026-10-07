@@ -1,4 +1,4 @@
-import { LogOut, Menu, Palette, X } from 'lucide-react';
+import { ExternalLink, LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
@@ -37,6 +37,20 @@ function Brand({ compact }: { compact?: boolean }) {
 
 function NavLinkItem({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const Icon = item.icon;
+  if (item.href)
+    return (
+      <a
+        href={item.href}
+        target="_blank"
+        rel="noopener"
+        onClick={onClick}
+        className="group relative flex items-center gap-3 rounded-r px-3 py-2 font-hud text-[15px] font-semibold tracking-wide text-ash transition hover:bg-white/[0.03] hover:text-gold-200"
+      >
+        <Icon className="size-4 text-gold-600 transition group-hover:text-gold-400" />
+        {item.label}
+        <ExternalLink className="ml-auto size-3.5 text-smoke group-hover:text-gold-300" aria-label="opens NoelOps in a new tab" />
+      </a>
+    );
   return (
     <NavLink
       to={item.to}
@@ -154,7 +168,7 @@ export function AppShell() {
   return (
     <div className="min-h-dvh lg:pl-64">
       <AchievementWatcher />
-      <ShootingStars enabled={themeFor(pathname) !== 'noel'} />
+      <ShootingStars enabled />
       <MonthlyAwarder />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
@@ -184,8 +198,8 @@ export function AppShell() {
       </header>
 
       <div
-        className={`min-h-[calc(100dvh-57px)] ${themeFor(pathname) === 'noel' ? 'noel' : 'page-theme'}`}
-        data-theme={themeFor(pathname)}
+        className={`min-h-[calc(100dvh-57px)] page-theme ${themeFor(pathname) === 'blackmarket' ? 'noel noel-gold' : ''}`}
+        data-theme="gold"
       >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
           <Outlet />
@@ -194,7 +208,13 @@ export function AppShell() {
 
       {/* Phone bottom bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-        {mobileItems.map((i) => (
+        {mobileItems.map((i) =>
+          i.href ? (
+            <a key={i.to} href={i.href} target="_blank" rel="noopener" className="flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold tracking-wide text-smoke">
+              <i.icon className="size-5" />
+              {i.label}
+            </a>
+          ) : (
           <NavLink
             key={i.to}
             to={i.to}
@@ -206,7 +226,8 @@ export function AppShell() {
             <i.icon className="size-5" />
             {i.label}
           </NavLink>
-        ))}
+          ),
+        )}
         <button onClick={() => setDrawer(true)} className="flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold text-smoke">
           <Menu className="size-5" />
           More

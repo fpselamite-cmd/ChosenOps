@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { logout } from './lib/auth';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { NOELOPS_URL } from './lib/noelops';
 import type { PageId } from './lib/types';
 import { AppShell } from './components/AppShell';
 import { Loading } from './components/Field';
@@ -11,7 +12,6 @@ import BlackMarket from './pages/BlackMarket';
 import Crews from './pages/Crews';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
-import Narcotics from './pages/Narcotics';
 import Stash from './pages/Stash';
 import PettyCrime from './pages/PettyCrime';
 import Locker from './pages/Locker';
@@ -81,6 +81,14 @@ function NoFileYet() {
 }
 
 /** Sends people back to the Dashboard if their rank and crews don't open this page. */
+/** Old Narcotics links: NoelOps runs the grows and cooks now, so open it in a new tab. */
+function OpenNoelOps() {
+  useEffect(() => {
+    window.open(NOELOPS_URL, '_blank', 'noopener');
+  }, []);
+  return <Navigate to="/stash" replace />;
+}
+
 function Gate({ page, children }: { page: PageId; children: ReactNode }) {
   const { canSee } = useHub();
   return canSee(page) ? children : <Navigate to="/" replace />;
@@ -94,14 +102,7 @@ function MemberRoutes() {
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
         <Route path="hall-of-fame" element={<HallOfFame />} />
-        <Route
-          path="narcotics"
-          element={
-            <Gate page="narcotics">
-              <Narcotics />
-            </Gate>
-          }
-        />
+        <Route path="narcotics" element={<OpenNoelOps />} />
         <Route
           path="stash"
           element={
@@ -110,9 +111,9 @@ function MemberRoutes() {
             </Gate>
           }
         />
-        <Route path="timers" element={<Navigate to="/narcotics?tab=weed" replace />} />
-        <Route path="meth" element={<Navigate to="/narcotics?tab=meth" replace />} />
-        <Route path="coke" element={<Navigate to="/narcotics?tab=coke" replace />} />
+        <Route path="timers" element={<OpenNoelOps />} />
+        <Route path="meth" element={<OpenNoelOps />} />
+        <Route path="coke" element={<OpenNoelOps />} />
         <Route
           path="blackmarket"
           element={

@@ -1,35 +1,9 @@
-import { collection, documentId, limit, orderBy, query, where } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useCollection, useDoc } from '../hooks/useCollection';
+import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
-import { db } from '../lib/firebase';
-import {
-  BRICK_SIZE,
-  BUD_FIELDS,
-  DEFAULT_BUD_PER_POT,
-  DEFAULT_COKE_RECIPE,
-  DEFAULT_POT_RANGE,
-  MAIN_STASH,
-  ROOT_FIELDS,
-  STRAINS,
-  YIELD_SAMPLES_KEEP,
-  budCell,
-  dayKey,
-  toCount,
-  type Activity,
-  type BudCell,
-  type Cook,
-  type CokeRecipe,
-  type DayHistory,
-  type NarcoticsSettings,
-  type OpsLocation,
-  type RootField,
-  type Run,
-  type StockDoc,
-  type StrainId,
-  type SupplyKey,
-  type YieldSample,
-} from './data';
+import { NOEL_MAIN, hqIdOf, setKnownBuckets, useNoel, type NoelBucket, type NoelGrow, type NoelStash } from '../lib/noelops';
+import { BRICK_SIZE, BUD_FIELDS, MAIN_STASH, ROOT_FIELDS, STRAINS, budCell, toCount, type BudCell, type OpsLocation, type RootField, type StockDoc, type StrainId } from './data';
 
 export interface Totals {
   bricks: number;
@@ -43,39 +17,25 @@ export interface Totals {
   strains: Record<StrainId, BudCell>;
 }
 
-export interface Yield {
-  avg: number;
-  min: number;
-  max: number;
-  samples: number;
-}
-
 interface Narcotics {
   ready: boolean;
+  /** NoelOps couldn't be reached: drug counts are missing, items still show. */
+  noelDown: boolean;
   locations: OpsLocation[];
   locById: Map<string, OpsLocation>;
-  grows: OpsLocation[];
   /** Places that hold stock: stash houses and grows with on-site storage (plus any grow still holding stock). */
   storage: OpsLocation[];
+  /** Drug counts come from NoelOps, items from the HQ. */
   stock: Map<string, StockDoc>;
-  cooks: Cook[];
-  runs: Run[];
-  supplies: Partial<Record<SupplyKey, number>>;
-  supplyLow: Partial<Record<SupplyKey, number | null>>;
-  recipe: CokeRecipe;
-  activity: Activity[];
-  history: Map<string, DayHistory>;
+  /** NoelOps' grows as it stores them (key → grow). */
+  noelGrows: Record<string, NoelGrow>;
   /** Totals across every location that counts (not left out of totals). */
   totals: Totals;
   totalsFor: (locIds: string[]) => Totals;
-  strainYield: (id: StrainId) => Yield;
-  learnedStrains: number;
-  yields: Record<string, YieldSample[]>;
   /** Locations of the crews I'm in, or every one when I'm in none. */
   crewFilter: 'mine' | 'all';
   setCrewFilter: (f: 'mine' | 'all') => void;
   visible: (loc: OpsLocation) => boolean;
-  now: number;
   locLabel: (id: string) => string;
 }
 
@@ -95,13 +55,13 @@ function emptyTotals(): Totals {
   };
 }
 
-export function sumStock(docs: (StockDoc | undefined)[]): Totals {
+export function sumStock(docs: (StockDoc | NoelBucket | undefined | null)[]): Totals {
   const t = emptyTotals();
   for (const d of docs) {
     if (!d) continue;
     (Object.keys(ROOT_FIELDS) as RootField[]).forEach((f) => (t[f] += toCount(d[f])));
     for (const s of STRAINS) {
-      const c = budCell(d, s.id);
+      const c = budCell(d as StockDoc, s.id);
       BUD_FIELDS.forEach((f) => (t.strains[s.id][f] += c[f]));
     }
   }
@@ -115,32 +75,52 @@ export function sumStock(docs: (StockDoc | undefined)[]): Totals {
   return t;
 }
 
-/** Ticks once a second so countdowns move. */
-function useNow() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return now;
+/** Firestore ids that stand for NoelOps places (the HQ's own extras for them, like crew). */
+const noelShaped = (id: string) => id === MAIN_STASH || id.startsWith('noel_') || /^g\d+$/.test(id);
+
+/** The places NoelOps has, shaped like HQ locations. */
+function noelPlaces(main: { name?: string; excludeTotals?: boolean } | null | undefined, stashes: Record<string, NoelStash>, grows: Record<string, NoelGrow>) {
+  const out: OpsLocation[] = [{ id: MAIN_STASH, kind: 'stash', name: main?.name?.trim() || 'Main Stash', excludeTotals: !!main?.excludeTotals, crewId: null, order: 0 }];
+  Object.entries(stashes).forEach(([id, s]) => {
+    if (!s || typeof s !== 'object') return;
+    out.push({ id: `noel_${id}`, kind: 'stash', name: s.name || 'Stash house', note: s.note || '', excludeTotals: !!s.excludeTotals, crewId: null, order: 1 + (Number(s.order) || 0) / 1e13 });
+  });
+  Object.entries(grows).forEach(([key, g]) => {
+    if (!g || typeof g !== 'object') return;
+    const postal = String(g.id ?? hqIdOf(key).slice(1));
+    out.push({
+      id: hqIdOf(key),
+      kind: 'grow',
+      name: g.alias || `Postal ${postal}`,
+      postal,
+      crewId: null,
+      durationHours: Number(g.durationHours) || 36,
+      pots: toCount(g.pots),
+      startTime: g.startTime ? Timestamp.fromMillis(Number(g.startTime)) : null,
+      strainPots: g.strainPots ?? {},
+      storage: g.storage === true,
+      stashTo: hqIdOf(g.stashTo || NOEL_MAIN),
+      excludeTotals: g.excludeTotals === true,
+      order: 10 + (Number(g.order) || 0),
+    });
+  });
+  return out;
 }
 
 export function NarcoticsProvider({ children }: { children: ReactNode }) {
   const { myCrews } = useHub();
-  const now = useNow();
-  const locationsRaw = useCollection<OpsLocation>('locations');
-  const stockRaw = useCollection<StockDoc>('stock');
-  const cooksQ = useMemo(() => query(collection(db, 'cooks'), where('done', '==', false)), []);
-  const runsQ = useMemo(() => query(collection(db, 'runs'), where('done', '==', false)), []);
-  const activityQ = useMemo(() => query(collection(db, 'activity'), orderBy('at', 'desc'), limit(50)), []);
-  const historyQ = useMemo(() => query(collection(db, 'history'), where(documentId(), '>=', dayKey(30))), []);
-  const cooksRaw = useCollection<Cook>(cooksQ);
-  const runsRaw = useCollection<Run>(runsQ);
-  const activityRaw = useCollection<Activity>(activityQ);
-  const historyRaw = useCollection<DayHistory>(historyQ);
-  const yieldsRaw = useCollection<{ id: string; samples?: YieldSample[] }>('yields');
-  const supplies = useDoc<Partial<Record<SupplyKey, number>> & { id: string }>('supplies/lab');
-  const settings = useDoc<NarcoticsSettings & { id: string }>('settings/narcotics');
+  const hqLocations = useCollection<OpsLocation>('locations');
+  const hqStock = useCollection<StockDoc>('stock');
+  const nStock = useNoel<Record<string, NoelBucket>>('stock');
+  const nStashes = useNoel<Record<string, NoelStash>>('stashes');
+  const nGrows = useNoel<Record<string, NoelGrow>>('locations');
+  const nMain = useNoel<{ name?: string; excludeTotals?: boolean }>('settings/mainStash');
+  // If NoelOps doesn't answer, don't hold the page forever: show the HQ side and say so.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
   const [crewFilter, setCrewFilter] = useState<'mine' | 'all'>(() => {
     try {
       return localStorage.getItem('hq_narc_filter') === 'mine' ? 'mine' : 'all';
@@ -149,8 +129,24 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const noelLoaded = [nStock, nStashes, nGrows, nMain].every((x) => x.data !== undefined);
+  const noelDown = [nStock, nStashes, nGrows, nMain].some((x) => x.error) || (!noelLoaded && slow);
+
   const value = useMemo<Narcotics>(() => {
-    const locations = [...(locationsRaw ?? [])].sort(
+    const stashes = nStashes.data ?? {};
+    const grows = nGrows.data ?? {};
+    const buckets = nStock.data ?? {};
+    setKnownBuckets([...Object.keys(stashes).map((id) => `%h${id}`), ...Object.keys(grows)]);
+
+    const extras = new Map((hqLocations ?? []).map((l) => [l.id, l]));
+    const fromNoel = noelPlaces(nMain.data, stashes, grows).map((l) => {
+      const x = extras.get(l.id);
+      return x ? { ...l, crewId: x.crewId ?? null, postal: l.kind === 'grow' ? l.postal : x.postal } : l;
+    });
+    const noelIds = new Set(fromNoel.map((l) => l.id));
+    // Places only the HQ has (items only, or drugs kept the old way).
+    const hqOnly = (hqLocations ?? []).filter((l) => !noelIds.has(l.id) && !noelShaped(l.id));
+    const locations = [...fromNoel, ...hqOnly].sort(
       (a, b) =>
         (a.id === MAIN_STASH ? -1 : b.id === MAIN_STASH ? 1 : 0) ||
         (a.kind === b.kind ? 0 : a.kind === 'stash' ? -1 : 1) ||
@@ -158,45 +154,35 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         (a.postal ?? a.name).localeCompare(b.postal ?? b.name),
     );
     const locById = new Map(locations.map((l) => [l.id, l]));
-    const stock = new Map((stockRaw ?? []).map((s) => [s.id, s]));
+
+    const hqStockById = new Map((hqStock ?? []).map((s) => [s.id, s]));
+    const stock = new Map<string, StockDoc>();
+    for (const l of locations) {
+      const hq = hqStockById.get(l.id);
+      if (noelIds.has(l.id)) {
+        const key = l.id === MAIN_STASH ? NOEL_MAIN : l.id.startsWith('noel_') ? `%h${l.id.slice(5)}` : Object.keys(grows).find((k) => hqIdOf(k) === l.id);
+        const drugs = key ? buckets[key] : undefined;
+        stock.set(l.id, { ...(drugs ?? {}), id: l.id, items: hq?.items ?? {} });
+      } else if (hq) stock.set(l.id, hq);
+    }
+
     const mine = new Set(myCrews.map((c) => c.id));
     const visible = (l: OpsLocation) => crewFilter === 'all' || !mine.size || !l.crewId || mine.has(l.crewId);
     const hasStock = (id: string) => {
       const t = sumStock([stock.get(id)]);
-      return t.bricks + t.trimmed + t.untrimmed + t.coca + t.cokeSmall + t.cokeLarge + t.meth > 0;
+      return t.bricks + t.trimmed + t.untrimmed + t.coca + t.cokeSmall + t.cokeLarge + t.meth > 0 || Object.values(stock.get(id)?.items ?? {}).some((v) => toCount(v));
     };
     const counted = locations.filter((l) => !l.excludeTotals).map((l) => stock.get(l.id));
-    const yields = Object.fromEntries((yieldsRaw ?? []).map((y) => [y.id, y.samples ?? []]));
-    const strainYield = (id: StrainId): Yield => {
-      const samples = [...(yields[id] ?? [])].sort((a, b) => b.at - a.at).slice(0, YIELD_SAMPLES_KEEP);
-      if (!samples.length) return { avg: DEFAULT_BUD_PER_POT, min: DEFAULT_POT_RANGE[0], max: DEFAULT_POT_RANGE[1], samples: 0 };
-      const perPot = samples.map((x) => x.buds / x.pots);
-      const buds = samples.reduce((s, x) => s + x.buds, 0);
-      const pots = samples.reduce((s, x) => s + x.pots, 0);
-      return { avg: buds / pots, min: Math.min(...perPot), max: Math.max(...perPot), samples: samples.length };
-    };
-    const { supplyLow = {}, cokeRecipe } = settings ?? {};
-    const { id: _ignored, ...supplyCounts } = supplies ?? { id: '' };
-    void _ignored;
     return {
-      ready: !!locationsRaw && !!stockRaw && !!cooksRaw && !!runsRaw && supplies !== undefined && settings !== undefined,
+      ready: !!hqLocations && !!hqStock && (noelLoaded || noelDown),
+      noelDown,
       locations,
       locById,
-      grows: locations.filter((l) => l.kind === 'grow'),
       storage: locations.filter((l) => l.kind === 'stash' || l.storage || hasStock(l.id)),
       stock,
-      cooks: [...(cooksRaw ?? [])].sort((a, b) => (a.at?.toMillis() ?? now) - (b.at?.toMillis() ?? now)),
-      runs: [...(runsRaw ?? [])].sort((a, b) => (a.at?.toMillis() ?? now) - (b.at?.toMillis() ?? now)),
-      supplies: supplyCounts,
-      supplyLow,
-      recipe: cokeRecipe ?? DEFAULT_COKE_RECIPE,
-      activity: activityRaw ?? [],
-      history: new Map((historyRaw ?? []).map((h) => [h.id, h])),
+      noelGrows: grows,
       totals: sumStock(counted),
       totalsFor: (ids) => sumStock(ids.map((id) => stock.get(id))),
-      strainYield,
-      learnedStrains: STRAINS.filter((s) => (yields[s.id] ?? []).length).length,
-      yields,
       crewFilter,
       setCrewFilter: (f) => {
         setCrewFilter(f);
@@ -207,14 +193,13 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         }
       },
       visible,
-      now,
       locLabel: (id) => {
         const l = locById.get(id);
         if (!l) return 'a removed location';
         return l.kind === 'grow' ? `Postal ${l.postal ?? l.name}` : l.name;
       },
     };
-  }, [locationsRaw, stockRaw, cooksRaw, runsRaw, activityRaw, historyRaw, yieldsRaw, supplies, settings, crewFilter, myCrews, now]);
+  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter, myCrews]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

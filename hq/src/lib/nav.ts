@@ -15,6 +15,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react';
+import { NOELOPS_URL } from './noelops';
 import type { PageId } from './types';
 
 export interface NavItem {
@@ -23,6 +24,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Access is checked against this page. Absent means always open. */
   page?: PageId;
+  /** Opens another site in a new tab instead of a page here. */
+  href?: string;
 }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
@@ -37,7 +40,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Ops',
     items: [
-      { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics' },
+      { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics', href: NOELOPS_URL },
       { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
     ],
   },
@@ -67,12 +70,9 @@ export const HEADER_NAV: NavItem[] = [
 
 export const ADMIN_NAV: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck };
 
-/**
- * Narcotics wears the full NoelOps look (its own stylesheet, scoped to .noel);
- * the BlackMarket keeps its red on black. Everything else is gold.
- */
-export type PageTheme = 'gold' | 'noel' | 'blackmarket';
+/** The BlackMarket keeps NoelOps' layout (its stylesheet, scoped to .noel) in the HQ's gold. Everything else is gold. */
+export type PageTheme = 'gold' | 'blackmarket';
 export function themeFor(path: string): PageTheme {
-  if (path.startsWith('/narcotics') || path.startsWith('/blackmarket')) return 'noel';
+  if (path.startsWith('/blackmarket')) return 'blackmarket';
   return 'gold';
 }

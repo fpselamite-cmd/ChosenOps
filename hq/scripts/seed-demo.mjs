@@ -148,29 +148,49 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const sign = { _by: ids['Don Vito'], _via: 'rank' };
   const H = 3600_000;
   const loc = (id, data) => setDoc(doc(db, 'locations', id), { crewId: null, excludeTotals: false, ...data, ...sign });
-  await loc('main', { kind: 'stash', name: 'Main Stash', postal: '8021', order: 0, note: 'The vault under the club. Gang-wide.' });
-  await loc('basement', { kind: 'stash', name: "Tempest's Basement", postal: '9359', crewId: 'cook', order: 1, note: 'Keep it light in case of raids.' });
-  await loc('lockup', { kind: 'stash', name: 'Docks Lockup', postal: '10060', crewId: 'hit', order: 2 });
-  const grow = (id, postal, name, crewId, startedHoursAgo, plan, extra = {}) =>
-    loc(id, {
-      kind: 'grow', postal, name, crewId, durationHours: 36, pots: 10, stashTo: 'main', storage: false, alertSent: startedHoursAgo !== null && startedHoursAgo >= 36,
-      startTime: startedHoursAgo === null ? null : Timestamp.fromMillis(now - startedHoursAgo * H), strainPots: plan, order: 10, ...extra,
-    });
-  await grow('g7078', '7078', 'Leon VW', 'grow', 22, { acapulco: 3, dosidos: 3, gelato41: 2, nl: 2 });
-  await grow('g9182', '9182', 'Leon JT', 'grow', 37, { skunk1: 4, ogkush: 3, rainbow: 3 });
-  await grow('g10060', '10060', 'Benny Docks', null, null, {});
-  await grow('g9043', '9043', 'Jay 1', 'grow', 7, { lemonskunk: 5, columbian: 5 }, { storage: true });
+  // Stash houses and grows live in NoelOps; the HQ keeps its extras (crew, postal) and the items.
+  await loc('main', { kind: 'stash', name: 'Main Stash', postal: '8021', order: 0 });
+  await loc('noel_basement', { kind: 'stash', name: "Tempest's Basement", postal: '9359', crewId: 'cook' });
+  await loc('noel_lockup', { kind: 'stash', name: 'Docks Lockup', postal: '10060', crewId: 'hit' });
+  for (const g of ['g7078', 'g9182', 'g9043']) await loc(g, { kind: 'grow', name: g, crewId: 'grow' });
   const bud = (bricks, trimmed, untrimmed) => ({ bricks, trimmed, untrimmed });
   await setDoc(doc(db, 'stock', 'main'), {
-    acapulco: bud(4, 8750, 2856), columbian: bud(1, 1750, 1290), dosidos: bud(9, 20500, 3894), skunk1: bud(2, 1250, 1649), ogkush: bud(3, 6500, 1356),
-    afghani: bud(1, 1250, 1144), rainbow: bud(8, 1750, 1596), nl: bud(3, 18500, 3628), lemonskunk: bud(5, 1750, 1457), gelato41: bud(2, 9500, 2926),
-    coca: 6200, cokeSmall: 3, cokeLarge: 1, meth: 4,
     items: { g_50_pistol: 6, g_carbine_rifle: 3, w_mk18_rifle: 2, w_m700_rifle: 1, a_block_17_pistol__b17_20rd_extended: 8, a_mk18_rifle__mk18_ta02_acog: 4, ammo_5_56x45mm_box: 6, ammo_5_56x45mm_rnd: 1200, ammo_9x19mm_box: 10, ammo_12_gauge_box: 4, ar_class_iii_armor: 10, ar_armor_plate: 24, s_weapon_repair_kit: 5, m_knife: 3, lockpick: 15 },
     ...sign,
   });
-  await setDoc(doc(db, 'stock', 'basement'), { meth: 3, coca: 0, items: { g_50_pistol: 2, ar_class_iii_armor: 4 }, ...sign });
-  await setDoc(doc(db, 'stock', 'lockup'), { cokeSmall: 2, items: { g_carbine_rifle: 4, g_smg: 2, ammo_5_56x45mm_rnd: 800, a_block_17_pistol__b17_20rd_extended: 6 }, nl: bud(2, 0, 0), ...sign });
-  await setDoc(doc(db, 'stock', 'g9043'), { lemonskunk: bud(0, 0, 1980), ...sign });
+  await setDoc(doc(db, 'stock', 'noel_basement'), { items: { g_50_pistol: 2, ar_class_iii_armor: 4 }, ...sign });
+  await setDoc(doc(db, 'stock', 'noel_lockup'), { items: { g_carbine_rifle: 4, g_smg: 2, ammo_5_56x45mm_rnd: 800, a_block_17_pistol__b17_20rd_extended: 6 }, ...sign });
+
+  // NoelOps' own database (the Realtime Database emulator): places, drug stock, cooks and runs.
+  const growRec = (id, alias, startedHoursAgo, plan, extra = {}) => ({
+    id, alias, durationHours: 36, pots: 10, startTime: startedHoursAgo === null ? null : now - startedHoursAgo * H, harvestAlertSent: false, strainPots: plan, storage: false, stashTo: '%stash', excludeTotals: false, order: 0, ...extra,
+  });
+  const noel = {
+    settings: { mainStash: { name: 'Main Stash', excludeTotals: false } },
+    stashes: { basement: { name: "Tempest's Basement", note: 'Keep it light in case of raids.', excludeTotals: false, order: 1 }, lockup: { name: 'Docks Lockup', note: '', excludeTotals: false, order: 2 } },
+    locations: {
+      7078: growRec('7078', 'Leon VW', 22, { acapulco: 3, dosidos: 3, gelato41: 2, nl: 2 }),
+      9182: growRec('9182', 'Leon JT', 37, { skunk1: 4, ogkush: 3, rainbow: 3 }),
+      10060: growRec('10060', 'Benny Docks', null, {}),
+      9043: growRec('9043', 'Jay 1', 7, { lemonskunk: 5, columbian: 5 }, { storage: true }),
+    },
+    stock: {
+      '%stash': {
+        acapulco: bud(4, 8750, 2856), columbian: bud(1, 1750, 1290), dosidos: bud(9, 20500, 3894), skunk1: bud(2, 1250, 1649), ogkush: bud(3, 6500, 1356),
+        afghani: bud(1, 1250, 1144), rainbow: bud(8, 1750, 1596), nl: bud(3, 18500, 3628), lemonskunk: bud(5, 1750, 1457), gelato41: bud(2, 9500, 2926),
+        coca: 6200, cokeSmall: 3, cokeLarge: 1, meth: 4,
+      },
+      '%hbasement': { meth: 3, coca: 0 },
+      '%hlockup': { cokeSmall: 2, nl: bud(2, 0, 0) },
+      9043: { lemonskunk: bud(0, 0, 1980) },
+    },
+    cooks: { c1: { who: 'Nico Bruno', size: 5, mins: 90, ts: now - 40 * 60000 } },
+    runs: { r1: { who: 'Rocco Vale', crew: 'Hit squad', size: 'small', n: 2, mins: 120, ts: now - 30 * 60000 } },
+  };
+  const RULES = readFileSync(new URL('../noelops.rules.json', import.meta.url), 'utf8');
+  await fetch('http://127.0.0.1:9000/.settings/rules.json?ns=noelops-default-rtdb', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: RULES });
+  const rtdb = await fetch('http://127.0.0.1:9000/noelops.json?ns=noelops-default-rtdb', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(noel) });
+  if (!rtdb.ok) throw new Error(`NoelOps emulator: ${rtdb.status} ${await rtdb.text()}`);
   // The family's item catalog (src/data/catalog.json), plus a lockpick that isn't in it.
   const CATALOG = JSON.parse(readFileSync(new URL('../src/data/catalog.json', import.meta.url), 'utf8'));
   for (let i = 0; i < CATALOG.length; i += 400) {
@@ -205,11 +225,11 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   // BlackMarket books
   const D = 86400_000;
   const sales = [
-    ['dosidos', 2, 'main', 'Main Stash', 'Lena Russo', 20, 38000, 2], ['meth', 1, 'basement', "Tempest's Basement", 'Nico Bruno', 20, 26000, 5],
-    ['cokeSmall', 2, 'lockup', 'The Lockup', 'Rocco Vale', 25, 44000, 9], ['nl', 3, 'main', 'Main Stash', 'Marco Gallo', 20, 51000, 20],
+    ['dosidos', 2, 'main', 'Main Stash', 'Lena Russo', 20, 38000, 2], ['meth', 1, 'noel_basement', "Tempest's Basement", 'Nico Bruno', 20, 26000, 5],
+    ['cokeSmall', 2, 'noel_lockup', 'Docks Lockup', 'Rocco Vale', 25, 44000, 9], ['nl', 3, 'main', 'Main Stash', 'Marco Gallo', 20, 51000, 20],
     ['acapulco', 1, 'main', 'Main Stash', 'Kira Lane', 15, 17500, 30], ['ogkush', 2, 'main', 'Main Stash', 'Lena Russo', 20, null, 50],
     ['cokeLarge', 1, 'main', 'Main Stash', 'Don Vito', 30, 61000, 70], ['rainbow', 4, 'main', 'Main Stash', 'Marco Gallo', 20, 70000, 26 * 24],
-    ['dosidos', 3, 'main', 'Main Stash', 'Kira Lane', 15, 54000, 52 * 24], ['meth', 2, 'basement', "Tempest's Basement", 'Jax Holt', 15, 50000, 75 * 24],
+    ['dosidos', 3, 'main', 'Main Stash', 'Kira Lane', 15, 54000, 52 * 24], ['meth', 2, 'noel_basement', "Tempest's Basement", 'Jax Holt', 15, 50000, 75 * 24],
   ];
   for (const [i, [product, qty, from, fromLabel, who, cut, price, hoursAgo]] of sales.entries())
     await setDoc(doc(db, 'sales', `s${i}`), { product, qty, from, fromLabel, sellerId: ids[who], sellerName: who, cut, price, narco: i === 1, note: i === 2 ? 'Pier buyer' : '', byName: who, at: Timestamp.fromMillis(now - hoursAgo * H), ...sign });
@@ -242,7 +262,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
   await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo_5_56x45mm_box: 4, ammo_5_56x45mm_rnd: 400, ammo_50_bmg_box: 1, w_m700_rifle: 1 }, ...sign });
   await setDoc(doc(db, 'signouts', 'so0'), { memberId: vito, memberName: 'Don Vito', fromLoc: 'main', fromLabel: 'Main Stash', storageId: 'home', thing: { field: 'meth', item: 'g_carbine_rifle', qty: 1, label: 'Carbine Rifle' }, status: 'out', at: Timestamp.fromMillis(now - 3 * H) });
-  await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'lockup', fromLabel: 'The Lockup', storageId: 'onme', thing: { field: 'meth', item: 'g_smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
+  await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'noel_lockup', fromLabel: 'Docks Lockup', storageId: 'onme', thing: { field: 'meth', item: 'g_smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
   await setDoc(doc(db, 'trades', 'tr0'), { from: ids['Rocco Vale'], fromName: 'Rocco Vale', fromStorage: 'onme', to: vito, toName: 'Don Vito', thing: { field: 'meth', item: 'a_block_17_pistol__b17_20rd_extended', qty: 2, label: 'Extended Mag' }, note: 'For your carbine, boss', status: 'pending', at: Timestamp.fromMillis(now - 40 * 60_000) });
 
   // Trophies and keepsake cabinets

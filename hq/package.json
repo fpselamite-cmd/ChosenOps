@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-chosenops",
+    "emulators": "firebase emulators:start --only auth,firestore,database --project demo-chosenops",
     "test:rules": "firebase emulators:exec --only firestore --project demo-chosenops \"vitest run\"",
     "seed:demo": "node scripts/seed-demo.mjs"
   },
