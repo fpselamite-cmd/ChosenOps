@@ -778,6 +778,15 @@ describe('owners and admins', () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'crews/new'), { name: 'New', tag: 'NEW', color: '#fff', leaderId: null, memberIds: [] }));
     await assertFails(updateDoc(doc(as('sol'), 'members/boss'), { status: 'suspended' }));
   });
+  it('lets an admin step down from the top rank, never up into it; owners can fill it', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/boss'), { admin: true }));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/sol'), { admin: true }));
+    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'members/boss'), { rankId: 'soldier' }));
+    await assertFails(updateDoc(doc(as('capo'), 'members/sol'), { rankId: 'boss' }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'members/boss'), { rankId: 'boss' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'members/capo'), { rankId: 'nope' }));
+  });
   it('only owners grant or take away admin; the Boss cannot', async () => {
     await assertSucceeds(updateDoc(doc(as('sol2'), 'members/sol'), { admin: true }));
     await assertFails(updateDoc(doc(as('boss'), 'members/sol'), { admin: false }));

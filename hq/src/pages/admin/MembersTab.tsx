@@ -337,7 +337,7 @@ function MemberTools({ m, onClose }: { m: Member; onClose: () => void }) {
 }
 
 export default function MembersTab() {
-  const { members, ranks, rankById, actsOn, me, can, roster, isAdmin } = useHub();
+  const { members, ranks, rankById, actsOn, me, can, roster, isAdmin, isOwner } = useHub();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<Member | null>(null);
   const grantable = ranks.filter((r) => actsOn(r));
@@ -372,6 +372,9 @@ export default function MembersTab() {
               const self = m.id === me.id;
               // Admin is out-of-character: an admin may set their own in-character rank (not the top one).
               const manage = can('manageMembers') && (self ? isAdmin && rank?.order !== 0 : actsOn(rank));
+              // Rank alone: an admin can set their own (even stepping off the top rank); owners can set anyone's, top rank included.
+              const rankable = manage || isOwner || (self && isAdmin);
+              const choices = isOwner ? ranks : [...(rank && !grantable.includes(rank) ? [rank] : []), ...grantable];
               return (
                 <tr key={m.id} className={m.status === 'suspended' ? 'opacity-50' : ''}>
                   <td className="px-4 py-2.5">
@@ -386,16 +389,17 @@ export default function MembersTab() {
                     </span>
                   </td>
                   <td className="px-2">
-                    {manage ? (
+                    {rankable ? (
                       <select
                         className="input py-1"
                         value={m.rankId ?? ''}
                         onChange={(e) => {
+                          if (self && rank?.order === 0 && !isOwner && !confirm(`Step down from ${rank.name}? Only an HQ owner can put someone back at the top rank.`)) return;
                           const up = (rankById.get(e.target.value)?.order ?? 99) < (rankById.get(m.rankId ?? '')?.order ?? 99);
                           void setRank(m.id, e.target.value, up && !self).then(() => log(`${up ? 'Promoted' : 'Moved'} ${m.name} to ${rankById.get(e.target.value)?.name}`, m.id));
                         }}
                       >
-                        {grantable.map((r) => (
+                        {choices.map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.name}
                           </option>
