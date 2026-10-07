@@ -19,6 +19,7 @@ import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { Logo, ToastProvider, useToast } from '../noel/ui';
 import { WishlistButton } from '../components/WishlistButton';
+import { WashingMachine } from '../components/WashingMachine';
 import { useLists } from '../lib/adminData';
 
 type View = 'sell' | 'money' | 'wish' | 'washing';
@@ -955,7 +956,8 @@ export function WashingView() {
   const { me } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
-  const open = m.washReqs.filter((w) => w.status === 'open' || w.status === 'claimed');
+  const mineNow = m.washReqs.filter((w) => w.status === 'claimed' && w.claimerId === me.id);
+  const open = m.washReqs.filter((w) => w.status === 'open' || (w.status === 'claimed' && w.claimerId !== me.id));
   const done = m.washReqs.filter((w) => w.status === 'done');
   const row = (w: WashRequest) => (
     <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
@@ -982,7 +984,9 @@ export function WashingView() {
             </button>
           </span>
         ) : (
-          <span className="chip bg-sky-500/20 px-2 py-0.5 text-[11px] text-sky-300">{w.claimerName} is washing it</span>
+          <span className="chip bg-sky-500/20 px-2 py-0.5 text-[11px] text-sky-300">
+            {w.claimerName} is washing it{w.timerEnd && w.timerEnd.toMillis() > Date.now() ? ` · ~${Math.ceil((w.timerEnd.toMillis() - Date.now()) / 60000)}m left` : ''}
+          </span>
         ))}
     </li>
   );
@@ -993,6 +997,15 @@ export function WashingView() {
         <Stat label="Washed · 7 days" value={money(done.filter((w) => (w.doneAt?.toMillis() ?? 0) > Date.now() - 7 * DAY).reduce((t, w) => t + w.dirty, 0))} sub="Dirty in" />
         <Stat label="Rate" value={`${100 - m.washPct}% back`} sub="Set in BlackMarket settings" />
       </div>
+      {mineNow.length > 0 && (
+        <Panel title={`Your machines · ${mineNow.length}`}>
+          <div className="flex flex-wrap justify-center gap-5 sm:justify-start">
+            {mineNow.map((w) => (
+              <WashingMachine key={w.id} w={w} onTimer={(mins) => void mops.washTimer(w, mins)} onDone={() => void mops.washStep(w, 'done')} onLetGo={() => void mops.washStep(w, 'unclaim')} />
+            ))}
+          </div>
+        </Panel>
+      )}
       <Panel title="Wash queue">
         {open.length ? <ul className="divide-y divide-line-soft">{open.map(row)}</ul> : <p className="text-sm text-smoke">Nothing to wash right now.</p>}
       </Panel>

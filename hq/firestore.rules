@@ -561,17 +561,22 @@ service cloud.firestore {
         && request.resource.data.dirty is int && request.resource.data.dirty > 0
         && request.resource.data.pct is int && request.resource.data.pct >= 0 && request.resource.data.pct <= 100
         && request.resource.data.clean is int && request.resource.data.clean >= 0 && request.resource.data.clean <= request.resource.data.dirty;
+      // Cheap field checks first, then the washer power (it costs reads).
       allow update: if active() && (
         // A washer claims an open one, lets go of their own, or finishes their own.
-        (can('washMoney') && onlyChanges(['status', 'claimerId', 'claimerName']) && resource.data.status == 'open'
-          && request.resource.data.status == 'claimed' && request.resource.data.claimerId == myId())
-        || (can('washMoney') && onlyChanges(['status', 'claimerId', 'claimerName']) && resource.data.status == 'claimed'
-          && resource.data.claimerId == myId() && request.resource.data.status == 'open' && request.resource.data.claimerId == null)
-        || (can('washMoney') && onlyChanges(['status', 'doneAt']) && resource.data.status == 'claimed'
-          && resource.data.claimerId == myId() && request.resource.data.status == 'done' && request.resource.data.doneAt == request.time)
-        // The member cancels one nobody has claimed yet.
-        || ((wasMine('memberId') || (resource.data.memberId == 'gang' && can('money'))) && onlyChanges(['status', 'doneAt']) && resource.data.status == 'open'
-          && request.resource.data.status == 'cancelled' && request.resource.data.doneAt == request.time));
+        (resource.data.status == 'open' && request.resource.data.status == 'claimed' && request.resource.data.claimerId == myId()
+          && onlyChanges(['status', 'claimerId', 'claimerName']) && can('washMoney'))
+        || (resource.data.status == 'claimed' && request.resource.data.status == 'open' && request.resource.data.claimerId == null
+          && resource.data.claimerId == myId() && onlyChanges(['status', 'claimerId', 'claimerName', 'timerMins', 'timerEnd']) && can('washMoney'))
+        || (resource.data.status == 'claimed' && request.resource.data.status == 'done' && resource.data.claimerId == myId()
+          && request.resource.data.doneAt == request.time && onlyChanges(['status', 'doneAt']) && can('washMoney'))
+        // The washer sets (or clears) a timer on the machine for a wash they've claimed.
+        || (resource.data.status == 'claimed' && resource.data.claimerId == myId() && onlyChanges(['timerEnd', 'timerMins'])
+          && (request.resource.data.timerMins == null || (request.resource.data.timerMins is int && request.resource.data.timerMins > 0 && request.resource.data.timerMins <= 240))
+          && can('washMoney'))
+        // The member cancels one nobody has claimed yet (the Treasurer, for the gang's).
+        || (resource.data.status == 'open' && request.resource.data.status == 'cancelled' && request.resource.data.doneAt == request.time
+          && onlyChanges(['status', 'doneAt']) && (wasMine('memberId') || (resource.data.memberId == 'gang' && can('money')))));
     }
     // Payouts and expenses. A member can see payouts made to them.
     match /ledger/{id} {

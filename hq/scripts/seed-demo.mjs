@@ -567,15 +567,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const etDay = (back) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(now - back * 86400_000));
   const wdNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })).getDay();
   const sun = (k) => etDay(wdNow + 7 * k);
-  const byRank = { boss: { rep: 500, clean: 10000, dirty: 15000 }, consigliere: { rep: 400, clean: 8000, dirty: 12000 }, underboss: { rep: 400, clean: 8000, dirty: 12000 }, treasurer: { rep: 300, clean: 6000, dirty: 10000 }, caporegime: { rep: 300, clean: 6000, dirty: 10000 }, lieutenant: { rep: 200, clean: 4000, dirty: 6000 }, enforcer: { rep: 100, clean: 2000, dirty: 3000 }, soldier: { rep: 100, clean: 2000, dirty: 3000 }, associate: { rep: 50, clean: 1000, dirty: 1500 } };
+  const byRank = { boss: { rep: 500, clean: 10000, dirty: 15000 }, consigliere: { rep: 400, clean: 8000, dirty: 12000 }, underboss: { rep: 400, clean: 8000, dirty: 12000 }, treasurer: { rep: 300, clean: 6000, dirty: 10000 }, caporegime: { rep: 300, clean: 6000, dirty: 10000 }, lieutenant: { rep: 200, clean: 4000, dirty: 6000 }, enforcer: { rep: 100, clean: 2000, dirty: 3000 }, soldier: { rep: 100, clean: 2000, dirty: 3000 } };
   await setDoc(doc(db, 'settings', 'dues'), { day: 0, byRank });
-  const owe = Object.fromEntries(PEOPLE.filter(([n]) => n !== 'Tommy Reyes').map(([n, r]) => [ids[n], byRank[r]]));
+  const owe = Object.fromEntries(PEOPLE.filter(([n, r]) => n !== 'Tommy Reyes' && r !== 'associate').map(([n, r]) => [ids[n], byRank[r]]));
   for (const k of [0, 1, 2]) await setDoc(doc(db, 'duesWeeks', sun(k)), { owe, excused: k === 0 ? { [ids['Ghost']]: true } : {}, at: Timestamp.fromMillis(now - (wdNow + 7 * k) * 86400_000) });
   let dp = 0;
   const pay = async (who, week, cash, amount, status) => setDoc(doc(db, 'duesPay', `dp${dp++}`), { memberId: ids[who], week, cash, amount, status, cashId: 'seed', at: Timestamp.fromMillis(now - 3 * H) });
   const tr = async (who, week, amount, status) => setDoc(doc(db, 'repTransfers', `dues${dp++}`), { memberId: ids[who], amount, status, dues: week, at: Timestamp.fromMillis(now - 2 * H), ...(status === 'confirmed' ? { decidedBy: vito } : {}) });
   for (const k of [1, 2]) for (const [n, r] of PEOPLE) {
-    if (n === 'Tommy Reyes' || (k === 1 && n === 'Kira Lane')) continue;
+    if (n === 'Tommy Reyes' || r === 'associate' || (k === 1 && n === 'Kira Lane')) continue;
     await pay(n, sun(k), 'clean', byRank[r].clean, 'confirmed');
     if (!(k === 1 && n === 'Rocco Vale')) await pay(n, sun(k), 'dirty', byRank[r].dirty, 'confirmed');
     await tr(n, sun(k), byRank[r].rep, 'confirmed');
@@ -600,6 +600,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'payouts', 'po1'), { memberId: ids['Rocco Vale'], memberName: 'Rocco Vale', cash: 'dirty', amount: 8000, reason: 'Loot from the docks blacksite', status: 'owed', by: vito, at: Timestamp.fromMillis(now - 10 * H) });
   await setDoc(doc(db, 'payouts', 'po2'), { memberId: vito, memberName: 'Don Vito', cash: 'clean', amount: 5000, reason: 'Fronted the plates', status: 'sent', by: vito, at: Timestamp.fromMillis(now - 8 * H) });
   await setDoc(doc(db, 'spendRequests', 'sr1'), { by: ids['Kira Lane'], byName: 'Kira Lane', cash: 'dirty', amount: 6000, category: 'Supplies', why: 'Radios and lockpicks for the next run', status: 'open', at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'washRequests', 'gw2'), { memberId: 'gang', memberName: 'The gang', dirty: 30000, pct: 50, clean: 15000, status: 'claimed', claimerId: vito, claimerName: 'Don Vito', note: 'Gang money', timerMins: 15, timerEnd: Timestamp.fromMillis(now + 9 * 60_000), at: Timestamp.fromMillis(now - 2 * H) });
+  await setDoc(doc(db, 'washRequests', 'gw3'), { memberId: ids['Rocco Vale'], memberName: 'Rocco Vale', dirty: 12000, pct: 50, clean: 6000, status: 'claimed', claimerId: vito, claimerName: 'Don Vito', note: '', at: Timestamp.fromMillis(now - 1 * H) });
   await setDoc(doc(db, 'washRequests', 'gw1'), { memberId: 'gang', memberName: 'The gang', dirty: 40000, pct: 50, clean: 20000, status: 'done', claimerId: ids['Marco Gallo'], claimerName: 'Marco Gallo', note: 'Gang money', at: Timestamp.fromMillis(now - 30 * H), doneAt: Timestamp.fromMillis(now - 26 * H) });
 
   // Admin: editable lists, a price history, the feed, and a welcome note.

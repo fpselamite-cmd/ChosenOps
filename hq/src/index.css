@@ -1651,3 +1651,48 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .dues-ring > div { width: 5.8rem; height: 5.8rem; border-radius: 9999px; background: #0a0905; display: grid; place-items: center; text-align: center; align-content: center; }
 .money-bank.dirty { background: linear-gradient(135deg, rgba(127, 29, 29, 0.25), rgba(10, 9, 7, 0.9) 60%); }
 .money-bank.clean { background: linear-gradient(135deg, rgba(6, 78, 59, 0.3), rgba(10, 9, 7, 0.9) 60%); }
+
+/* ---------- Washing machine ---------- */
+.washer {
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 0.9rem; width: 13rem;
+  border-radius: 1rem; border: 1px solid rgba(186, 230, 253, 0.25);
+  background: linear-gradient(180deg, #e8edf2 0 18%, #c9d2db 18% 19%, #dfe5ec 19%); color: #1f2937;
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12), 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+.washer .text-smoke { color: #64748b; }
+.washer .text-red-300 { color: #b91c1c; }
+.washer .text-emerald-200 { color: #047857; }
+.washer-info { text-align: center; font-size: 0.8rem; }
+.washer-top { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+.washer-display { flex: 1; background: #0b1220; color: #67e8f9; border-radius: 0.35rem; padding: 0.15rem 0.5rem; font-size: 0.9rem; text-shadow: 0 0 6px #22d3ee; letter-spacing: 0.1em; }
+.washer.finished .washer-display { color: #86efac; text-shadow: 0 0 8px #22c55e; animation: status-blink 1s infinite; }
+.washer-led { width: 0.6rem; height: 0.6rem; border-radius: 9999px; background: #94a3b8; }
+.washer-led.on { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+.washer-led.done { background: #22c55e; box-shadow: 0 0 10px #22c55e; animation: status-blink 0.8s infinite; }
+.washer-knob { width: 1.4rem; height: 1.4rem; border-radius: 9999px; background: radial-gradient(circle, #f8fafc, #94a3b8); position: relative; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.washer-knob::after { content: ''; position: absolute; left: 50%; top: 2px; width: 2px; height: 0.45rem; margin-left: -1px; background: #334155; }
+.washer-door {
+  position: relative; overflow: hidden;
+  width: 8.5rem; height: 8.5rem; border-radius: 9999px; padding: 0.55rem;
+  background: radial-gradient(circle, #cbd5e1 0 60%, #94a3b8 61% 66%, #e2e8f0 67%); box-shadow: inset 0 0 0 3px #64748b, 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.washer-drum {
+  position: relative; width: 100%; height: 100%; border-radius: 9999px; overflow: hidden;
+  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.35), transparent 30%), radial-gradient(circle, #0c4a6e, #082f49 70%);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.7);
+}
+.washer-bill {
+  position: absolute; left: 50%; top: 50%; width: 1.5rem; height: 0.85rem; margin: -0.425rem 0 0 -0.75rem; border-radius: 2px;
+  background: linear-gradient(135deg, #86efac, #16a34a); color: #14532d; font: 700 0.55rem/0.85rem Inter, sans-serif; text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.washer-suds { position: absolute; left: 0.55rem; right: 0.55rem; bottom: 0.55rem; height: 45%; border-radius: 0 0 9999px 9999px; pointer-events: none; background: radial-gradient(circle at 20% 15%, rgba(240,249,255,0.9) 0 7%, transparent 8%), radial-gradient(circle at 45% 8%, rgba(240,249,255,0.85) 0 6%, transparent 7%), radial-gradient(circle at 70% 14%, rgba(224,242,254,0.9) 0 8%, transparent 9%), linear-gradient(180deg, transparent 10%, rgba(125, 211, 252, 0.35) 12%); opacity: 0; transition: opacity 0.6s; }
+.washer.running .washer-drum { animation: washer-spin 1.1s linear infinite; }
+.washer.running .washer-suds { opacity: 1; }
+.washer.running { animation: washer-shake 0.25s ease-in-out infinite; }
+.washer.finished .washer-drum { box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.7), 0 0 18px rgba(34, 197, 94, 0.6); }
+.washer.finished .washer-bill { background: linear-gradient(135deg, #fef9c3, #d4af37); color: #713f12; }
+.washer-ready { animation: safe-breathe 1.4s ease-in-out infinite; }
+@keyframes washer-spin { to { rotate: 360deg; } }
+@keyframes washer-shake { 0%, 100% { translate: 0 0; } 25% { translate: -1px 0.5px; } 75% { translate: 1px -0.5px; } }
+[data-motion='off'] .washer, [data-motion='off'] .washer * { animation: none !important; }

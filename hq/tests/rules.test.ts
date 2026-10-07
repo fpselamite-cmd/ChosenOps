@@ -1020,4 +1020,11 @@ describe('money & dues', () => {
     await assertSucceeds(setDoc(doc(as('capo'), 'duesWeeks/2026-10-11'), { owe: { sol: { rep: 50, clean: 1000, dirty: 2000 } }, excused: {} }));
     await assertSucceeds(setDoc(doc(as('sol'), 'repTransfers/t9'), { memberId: 'sol', amount: 50, status: 'pending', dues: '2026-10-11', at: serverTimestamp() }));
   });
+  it('lets the washer set a timer on a wash they claimed', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', 'sol2'), { roles: ['washer'], perms: { washMoney: true }, pages: {}, lead: false }));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'washRequests', 'w1'), { memberId: 'sol', memberName: 'Sol', dirty: 1000, pct: 50, clean: 500, status: 'claimed', claimerId: 'sol2', claimerName: 'Sol2', note: '' }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'washRequests/w1'), { timerMins: 15, timerEnd: Timestamp.fromMillis(Date.now() + 900000) }));
+    await assertFails(updateDoc(doc(as('sol'), 'washRequests/w1'), { timerMins: 5, timerEnd: Timestamp.fromMillis(Date.now() + 300000) }));
+    await assertFails(updateDoc(doc(as('sol2'), 'washRequests/w1'), { timerMins: 999, timerEnd: null }));
+  });
 });

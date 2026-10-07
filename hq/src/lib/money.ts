@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, setDoc, updateDoc, where, type Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, setDoc, updateDoc, where, Timestamp } from 'firebase/firestore';
 import { useMemo } from 'react';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
@@ -111,6 +111,9 @@ export interface WashRequest {
   note?: string;
   at?: Timestamp;
   doneAt?: Timestamp;
+  /** The washer's machine timer. */
+  timerMins?: number | null;
+  timerEnd?: Timestamp | null;
 }
 
 export interface Wash {
@@ -401,10 +404,13 @@ export function useMoneyOps() {
       addDoc(collection(db, 'washRequests'), {
         memberId: 'gang', memberName: 'The gang', dirty, pct, clean: Math.round((dirty * (100 - pct)) / 100), status: 'open', claimerId: null, claimerName: null, note: note.slice(0, 80), at: serverTimestamp(),
       }),
+    /** The washer starts the machine for `mins` minutes (or stops it). */
+    washTimer: (w: WashRequest, mins: number | null) =>
+      updateDoc(doc(db, 'washRequests', w.id), { timerMins: mins, timerEnd: mins ? Timestamp.fromMillis(Date.now() + mins * 60_000) : null }),
     washStep(w: WashRequest, step: 'claim' | 'unclaim' | 'done' | 'cancel') {
       const ref = doc(db, 'washRequests', w.id);
       if (step === 'claim') return updateDoc(ref, { status: 'claimed', claimerId: me.id, claimerName: me.name });
-      if (step === 'unclaim') return updateDoc(ref, { status: 'open', claimerId: null, claimerName: null });
+      if (step === 'unclaim') return updateDoc(ref, { status: 'open', claimerId: null, claimerName: null, timerMins: null, timerEnd: null });
       if (step === 'done') return updateDoc(ref, { status: 'done', doneAt: serverTimestamp() });
       return updateDoc(ref, { status: 'cancelled', doneAt: serverTimestamp() });
     },

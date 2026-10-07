@@ -25,6 +25,8 @@ const PILL: Record<DueState, string> = {
   none: 'border-line-soft opacity-30 text-smoke',
 };
 const LABEL: Record<DueState, string> = { confirmed: 'confirmed', waiting: 'waiting', partial: 'part paid', owed: 'owed', excused: 'excused', none: '—' };
+/** Associates are still proving themselves: they don't pay dinner dues. */
+export const NO_DUES = (rank?: { id: string; name: string }) => !!rank && (rank.id === 'associate' || rank.name.trim().toLowerCase() === 'associate');
 const dayLabel = (k: string) => new Date(`${k}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 /** High Table: the dinner day and what each rank owes. */
@@ -42,6 +44,7 @@ function DuesSettingsDialog({ current, onClose }: { current: DuesSettings | null
           e.preventDefault();
           const byRank: Record<string, DuesAmounts> = {};
           Object.entries(rows).forEach(([id, v]) => {
+            if (NO_DUES(ranks.find((r) => r.id === id))) return;
             const a = { rep: Number(v.rep) || 0, clean: Number(v.clean) || 0, dirty: Number(v.dirty) || 0 };
             if (a.rep || a.clean || a.dirty) byRank[id] = a;
           });
@@ -73,7 +76,11 @@ function DuesSettingsDialog({ current, onClose }: { current: DuesSettings | null
               {ranks.map((r) => (
                 <tr key={r.id}>
                   <td className="py-1 pr-2 text-gold-100">{r.name}</td>
-                  {KINDS.map((k) => (
+                  {NO_DUES(r) ? (
+                    <td colSpan={3} className="py-1 text-xs text-smoke italic">
+                      Associates don’t pay dues
+                    </td>
+                  ) : KINDS.map((k) => (
                     <td key={k} className="pr-2">
                       <input
                         className="input py-1 font-mono"
@@ -164,11 +171,12 @@ export default function Dues({ b }: { b: Books }) {
     if (!s || !thisWeek || b.weeks.some((w) => w.id === thisWeek) || !(isLead || keeper || treasurer)) return;
     const owe: Record<string, DuesAmounts> = {};
     roster.forEach((m) => {
+      if (NO_DUES(rankById.get(m.rankId ?? ''))) return;
       const a = s.byRank?.[m.rankId ?? ''];
       if (a && (a.rep || a.clean || a.dirty)) owe[m.id] = a;
     });
     if (Object.keys(owe).length) void openDinner(thisWeek, owe).catch(() => {});
-  }, [s, thisWeek, b.weeks, roster, isLead, keeper, treasurer]);
+  }, [s, thisWeek, b.weeks, roster, isLead, keeper, treasurer, rankById]);
 
   if (!b.duesReady) return null;
   if (!s)
