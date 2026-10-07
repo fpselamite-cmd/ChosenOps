@@ -116,7 +116,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(db, 'members', ids[name]), patch, { merge: true });
   }
   const t0 = etParts(now);
-  await setDoc(doc(db, 'members', ids['Don Vito']), { joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 2, 9, 12, 16)) }, { merge: true });
+  await setDoc(doc(db, 'members', ids['Don Vito']), { admin: true, joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 2, 9, 12, 16)) }, { merge: true });
   await setDoc(doc(db, 'members', ids['Sal Moretti']), { joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 1, 9, 9, 16)) }, { merge: true });
 
   // Petty crime
@@ -287,6 +287,17 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'lockerStock', `${vito}__yacht`), { owner: vito, cokeLarge: 1, items: { ammo_5_56x45mm_box: 4, ammo_5_56x45mm_rnd: 400, ammo_50_bmg_box: 1, w_m700_rifle: 1 }, ...sign });
   await setDoc(doc(db, 'signouts', 'so0'), { memberId: vito, memberName: 'Don Vito', fromLoc: 'main', fromLabel: 'Main Stash', storageId: 'home', thing: { field: 'meth', item: 'g_carbine_rifle', qty: 1, label: 'Carbine Rifle' }, status: 'out', at: Timestamp.fromMillis(now - 3 * H) });
   await setDoc(doc(db, 'signouts', 'so1'), { memberId: ids['Tommy Reyes'], memberName: 'Tommy Reyes', fromLoc: 'noel_lockup', fromLabel: 'Docks Lockup', storageId: 'onme', thing: { field: 'meth', item: 'g_smg', qty: 1, label: 'SMG' }, status: 'out', at: Timestamp.fromMillis(now - 9 * H) });
+  // Stash: owners, minimums and values; a reminder to bring something back; the admin move log and a snapshot.
+  await setDoc(doc(db, 'locations', 'main'), { owners: [vito], takeRank: 'soldier', mins: { g_50_pistol: 4, g_carbine_rifle: 5, ar_armor_plate: 30, lockpick: 10, s_weapon_repair_kit: 3 }, values: { g_50_pistol: 4500, g_carbine_rifle: 22000, w_mk18_rifle: 38000, ar_armor_plate: 900, ar_class_iii_armor: 2500, lockpick: 300 } }, { merge: true });
+  await setDoc(doc(db, 'locations', 'noel_lockup'), { createdBy: ids['Rocco Vale'], owners: [ids['Rocco Vale']], seeRank: 'soldier', takeRank: 'lieutenant', mins: { g_smg: 3 }, values: { g_smg: 12000, g_carbine_rifle: 22000 } }, { merge: true });
+  await setDoc(doc(db, 'nudges', 'nd0'), { to: ids['Tommy Reyes'], from: vito, fromName: 'Don Vito', signoutId: 'so1', text: 'Bring the SMG back to the lockup', at: Timestamp.fromMillis(now - 2 * H) });
+  const mv = (id, back, m) => setDoc(doc(db, 'stashLog', id), { at: Timestamp.fromMillis(now - back * H), ...m });
+  await mv('mv0', 30, { kind: 'deposit', by: ids['Rocco Vale'], byName: 'Rocco Vale', from: null, to: 'main', toLabel: 'Main Stash', key: 'ar_armor_plate', label: 'Armor Plate', qty: 12 });
+  await mv('mv1', 9, { kind: 'take', by: ids['Tommy Reyes'], byName: 'Tommy Reyes', from: 'noel_lockup', fromLabel: 'Docks Lockup', to: null, key: 'g_smg', label: 'SMG', qty: 1 });
+  await mv('mv2', 3, { kind: 'take', by: vito, byName: 'Don Vito', from: 'main', fromLabel: 'Main Stash', to: null, key: 'g_carbine_rifle', label: 'Carbine Rifle', qty: 1 });
+  await mv('mv3', 1, { kind: 'transfer', by: vito, byName: 'Don Vito', from: 'main', fromLabel: 'Main Stash', to: 'noel_basement', toLabel: "Tempest's Basement", key: 'g_50_pistol', label: '.50 Pistol', qty: 2 });
+  const yday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(now - 86400_000));
+  await setDoc(doc(db, 'stashSnaps', yday), { day: yday, counts: { main: { g_50_pistol: 8, g_carbine_rifle: 4, ar_armor_plate: 12, lockpick: 15 }, noel_lockup: { g_carbine_rifle: 4, g_smg: 3 } }, at: Timestamp.fromMillis(now - 86400_000) });
   await setDoc(doc(db, 'trades', 'tr0'), { from: ids['Rocco Vale'], fromName: 'Rocco Vale', fromStorage: 'onme', to: vito, toName: 'Don Vito', thing: { field: 'meth', item: 'a_block_17_pistol__b17_20rd_extended', qty: 2, label: 'Extended Mag' }, note: 'For your carbine, boss', status: 'pending', at: Timestamp.fromMillis(now - 40 * 60_000) });
 
   // Trophies and keepsake cabinets

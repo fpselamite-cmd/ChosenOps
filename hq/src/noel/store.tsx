@@ -141,7 +141,9 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     const extras = new Map((hqLocations ?? []).map((l) => [l.id, l]));
     const fromNoel = noelPlaces(nMain.data, stashes, grows).map((l) => {
       const x = extras.get(l.id);
-      return x ? { ...l, crewId: x.crewId ?? null, postal: l.kind === 'grow' ? l.postal : x.postal } : l;
+      return x
+        ? { ...l, crewId: x.crewId ?? null, postal: l.kind === 'grow' ? l.postal : x.postal, createdBy: x.createdBy, owners: x.owners, seeRank: x.seeRank ?? null, takeRank: x.takeRank ?? null, mins: x.mins, values: x.values }
+        : l;
     });
     const noelIds = new Set(fromNoel.map((l) => l.id));
     // Places only the HQ has (items only, or drugs kept the old way).

@@ -19,6 +19,7 @@ import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Kit, type L
 import { addMyCash, money, useMoney, useMoneyOps, type MyCash } from '../lib/money';
 import { collection, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { clearNudges, type Nudge } from '../lib/stash';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
@@ -1110,8 +1111,10 @@ function WashList() {
 function Body() {
   const locker = useLocker();
   const m = useMoney();
-  const { canSee, memberById } = useHub();
+  const { canSee, memberById, me } = useHub();
   const toast = useToast();
+  const nudgeQ = useMemo(() => query(collection(db, 'nudges'), where('to', '==', me.id)), [me.id]);
+  const nudges = useCollection<Nudge>(nudgeQ) ?? [];
   const [taking, setTaking] = useState(false);
   const [trading, setTrading] = useState(false);
   const [packing, setPacking] = useState(false);
@@ -1226,7 +1229,12 @@ function Body() {
                     from {s.fromLabel} · in your {locker.storages.find((x) => x.id === s.storageId)?.name ?? 'locker'} · {ago(s.at)}
                   </span>
                 </span>
-                <button className="btn-gold btn-sm" onClick={() => toast.run(locker.returnSignout(s).then(() => ({ text: `Returned to ${s.fromLabel}.` })))}>
+                <button className="btn-gold btn-sm" onClick={() => toast.run(
+                      locker
+                        .returnSignout(s)
+                        .then(() => clearNudges(nudges.filter((n) => n.signoutId === s.id).map((n) => n.id)))
+                        .then(() => ({ text: `Returned to ${s.fromLabel}.` })),
+                    )}>
                   <Undo2 className="size-3.5" /> Return
                 </button>
                 <button className="btn-ghost btn-sm" onClick={() => confirm('Mark it as lost?') && locker.closeSignout(s, 'lost')}>
