@@ -1321,3 +1321,38 @@ button.gun-dot:hover { transform: scale(1.35); border-color: var(--color-gold-20
 @keyframes kaching-pop { 0% { transform: scale(0.3); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.05); opacity: 0; } }
 html[data-motion='off'] .kaching { display: none; }
 @media (prefers-reduced-motion: reduce) { .kaching { display: none; } }
+
+/* ── Blacksites: location flags on the map ───────────────────── */
+.bs-flag {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: rgba(10, 10, 12, 0.85);
+  color: var(--color-ash);
+  transition: transform 0.15s;
+}
+.bs-flag:hover, .bs-flag.on { transform: scale(1.25); z-index: 2; }
+.bs-flag.win { border-color: var(--color-gold-300); color: var(--color-gold-200); box-shadow: 0 0 12px rgba(212, 175, 55, 0.8); animation: bs-wave 2.4s ease-in-out infinite; }
+.bs-flag.loss { border-color: #f87171; color: #f87171; box-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+.bs-flag.draw { border-color: var(--color-gold-600); color: var(--color-gold-300); }
+.bs-flag-label {
+  position: absolute;
+  top: 110%;
+  left: 50%;
+  translate: -50% 0;
+  white-space: nowrap;
+  padding: 0 5px;
+  background: rgba(5, 5, 5, 0.8);
+  font: 700 10px var(--font-hud);
+  letter-spacing: 0.06em;
+  color: var(--color-gold-100);
+  pointer-events: none;
+}
+@keyframes bs-wave { 50% { box-shadow: 0 0 20px rgba(212, 175, 55, 1); } }
+.bs-streak { background: linear-gradient(90deg, rgba(212, 175, 55, 0.14), transparent 70%); }
+@media (prefers-reduced-motion: reduce) { .bs-flag.win { animation: none; } }
