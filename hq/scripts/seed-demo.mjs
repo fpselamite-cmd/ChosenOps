@@ -388,23 +388,32 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
 
   // Gear & Loadouts: shared builds and character loadouts
-  const build = (id, by, name, weaponId, parts, notes, likes) =>
-    setDoc(doc(db, 'builds', id), { name, weaponId, parts, notes, by: ids[by], byName: by, likes: Object.fromEntries(likes.map((n) => [ids[n], true])), at: Timestamp.fromMillis(now - likes.length * 7 * H) });
+  const TAGS = { bd1: ['Blacksite', 'Defense'], bd2: ['Run', 'CQB'], bd3: ['Long range', 'Blacksite'], bd4: ['Stealth', 'Budget'], bd5: ['CQB'] };
+  const build = (id, by, name, weaponId, parts, notes, likes, pub = true) =>
+    setDoc(doc(db, 'builds', id), { name, weaponId, parts, notes, by: ids[by], byName: by, tags: TAGS[id] ?? [], public: pub, likes: Object.fromEntries(likes.map((n) => [ids[n], true])), saves: id === 'bd1' || id === 'bd3' ? { [vito]: true } : {}, at: Timestamp.fromMillis(now - likes.length * 7 * H) });
   const A = (w, s) => `a_${w}__${s}`;
   await build('bd1', 'Rocco Vale', 'Blacksite rifleman', 'w_mk18_rifle', { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), light: A('mk18_rifle', 'mk18_dbal_a2'), stock: A('mk18_rifle', 'mk18_moe_magpul_black'), frame: A('mk18_rifle', 'mk18_black_frame') }, 'Holds the hill. ACOG for the long lanes at the docks.', ['Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Don Vito']);
   await build('bd2', 'Kira Lane', 'Runner SMG', 'w_ump45', { sight: A('ump45', 'ump45_aimdirect_micro_t_1'), magazine: A('ump45', '25rnd_magazine'), stock: A('ump45', 'ump45_folded_stock'), grip: A('ump45', 'magpul_afg_black') }, 'Light and quick for supply runs to the point.', ['Ghost', 'Jax Holt']);
   await build('bd3', 'Dani Cruz', 'Overwatch', 'w_m700_rifle', { sight: A('m700_rifle', 'm700_nightforce_atacr_1_8x24'), barrel: A('m700_rifle', 'm700_26in_barrel'), magazine: A('m700_rifle', 'm700_10rnd_aics'), stock: A('m700_rifle', 'm700_at_aics_sniper'), muzzle: A('m700_rifle', 'm700_muzzle_break_1') }, '', ['Rocco Vale', 'Don Vito', 'Marco Gallo']);
   await build('bd4', 'Tommy Reyes', 'Quiet Combat Pistol', 'g_combat_pistol', { muzzle: 'bm_pistol_suppressor', magazine: 'bm_pistol_extmag' }, 'Black Market suppressor and mag.', ['Nico Bruno']);
   await build('bd5', 'Ghost', 'Block-17 Tan kit', 'w_block_17_pistol', { slide: A('block_17_pistol', 'b17_zev_custom_tan'), frame: A('block_17_pistol', 'b17_tan'), magazine: A('block_17_pistol', 'b17_20rd_extended'), barrel: A('block_17_pistol', 'b17_threaded_sai_barrel_tan') }, '', []);
-  await setDoc(doc(db, 'loadouts', vito), {
-    public: true, vest: 'ar_class_iii_armor', plates: 3,
-    primary: { item: 'w_mk18_rifle', parts: { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), stock: A('mk18_rifle', 'mk18_moe_magpul_black') } },
-    sidearm: { item: 'w_pn905_pistol', parts: { magazine: 'a_pn905_pistol__pn_905_17rd' } },
-    melee: 'v_pumpkin_bat', bag: 'k_duffel_bag',
-    utility: [{ item: 't_molotov', qty: 3 }, { item: 't_pipe_bomb', qty: 1 }, { item: 'k_tablet', qty: 1 }, { item: 'k_medkit', qty: 2 }],
-    at: Timestamp.fromMillis(now - H),
-  });
-  await setDoc(doc(db, 'loadouts', ids['Rocco Vale']), { public: false, vest: 'ar_class_iii_armor', plates: 4, primary: { item: 'w_mk18_rifle', parts: {} }, utility: [], at: Timestamp.fromMillis(now - H) });
+  await build('bd6', 'Don Vito', 'Heist MK18 (draft)', 'w_mk18_rifle', { sight: A('mk18_rifle', 'mk18_ta02_acog'), light: A('mk18_rifle', 'mk18_dbal_a2') }, 'Still working on it.', [], false);
+  // Kits: Vito's Everyday (equipped) and a Heist plan, Rocco's Blacksite kit
+  const mk18 = { item: 'w_mk18_rifle', qty: 1, parts: { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), stock: A('mk18_rifle', 'mk18_moe_magpul_black') } };
+  const kitDoc = (owner, name, extra) => ({ owner, name, public: true, mode: 'real', hotbar: [null, null, null, null, null], bag: [], vest: null, plates: 0, bagType: null, outfit: '', vehicle: null, at: Timestamp.fromMillis(now - H), ...extra });
+  await setDoc(doc(db, 'kits', 'kit_vito_every'), kitDoc(vito, 'Everyday', {
+    hotbar: [mk18, { item: 'w_pn905_pistol', qty: 1, parts: { magazine: 'a_pn905_pistol__pn_905_17rd' } }, { item: 'v_pumpkin_bat', qty: 1 }, { item: 'k_medkit', qty: 2 }, { item: 't_molotov', qty: 3 }],
+    bag: [{ item: 't_pipe_bomb', qty: 1 }, { item: 'k_tablet', qty: 1 }, null, { item: 'k_medkit', qty: 1 }],
+    vest: 'ar_class_iii_armor', plates: 3, bagType: 'k_duffel_bag', outfit: 'Oni mask, white Cursed tee, black beanie', vehicle: { name: 'Sultan RS', cls: 'sports' },
+  }));
+  await setDoc(doc(db, 'kits', 'kit_vito_heist'), kitDoc(vito, 'Heist', {
+    public: false, mode: 'plan',
+    hotbar: [{ item: 'w_m700_rifle', qty: 1, parts: { sight: A('m700_rifle', 'm700_nightforce_atacr_1_8x24') } }, mk18, { item: 't_pipe_bomb', qty: 4 }, null, { item: 'k_medkit', qty: 3 }],
+    vest: 'ar_class_iii_armor', plates: 6, bagType: 'k_duffel_bag', outfit: 'All black, balaclava', vehicle: { name: 'Kuruma (Armored)', cls: 'sports' },
+  }));
+  await setDoc(doc(db, 'kitPicks', vito), { kit: 'kit_vito_every' });
+  await setDoc(doc(db, 'kits', 'kit_rocco_bs'), kitDoc(ids['Rocco Vale'], 'Blacksite', { hotbar: [{ item: 'w_mk18_rifle', qty: 1, parts: {} }, null, null, null, null], vest: 'ar_class_iii_armor', plates: 4, vehicle: { name: 'Baller', cls: 'suv' } }));
+  await setDoc(doc(db, 'kitPicks', ids['Rocco Vale']), { kit: 'kit_rocco_bs' });
 
   // Family cards (sample art; the real ones are images the Boss uploads)
   const card = (roman, name, rank, suit, color, glyph) =>

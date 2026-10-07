@@ -559,6 +559,47 @@ describe('gear & loadouts', () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'loadouts/sol'), { public: true }, { merge: true }));
     await assertSucceeds(getDoc(doc(as('sol2'), 'loadouts/sol')));
   });
+  it('keeps private builds to their maker, and saves are your own', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'builds/p1'), { ...build('sol'), public: false, tags: ['CQB'], saves: {} }));
+    await assertFails(getDoc(doc(as('sol2'), 'builds/p1')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'builds/p1')));
+    await assertSucceeds(getDocs(query(collection(as('sol2'), 'builds'), where('public', '==', true))));
+    await assertSucceeds(getDocs(query(collection(as('sol'), 'builds'), where('by', '==', 'sol'))));
+    await assertFails(getDocs(collection(as('sol2'), 'builds')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'builds/p2'), { ...build('sol'), public: true }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'builds/p2'), { 'saves.sol2': true }));
+    await assertFails(updateDoc(doc(as('sol2'), 'builds/p2'), { 'saves.sol': true }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'builds/p2'), { public: false, tags: ['Run'] }));
+  });
+  const kit = (owner: string, pub = false) => ({ owner, name: 'Heist', public: pub, mode: 'real', hotbar: [{ item: 'w_mk18_rifle', qty: 1, parts: {} }, null, null, null, null], bag: [], vest: null, plates: 2, bagType: null, outfit: 'Oni mask', vehicle: { name: 'Sultan RS', cls: 'sports' } });
+  it('lets members keep kits: owner edits, the family sees public ones, leadership sees all', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'kits/k1'), kit('sol')));
+    await assertFails(setDoc(doc(as('sol'), 'kits/k2'), kit('sol2')));
+    await assertFails(setDoc(doc(as('sol'), 'kits/k3'), { ...kit('sol'), hotbar: [null, null, null, null, null, null] }));
+    await assertFails(setDoc(doc(as('sol'), 'kits/k4'), { ...kit('sol'), extra: 1 }));
+    await assertFails(getDoc(doc(as('sol2'), 'kits/k1')));
+    await assertSucceeds(getDoc(doc(as('ub'), 'kits/k1')));
+    await assertFails(updateDoc(doc(as('sol2'), 'kits/k1'), { name: 'Mine' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'kits/k1'), { public: true }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'kits/k1')));
+    await assertSucceeds(getDocs(query(collection(as('sol'), 'kits'), where('owner', '==', 'sol'))));
+    await assertSucceeds(setDoc(doc(as('sol'), 'kitPicks/sol'), { kit: 'k1' }));
+    await assertFails(setDoc(doc(as('sol2'), 'kitPicks/sol'), { kit: 'k1' }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'kitPicks/sol')));
+    await assertFails(deleteDoc(doc(as('sol2'), 'kits/k1')));
+    await assertSucceeds(deleteDoc(doc(as('sol'), 'kits/k1')));
+  });
+  it('keeps a shopping list private to its member', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'shopping/sol'), { items: [{ item: 't_molotov', qty: 2, from: 'Heist' }] }));
+    await assertFails(getDoc(doc(as('sol2'), 'shopping/sol')));
+    await assertFails(setDoc(doc(as('sol2'), 'shopping/sol'), { items: [] }));
+    await assertFails(setDoc(doc(as('sol'), 'shopping/sol'), { items: [], extra: true }));
+  });
+  it('lets only ops managers put pictures on guns', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'gunArt/w_mk18_rifle'), { image: 'data:x', anchors: {} }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'gunArt/w_mk18_rifle'), { image: 'data:x', anchors: { sight: [40, 20] } }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'gunArt/w_mk18_rifle')));
+  });
 });
 
 describe('discord hooks', () => {

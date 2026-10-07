@@ -963,18 +963,36 @@ html[data-motion='off'] .streak-cons * { animation: none !important; stroke-dash
 .locker-stamp { background: rgba(60, 0, 0, 0.6); }
 /* The doors swing open when you come in. */
 .locker-doors { position: relative; }
+.locker-shut { position: absolute; inset: 0; z-index: 5; cursor: pointer; min-height: 220px; }
+.locker-doors:not(.open) { min-height: 220px; }
 .locker-door {
-  content: ''; position: absolute; top: 0; bottom: 0; width: 50%; z-index: 5; pointer-events: none;
+  position: absolute; top: 0; bottom: 0; width: 50%;
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 9px), linear-gradient(90deg, #1b1913, #2a261c 50%, #1b1913);
   border: 1px solid rgb(var(--acc) / 0.35);
-  animation-duration: 0.9s; animation-timing-function: cubic-bezier(.6, 0, .3, 1); animation-fill-mode: forwards; animation-delay: 0.15s;
+  animation-duration: 0.9s; animation-timing-function: cubic-bezier(.6, 0, .3, 1); animation-fill-mode: forwards;
 }
-.locker-door.l { left: 0; transform-origin: left center; animation-name: door-left; }
-.locker-door.r { right: 0; transform-origin: right center; animation-name: door-right; }
-@keyframes door-left { from { transform: perspective(1200px) rotateY(0); } to { transform: perspective(1200px) rotateY(-100deg); opacity: 0; } }
-@keyframes door-right { from { transform: perspective(1200px) rotateY(0); } to { transform: perspective(1200px) rotateY(100deg); opacity: 0; } }
+/* Vents at the top and a handle by the middle */
+.locker-door::before { content: ''; position: absolute; left: 22%; right: 22%; top: 18px; height: 34px; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0 3px, transparent 3px 7px); }
+.locker-door::after { content: ''; position: absolute; top: 50%; width: 6px; height: 56px; translate: 0 -50%; border-radius: 3px; background: linear-gradient(90deg, #6e5516, #f3d27a, #6e5516); box-shadow: 0 0 10px rgb(var(--acc) / 0.5); }
+.locker-door.l { left: 0; transform-origin: left center; }
+.locker-door.l::after { right: 14px; }
+.locker-door.r { right: 0; transform-origin: right center; }
+.locker-door.r::after { left: 14px; }
+.locker-shut:hover .locker-door::after { box-shadow: 0 0 18px rgb(var(--acc) / 0.9); }
+.locker-doors.open .locker-door.l { animation-name: door-left; }
+.locker-doors.open .locker-door.r { animation-name: door-right; }
+.locker-open-hint {
+  position: absolute; left: 50%; top: 78%; translate: -50% -50%; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 16px;
+  border: 1px solid rgb(var(--acc) / 0.5); background: rgba(5, 5, 5, 0.85);
+  font: 700 11px var(--font-hud); letter-spacing: 0.2em; text-transform: uppercase; color: rgb(var(--acc-hi));
+  animation: locker-hint 1.8s ease-in-out infinite;
+}
+@keyframes locker-hint { 50% { box-shadow: 0 0 18px rgb(var(--acc) / 0.55); } }
+@keyframes door-left { from { transform: perspective(1200px) rotateY(0); } 99% { transform: perspective(1200px) rotateY(-100deg); opacity: 0; } to { transform: none; opacity: 0; visibility: hidden; } }
+@keyframes door-right { from { transform: perspective(1200px) rotateY(0); } 99% { transform: perspective(1200px) rotateY(100deg); opacity: 0; } to { transform: none; opacity: 0; visibility: hidden; } }
 @keyframes locker-pop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
-html[data-motion='off'] .locker-door { display: none; }
+html[data-motion='off'] .locker-doors.open .locker-shut { display: none; }
 .trade-alert { animation: sc-rise-in 0.4s ease-out; box-shadow: 0 0 0 1px rgb(var(--acc) / 0.3), 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 24px rgb(var(--acc) / 0.25); }
 @keyframes sc-rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
@@ -1012,3 +1030,176 @@ html[data-motion='off'] .locker-door { display: none; }
 .fan-card:hover { transform: rotate(var(--rot)) translateY(calc(var(--lift) - 22px)) scale(1.06); z-index: 50 !important; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.7), 0 0 18px rgb(var(--acc) / 0.5); }
 .fan-name { position: absolute; inset: auto 0 0 0; padding: 3px 4px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.85)); font-size: 10px; color: #f3e6bf; text-align: center; }
 @media (max-width: 640px) { .fan-card { width: 86px; margin: 0 -18px; } }
+
+/* ── Gear: kit stage (mannequin in neon) ─────────────────────── */
+.kit-stage {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 5 / 4;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: radial-gradient(ellipse at 50% 100%, #1a1233, #050507 68%);
+}
+.kit-stage.kit-compact { min-height: 0; aspect-ratio: 3 / 4; }
+.kit-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 32% 8%, #ffe9a8, transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 22%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 88% 40%, #c4b5fd, transparent 60%),
+    radial-gradient(1px 1px at 8% 52%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 62% 12%, #fff, transparent 60%),
+    radial-gradient(1.5px 1.5px at 22% 34%, #ffe9a8, transparent 60%),
+    radial-gradient(1px 1px at 70% 50%, #fff, transparent 60%);
+  animation: kit-twinkle 4s ease-in-out infinite alternate;
+}
+.kit-stars-2 {
+  background-image:
+    radial-gradient(1px 1px at 18% 62%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 44% 26%, #c4b5fd, transparent 60%),
+    radial-gradient(1.5px 1.5px at 92% 12%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 56% 40%, #ffe9a8, transparent 60%),
+    radial-gradient(1px 1px at 4% 8%, #fff, transparent 60%),
+    radial-gradient(1px 1px at 84% 64%, #fff, transparent 60%);
+  animation-delay: -2s;
+  animation-duration: 5.5s;
+}
+@keyframes kit-twinkle { from { opacity: 0.35; } to { opacity: 1; } }
+.kit-floor {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: 0;
+  height: 34%;
+  background:
+    linear-gradient(transparent, rgba(212, 175, 55, 0.08)),
+    repeating-linear-gradient(90deg, rgba(212, 175, 55, 0.16) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(0deg, rgba(212, 175, 55, 0.16) 0 1px, transparent 1px 24px);
+  transform: perspective(260px) rotateX(55deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(transparent, #000 40%);
+}
+.kit-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 5%;
+  width: 62%;
+  translate: -50% 0;
+  overflow: visible;
+}
+.kit-ring-glow { fill: rgba(212, 175, 55, 0.12); stroke: rgba(167, 139, 250, 0.45); stroke-width: 6; filter: blur(3px); }
+.kit-ring-dash { fill: none; stroke: #ffe9a8; stroke-width: 1.4; stroke-dasharray: 2 7; animation: kit-spin 6s linear infinite; filter: drop-shadow(0 0 4px #d4af37); }
+@keyframes kit-spin { to { stroke-dashoffset: -90; } }
+.kit-fig {
+  position: absolute;
+  left: 50%;
+  bottom: 9%;
+  height: 80%;
+  translate: -50% 0;
+  animation: kit-neon 3.2s ease-in-out infinite alternate;
+}
+.kit-mannequin .kit-body { stroke: #ffe9a8; stroke-width: 1.2; stroke-opacity: 0.9; }
+.kit-mannequin .kit-gear { fill: #1a160d; stroke: #d4af37; stroke-width: 1.5; }
+.kit-mannequin .kit-mask { fill: #ece6d6; fill-opacity: 0.18; stroke: #f6dd8a; stroke-width: 1; }
+@keyframes kit-neon {
+  from { filter: drop-shadow(0 0 1px #ffe9a8) drop-shadow(0 0 8px rgba(212, 175, 55, 0.7)) drop-shadow(0 0 20px rgba(167, 139, 250, 0.45)); }
+  to { filter: drop-shadow(0 0 1.5px #ffe9a8) drop-shadow(0 0 13px rgba(212, 175, 55, 0.95)) drop-shadow(0 0 30px rgba(167, 139, 250, 0.7)); }
+}
+.kit-vehicle {
+  position: absolute;
+  left: 61%;
+  bottom: 6%;
+  width: 24%;
+  text-align: center;
+}
+.kit-car { filter: drop-shadow(0 0 1px #ffe9a8) drop-shadow(0 0 7px rgba(212, 175, 55, 0.8)) drop-shadow(0 0 14px rgba(167, 139, 250, 0.5)); }
+.kit-vname { display: block; margin-top: 2px; font: 600 9px var(--font-hud); letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-400); }
+
+/* ── Gear: FiveM-style inventory slots ───────────────────────── */
+.ox-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+button.ox-slot:hover { border-color: rgba(212, 175, 55, 0.6); }
+.ox-full { border-color: color-mix(in srgb, var(--k) 45%, transparent); box-shadow: inset 0 -18px 24px -18px color-mix(in srgb, var(--k) 40%, transparent); }
+.ox-hot { background: linear-gradient(160deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02)); border-color: rgba(212, 175, 55, 0.3); }
+.ox-over { transform: scale(1.05); border-color: var(--color-gold-300); box-shadow: 0 0 14px rgba(212, 175, 55, 0.5); }
+.ox-missing { border-color: rgba(229, 72, 77, 0.7); background: linear-gradient(160deg, rgba(229, 72, 77, 0.12), rgba(229, 72, 77, 0.03)); }
+.ox-num { position: absolute; top: 3px; left: 5px; font: 700 11px var(--font-hud); color: var(--color-gold-300); }
+.ox-qty { position: absolute; top: 3px; right: 5px; font: 11px var(--font-mono); color: var(--color-bone); }
+.ox-icon { width: 42%; height: 42%; transition: transform 0.15s; }
+.ox-slot:hover .ox-icon { transform: scale(1.1); }
+.ox-pic { width: 58%; height: 58%; object-fit: cover; border-radius: 3px; }
+.ox-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 4px;
+  overflow: hidden;
+  border-radius: 0 0 4px 4px;
+  background: rgba(0, 0, 0, 0.55);
+  font: 600 10px/1.2 var(--font-hud);
+  color: var(--color-gold-100);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ox-parts { position: absolute; left: 5px; bottom: 18px; display: flex; gap: 2px; }
+.ox-parts i { width: 4px; height: 4px; border-radius: 50%; background: var(--color-gold-300); box-shadow: 0 0 4px var(--color-gold-400); }
+.ox-small .ox-parts { bottom: 4px; }
+.ox-warn { position: absolute; right: 4px; bottom: 18px; width: 12px; height: 12px; color: #f87171; }
+.ox-small .ox-warn { bottom: 4px; }
+.ox-small .ox-num, .ox-small .ox-qty { font-size: 9px; }
+.ox-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(12, 11, 16, 0.82);
+  padding: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-stars, .kit-ring, .kit-fig { animation: none; }
+}
+
+/* ── Gear: attachment slot lights on a gun ───────────────────── */
+.gun-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  border: 1.5px solid #8a7a4a;
+  background: #0a0a0b;
+  transition: transform 0.12s;
+}
+.gun-dot::before { content: ''; position: absolute; inset: -10px; border-radius: 50%; }
+button.gun-dot:hover { transform: scale(1.35); border-color: var(--color-gold-200); }
+.gun-dot-on { border-color: #fff3c4; background: #f5d77a; box-shadow: 0 0 10px #d4af37, 0 0 22px rgba(212, 175, 55, 0.6); }
+.gun-dot-active { transform: scale(1.4); border-color: #fff; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.35), 0 0 16px #d4af37; animation: gun-ping 1.2s ease-out infinite; }
+@keyframes gun-ping { 0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7), 0 0 16px #d4af37; } 100% { box-shadow: 0 0 0 12px rgba(212, 175, 55, 0), 0 0 16px #d4af37; } }
+.gun-dot-label {
+  position: absolute;
+  left: 50%;
+  bottom: 140%;
+  translate: -50% 0;
+  white-space: nowrap;
+  padding: 0 4px;
+  font: 600 9px var(--font-hud);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gold-200);
+  background: rgba(5, 5, 5, 0.75);
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+.gun-dot:hover .gun-dot-label, .gun-dot-active .gun-dot-label { opacity: 1; }

@@ -1,6 +1,5 @@
 import { collection, doc, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
 import {
-  Backpack,
   Cake,
   CheckCircle2,
   Crosshair,
@@ -11,11 +10,8 @@ import {
   Megaphone,
   Newspaper,
   Pencil,
-  Shield,
   Sparkles,
   Star,
-  Sword,
-  Target,
   Users,
   XCircle,
 } from 'lucide-react';
@@ -39,8 +35,7 @@ import { useCabinet } from '../lib/cabinet';
 import { addDays, et, fromET, keyOf, occurrences, rsvp, timeLabel, type CalEvent, type Rsvp } from '../lib/calendar';
 import { db } from '../lib/firebase';
 import { ago, fmtDate } from '../lib/format';
-import { itemTitle, type ItemType } from '../lib/items';
-import type { CharLoadout } from '../lib/loadouts';
+import { KitStrip } from '../components/Kit';
 import type { Signout, Trade } from '../lib/locker';
 import { useMoney } from '../lib/money';
 import { BASICS, CITY, LOOKS, STORY, type Sheet } from '../lib/sheet';
@@ -59,37 +54,6 @@ const seeded = (seed: string, n: number) => {
 };
 
 // ---------- hero ----------
-
-function LoadoutStrip({ memberId }: { memberId: string }) {
-  const l = useDoc<CharLoadout>(`loadouts/${memberId}`);
-  const types = useCollection<ItemType>('itemTypes');
-  const byId = useMemo(() => new Map((types ?? []).map((t) => [t.id, t])), [types]);
-  const name = (id?: string | null) => (id ? itemTitle(byId.get(id), byId) : null);
-  const slots: [typeof Shield, string, string | null][] = [
-    [Shield, 'Vest', l?.vest ? `${name(l.vest)}${l.plates ? ` · ${l.plates} plates` : ''}` : null],
-    [Crosshair, 'Primary', name(l?.primary?.item)],
-    [Target, 'Sidearm', name(l?.sidearm?.item)],
-    [Sword, 'Melee', name(l?.melee)],
-    [Backpack, 'Bag', name(l?.bag)],
-  ];
-  if (l === null || !slots.some(([, , v]) => v))
-    return (
-      <Link to="/gear?tab=loadout" className="text-xs text-gold-300 hover:underline">
-        Set up your loadout →
-      </Link>
-    );
-  return (
-    <Link to="/gear?tab=loadout" className="grid grid-cols-5 gap-1.5">
-      {slots.map(([Icon, label, v]) => (
-        <span key={label} className={`flex flex-col items-center gap-0.5 border px-1 py-1.5 text-center ${v ? 'border-gold-700/60 bg-gold-400/5' : 'border-line-soft opacity-50'}`} title={v ?? `No ${label.toLowerCase()}`}>
-          <Icon className={`size-4 ${v ? 'text-gold-300' : 'text-smoke'}`} />
-          <span className="label text-[8px]">{label}</span>
-          <span className="w-full truncate text-[10px] text-gold-100">{v ?? '—'}</span>
-        </span>
-      ))}
-    </Link>
-  );
-}
 
 function Hero() {
   const { me, myRank, presence } = useHub();
@@ -130,7 +94,7 @@ function Hero() {
         </div>
       </div>
       <div className="mt-3">
-        <LoadoutStrip memberId={me.id} />
+        <KitStrip memberId={me.id} />
       </div>
     </section>
   );

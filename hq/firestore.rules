@@ -741,18 +741,59 @@ service cloud.firestore {
     // ── Gear & Loadouts ─────────────────────────────────────────
     // Shared weapon builds: anyone makes one; anyone likes (their own like only).
     match /builds/{id} {
-      allow read: if active();
+      // Family builds are for everyone; private ones only for whoever made them.
+      allow read: if active() && (resource.data.public == true || resource.data.by == myId());
       function validBuild() {
         let d = request.resource.data;
         return str(d.name, 40) && d.name.size() > 0 && str(d.weaponId, 80) && d.parts is map && d.parts.size() <= 16
-          && (!('notes' in d) || str(d.notes, 500));
+          && (!('notes' in d) || str(d.notes, 500))
+          && (!('tags' in d) || (d.tags is list && d.tags.size() <= 6))
+          && d.get('public', true) is bool;
       }
       allow create: if active() && validBuild() && request.resource.data.by == myId()
-        && request.resource.data.likes is map && request.resource.data.likes.size() == 0;
+        && request.resource.data.likes is map && request.resource.data.likes.size() == 0
+        && request.resource.data.get('saves', {}).size() == 0;
       allow update: if active() && (
-        (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes']))
-        || (onlyChanges(['likes']) && mapOnlyMine(request.resource.data.likes, resource.data.get('likes', {}))));
+        (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes', 'tags', 'public']))
+        || (onlyChanges(['likes']) && mapOnlyMine(request.resource.data.likes, resource.data.get('likes', {})))
+        || (onlyChanges(['saves']) && mapOnlyMine(request.resource.data.saves, resource.data.get('saves', {}))));
       allow delete: if active() && (resource.data.by == myId() || can('manageOps'));
+    }
+    // Admin pictures of guns, with where each attachment slot sits on the picture.
+    match /gunArt/{weaponId} {
+      allow read: if active();
+      allow write: if can('manageOps')
+        && (request.resource == null || (str(request.resource.data.image, 600000) && request.resource.data.anchors is map));
+    }
+    // Kits: named sets of what a member carries. Only the owner edits; public ones are for the
+    // family, private ones for the owner and leadership.
+    match /kits/{id} {
+      function validKit() {
+        let d = request.resource.data;
+        return d.owner == myId() && str(d.name, 30) && d.name.size() > 0 && d.public is bool && d.mode in ['real', 'plan']
+          && d.hotbar is list && d.hotbar.size() == 5 && d.bag is list && d.bag.size() <= 20
+          && d.get('plates', 0) is int && d.get('plates', 0) >= 0 && d.get('plates', 0) <= 20
+          && str(d.get('outfit', ''), 200)
+          && d.keys().hasOnly(['owner', 'name', 'public', 'mode', 'hotbar', 'bag', 'vest', 'plates', 'bagType', 'outfit', 'vehicle', 'at']);
+      }
+      allow read: if active() && (resource.data.owner == myId() || resource.data.public == true || lead() || can('manageMembers'));
+      allow create: if active() && validKit();
+      allow update: if active() && resource.data.owner == myId() && validKit();
+      allow delete: if active() && resource.data.owner == myId();
+    }
+    // A member's own shopping list. Private.
+    match /shopping/{memberId} {
+      allow read, delete: if active() && myId() == memberId;
+      allow create, update: if active() && myId() == memberId
+        && request.resource.data.keys().hasOnly(['items']) && request.resource.data.items is list
+        && request.resource.data.items.size() <= 100;
+    }
+    // Which kit each member has equipped.
+    match /kitPicks/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId
+        && (request.resource == null || (request.resource.data.keys().hasOnly(['kit'])
+          && (request.resource.data.kit == null || str(request.resource.data.kit, 40))));
     }
     // A member's character loadout: only they edit it. Public ones are seen by everyone,
     // private ones by the member and admins.

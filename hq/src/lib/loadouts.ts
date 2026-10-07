@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc, type Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc, type Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 /** A shared weapon build: a weapon and one attachment per slot. Anyone makes and shares them. */
@@ -12,8 +12,15 @@ export interface Build {
   by: string;
   byName: string;
   likes?: Record<string, boolean>;
+  /** Who saved it to their list. */
+  saves?: Record<string, boolean>;
+  tags?: string[];
+  /** Family (true) or just me. Old builds have no flag and are family builds. */
+  public?: boolean;
   at?: Timestamp;
 }
+
+export const BUILD_TAGS = ['Blacksite', 'Run', 'Heist', 'CQB', 'Long range', 'Defense', 'Budget', 'Stealth'];
 
 /** A gun on a character: the gun plus the attachments on it (from their locker). */
 export interface Carried {
@@ -21,7 +28,7 @@ export interface Carried {
   parts: Record<string, string>;
 }
 
-/** What a member's character carries. Filled from their own locker. */
+/** The old one-per-member loadout. Kits replaced it; it's read once to make a member's first kit. */
 export interface CharLoadout {
   id: string;
   public: boolean;
@@ -36,23 +43,11 @@ export interface CharLoadout {
   at?: Timestamp;
 }
 
-export const UTILITY_SLOTS = 6;
-/** Which kinds go in which slot. */
-export const SLOT_KINDS = {
-  vest: ['armor'],
-  primary: ['gun'],
-  sidearm: ['gun'],
-  melee: ['melee'],
-  bag: ['gear'],
-  utility: ['throwable', 'tool', 'consumable', 'safety', 'ammo', 'other', 'gear'],
-} as const;
-
-export const saveBuild = (me: { id: string; name: string }, b: Pick<Build, 'name' | 'weaponId' | 'parts' | 'notes'>, id?: string) =>
+export const saveBuild = (me: { id: string; name: string }, b: Pick<Build, 'name' | 'weaponId' | 'parts' | 'notes' | 'tags' | 'public'>, id?: string) =>
   id
-    ? updateDoc(doc(db, 'builds', id), { ...b })
-    : addDoc(collection(db, 'builds'), { ...b, by: me.id, byName: me.name, likes: {}, at: serverTimestamp() }).then((r) => r.id);
+    ? updateDoc(doc(db, 'builds', id), { ...b }).then(() => id)
+    : addDoc(collection(db, 'builds'), { ...b, by: me.id, byName: me.name, likes: {}, saves: {}, at: serverTimestamp() }).then((r) => r.id);
 export const removeBuild = (id: string) => deleteDoc(doc(db, 'builds', id));
 export const likeBuild = (id: string, me: string, on: boolean) => updateDoc(doc(db, 'builds', id), { [`likes.${me}`]: on });
-
-export const saveLoadout = (me: string, l: Omit<CharLoadout, 'id' | 'at'>) => setDoc(doc(db, 'loadouts', me), { ...l, at: serverTimestamp() });
-export const setLoadoutPublic = (me: string, on: boolean) => setDoc(doc(db, 'loadouts', me), { public: on }, { merge: true });
+export const keepBuild = (id: string, me: string, on: boolean) => updateDoc(doc(db, 'builds', id), { [`saves.${me}`]: on });
+export const markBuildPublic = (id: string) => updateDoc(doc(db, 'builds', id), { public: true });

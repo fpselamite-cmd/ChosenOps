@@ -48,38 +48,81 @@ const SHAPES: Record<string, string[]> = {
   ],
 };
 
-/** A stylised weapon outline with a light on every slot; filled slots glow gold. */
-export function WeaponArt({ cls, slots, filled, active }: { cls?: string; slots: string[]; filled: Set<string>; active?: string | null }) {
+/** An admin's picture of a gun, with where each slot sits on it (percent of width/height). */
+export interface GunArt {
+  image: string;
+  anchors: Record<string, [number, number]>;
+}
+
+/** Where a slot sits, as a percent of the drawing: the admin's spot, or the class default. */
+export function slotSpot(cls: string | undefined, slot: string, art?: GunArt | null): [number, number] {
+  if (art?.anchors[slot]) return art.anchors[slot]!;
+  const k = ANCHORS[cls ?? 'rifle'] ? (cls ?? 'rifle') : 'rifle';
+  const [x, y] = ANCHORS[k]![slot] ?? [200, 75];
+  return [(x / 400) * 100, (y / 150) * 100];
+}
+
+/**
+ * A weapon with a light on every attachment slot, like a Tarkov mod screen. Filled slots glow
+ * gold; tap one to pick its part. Shows the admin's picture when there is one, otherwise a
+ * stylised gold outline for the gun's class.
+ */
+export function WeaponArt({
+  cls,
+  slots,
+  filled,
+  active,
+  art,
+  onSlot,
+  labels,
+}: {
+  cls?: string;
+  slots: string[];
+  filled: Set<string>;
+  active?: string | null;
+  art?: GunArt | null;
+  onSlot?: (slot: string) => void;
+  labels?: Record<string, string>;
+}) {
   const id = useId();
   const k = SHAPES[cls ?? 'rifle'] ? (cls ?? 'rifle') : 'rifle';
-  const a = ANCHORS[k]!;
   return (
-    <svg viewBox="0 0 400 150" className="w-full" role="img" aria-label="Weapon">
-      <defs>
-        <linearGradient id={`${id}m`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3a3424" />
-          <stop offset="1" stopColor="#15130d" />
-        </linearGradient>
-        <radialGradient id={`${id}g`}>
-          <stop offset="0" stopColor="#ffe9a3" />
-          <stop offset="1" stopColor="#d4af37" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <g fill={`url(#${id}m)`} stroke="#d4af37" strokeOpacity="0.7" strokeWidth="1.5" strokeLinejoin="round">
-        {SHAPES[k]!.map((d, i) => (
-          <path key={i} d={d} />
-        ))}
-      </g>
-      {slots.map((s) => {
-        const [x, y] = a[s] ?? [200, 75];
-        const on = filled.has(s);
-        return (
-          <g key={s}>
-            {on && <circle cx={x} cy={y} r={11} fill={`url(#${id}g)`} />}
-            <circle cx={x} cy={y} r={active === s ? 6 : 4.5} fill={on ? '#f5d77a' : '#0a0a0b'} stroke={on ? '#fff3c4' : '#8a7a4a'} strokeWidth={active === s ? 2 : 1.4} />
+    <div className="relative w-full" style={{ aspectRatio: '400 / 150' }}>
+      {art ? (
+        <img src={art.image} alt="" className="absolute inset-0 size-full object-contain" style={{ filter: 'drop-shadow(0 0 10px rgba(212,175,55,0.35))' }} />
+      ) : (
+        <svg viewBox="0 0 400 150" className="absolute inset-0 size-full" role="img" aria-label="Weapon">
+          <defs>
+            <linearGradient id={`${id}m`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#3a3424" />
+              <stop offset="1" stopColor="#15130d" />
+            </linearGradient>
+          </defs>
+          <g fill={`url(#${id}m)`} stroke="#d4af37" strokeOpacity="0.7" strokeWidth="1.5" strokeLinejoin="round">
+            {SHAPES[k]!.map((d, i) => (
+              <path key={i} d={d} />
+            ))}
           </g>
+        </svg>
+      )}
+      {slots.map((s) => {
+        const [x, y] = slotSpot(cls, s, art);
+        const on = filled.has(s);
+        const Tag = onSlot ? 'button' : 'span';
+        return (
+          <Tag
+            key={s}
+            type={onSlot ? 'button' : undefined}
+            onClick={onSlot ? () => onSlot(s) : undefined}
+            className={`gun-dot ${on ? 'gun-dot-on' : ''} ${active === s ? 'gun-dot-active' : ''} ${onSlot ? 'cursor-pointer' : 'pointer-events-none'}`}
+            style={{ left: `${x}%`, top: `${y}%` }}
+            title={labels?.[s] ?? s}
+            aria-label={labels?.[s] ?? s}
+          >
+            {labels && <span className="gun-dot-label">{labels[s]}</span>}
+          </Tag>
         );
       })}
-    </svg>
+    </div>
   );
 }
