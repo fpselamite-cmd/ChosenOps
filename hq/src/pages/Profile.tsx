@@ -37,6 +37,9 @@ import { Modal } from '../components/Modal';
 import { Panel, Tabs } from '../components/Page';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { VouchBar } from './welcome/VouchBar';
+import { Badge, FancyName, Framed, TitleTag } from '../components/HonorArt';
+import { useHonors } from './honors/useHonors';
+import { Vault } from './honors/Vault';
 import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
 import { records, type Blacksite } from '../lib/blacksites';
@@ -834,6 +837,8 @@ export default function Profile() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
   const [params, setParams] = useSearchParams();
+  const { equipped } = useHonors();
+  const worn = equipped(id);
 
   if (!m) return <Navigate to="/family" replace />;
   const mine = m.id === me.id;
@@ -844,7 +849,7 @@ export default function Profile() {
   const status = presence.get(m.id)?.status;
   const edit = !!draft;
   const asked = params.get('view');
-  const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' ? asked : 'sheet';
+  const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' || asked === 'honors' ? asked : 'sheet';
   const s: Omit<Sheet, 'id'> = draft ?? sheet ?? {};
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const setIn = (k: 'basics' | 'looks' | 'city' | 'story', key: string, v: string) => setDraft((d) => (d ? { ...d, [k]: { ...(d[k] ?? {}), [key]: v } } : d));
@@ -898,13 +903,13 @@ export default function Profile() {
 
       <div ref={sheetRef} className="space-y-6">
         {/* ---------- sheet header ---------- */}
-        <section className="hud">
+        <section className="hud" style={worn.backdropHue ? { background: `radial-gradient(ellipse at 15% 20%, color-mix(in oklab, ${worn.backdropHue} 32%, transparent), transparent 65%), radial-gradient(ellipse at 90% 100%, color-mix(in oklab, ${worn.backdropHue} 16%, transparent), transparent 60%)` } : undefined}>
           <div className="scanlines flex flex-col items-center gap-6 p-6 text-center sm:flex-row sm:items-start sm:text-left">
             {wanted?.on && !edit ? (
               <WantedPoster m={m} w={wanted} />
             ) : (
               <div className="relative shrink-0">
-                <Avatar member={m} size="xl" online={on} />
+                <Framed member={m} frame={worn.frame} size="xl" online={on} />
                 {mine && (
                   <>
                     <button onClick={() => fileRef.current?.click()} className="no-print absolute right-0 bottom-0 rounded-full bg-gold-400 p-1.5 text-void shadow" title="Change picture">
@@ -922,7 +927,15 @@ export default function Profile() {
                   {past.kind === 'deceased' ? 'In memoriam' : past.kind === 'retired' ? 'Retired' : past.kind === 'moved' ? 'Moved on' : 'Exiled'} · {past.day}
                 </p>
               )}
-              <h1 className="foil font-display text-3xl font-bold sm:text-4xl">{m.name}</h1>
+              <h1 className="font-display text-3xl font-bold sm:text-4xl">{worn.nameHue || worn.effect ? <FancyName name={m.name} hue={worn.nameHue} effect={worn.effect?.effect} /> : <span className="foil">{m.name}</span>}</h1>
+              {worn.title && <TitleTag h={worn.title} className="mt-1" />}
+              {!!worn.showcase.length && (
+                <button className="mt-2 flex justify-center gap-1.5 sm:justify-start" onClick={() => setParams({ view: 'honors' }, { replace: true })} title="Vault of Honors">
+                  {worn.showcase.map((h) => (
+                    <Badge key={h.id} h={h} size={36} />
+                  ))}
+                </button>
+              )}
               {edit ? (
                 <input className="input mt-1 max-w-xs" placeholder="Alias / street name" value={draft!.alias} maxLength={30} onChange={(e) => set({ alias: e.target.value })} />
               ) : (
@@ -1033,6 +1046,7 @@ export default function Profile() {
               onChange={(v) => setParams(v === 'sheet' ? {} : { view: v }, { replace: true })}
               tabs={[
                 { id: 'sheet', label: 'Sheet' },
+                { id: 'honors', label: 'Vault of Honors' },
                 { id: 'trophies', label: 'Trophy Wall' },
                 { id: 'journal', label: 'Journal' },
               ]}
@@ -1045,6 +1059,11 @@ export default function Profile() {
           </div>
         )}
         {view === 'journal' && <Journal m={m} mine={mine} />}
+        {view === 'honors' && (
+          <div className="no-print">
+            <Vault m={m} />
+          </div>
+        )}
 
         {/* ---------- the sheet: who they are · their story · their numbers ---------- */}
         {view === 'sheet' && (

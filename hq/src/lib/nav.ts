@@ -13,6 +13,7 @@ import {
   Network,
   ShieldCheck,
   Trophy,
+  UserRound,
   Swords,
   VenetianMask,
   Warehouse,
@@ -33,6 +34,8 @@ export interface NavItem {
   welcome?: boolean;
   /** Hidden from associates until they're blooded in. */
   archives?: boolean;
+  /** Points at the signed-in member's own character page. */
+  me?: boolean;
 }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
@@ -49,6 +52,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Me',
     items: [
+      { to: '/me', label: 'Me', icon: UserRound, me: true },
       { to: '/locker', label: 'My Locker', icon: Lock },
       { to: '/gear', label: 'Gear & Loadouts', icon: Swords, page: 'gear' },
     ],

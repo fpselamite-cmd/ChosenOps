@@ -20,6 +20,7 @@ import Blacksites from './pages/Blacksites';
 import Rivals from './pages/rivals/Rivals';
 import Welcome from './pages/welcome/Welcome';
 import Archives from './pages/archives/Archives';
+import { HonorsProvider } from './pages/honors/useHonors';
 import Gear from './pages/Gear';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
@@ -92,6 +93,11 @@ function OpenNoelOps() {
   return <Navigate to="/stash" replace />;
 }
 
+function MeRedirect() {
+  const { me } = useHub();
+  return <Navigate to={`/members/${me.id}`} replace />;
+}
+
 function Gate({ page, children }: { page: PageId; children: ReactNode }) {
   const { canSee } = useHub();
   return canSee(page) ? children : <Navigate to="/" replace />;
@@ -102,8 +108,15 @@ function MemberRoutes() {
   if (!ready) return <Loading label="Opening HQ…" />;
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route
+        element={
+          <HonorsProvider>
+            <AppShell />
+          </HonorsProvider>
+        }
+      >
         <Route index element={<Dashboard />} />
+        <Route path="me" element={<MeRedirect />} />
         <Route path="hall-of-fame" element={<HallOfFame />} />
         <Route path="narcotics" element={<OpenNoelOps />} />
         <Route

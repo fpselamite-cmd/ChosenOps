@@ -673,6 +673,26 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await tl('t3', '2025-09-20', 'First blacksite held', 'The docks, eleven hours.');
   for (const [who, emoji] of [['Don Vito', '👑'], ['Rocco Vale', '🩸'], ['Dani Cruz', '🔥'], ['Lena Russo', '🥃']]) await setDoc(doc(db, 'archiveReacts', `note:${sun(1)}_${ids[who]}`), { target: `note:${sun(1)}`, memberId: ids[who], emoji });
 
+  // Honors: the catalog sets itself up when High Table signs in; a few given honors and loadouts to show off.
+  const ho = (who, honorId, by, byName, note, back, seen = true) => setDoc(doc(db, 'honorsOwned', `${ids[who]}_${honorId}`), { memberId: ids[who], honorId, by, byName, note, seen, at: Timestamp.fromMillis(now - back * H) });
+  await ho('Don Vito', 't-oath', sal, 'Sal Moretti', 'For the oath on Vespucci.', 400);
+  await ho('Don Vito', 'e-bleeding', sal, 'Sal Moretti', '', 300);
+  await ho('Don Vito', 'f-covenant', sal, 'Sal Moretti', '', 300);
+  await ho('Rocco Vale', 't-righthand', vito, 'Don Vito', 'Took the streets.', 30, false);
+  await ho('Rocco Vale', 'f-crown', 'milestone', '', '', 50);
+  await ho('Rocco Vale', 'h-blood', 'milestone', '', '', 50);
+  await ho('Rocco Vale', 'mvp', 'milestone', '', '', 60);
+  await ho('Rocco Vale', 'first-blood', 'milestone', '', '', 200);
+  await ho('Rocco Vale', 'body-count', 'milestone', '', '', 40);
+  await ho('Rocco Vale', 'e-smolder', 'milestone', '', '', 20);
+  await ho('Kira Lane', 't-favorite', sal, 'Sal Moretti', 'Never dropped a plate.', 10);
+  await ho('Kira Lane', 'h-royal', 'milestone', '', '', 15);
+  await ho('Kira Lane', 'f-roses', 'milestone', '', '', 15);
+  await ho('Kira Lane', 'e-shimmer', 'milestone', '', '', 15);
+  await setDoc(doc(db, 'honorLoadouts', vito), { title: 't-oath', frame: 'f-covenant', effect: 'e-bleeding', nameHue: null, accentHue: null, trimHue: null, backdropHue: null, showcase: [] });
+  await setDoc(doc(db, 'honorLoadouts', ids['Rocco Vale']), { title: 't-righthand', frame: 'f-crown', effect: 'e-smolder', nameHue: 'h-blood', accentHue: null, trimHue: null, backdropHue: 'h-blood', showcase: ['body-count', 'mvp', 'first-blood'] });
+  await setDoc(doc(db, 'honorLoadouts', kira), { title: 't-favorite', frame: 'f-roses', effect: 'e-shimmer', nameHue: 'h-royal', accentHue: 'h-royal', trimHue: null, backdropHue: 'h-royal', showcase: [] });
+
   // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
   const mug = (bg, fg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${bg}"/><circle cx="80" cy="62" r="30" fill="${fg}"/><path d="M24 160c4-38 28-56 56-56s52 18 56 56z" fill="${fg}"/></svg>`);
   const logo = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#111"/><text x="80" y="104" fill="${c}" font-family="serif" font-weight="bold" font-size="72" text-anchor="middle">${t}</text></svg>`);
