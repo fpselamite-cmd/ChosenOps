@@ -8,6 +8,7 @@ import {
   HandHeart,
   Lock,
   LayoutDashboard,
+  Library,
   Map,
   Network,
   ShieldCheck,
@@ -30,6 +31,8 @@ export interface NavItem {
   href?: string;
   /** Only associates and the Welcome Committee see it. */
   welcome?: boolean;
+  /** Hidden from associates until they're blooded in. */
+  archives?: boolean;
 }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
@@ -40,6 +43,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/family', label: 'Family', icon: Network, page: 'family' },
       { to: '/welcome', label: 'Welcome', icon: HandHeart, welcome: true },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
+      { to: '/archives', label: 'Archives', icon: Library, archives: true },
     ],
   },
   {

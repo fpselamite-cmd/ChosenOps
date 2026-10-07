@@ -1107,3 +1107,37 @@ describe('welcome center', () => {
     await assertSucceeds(setDoc(doc(as('boss'), 'graduations/sol'), { name: 'Sol', rankName: 'Soldier', at: serverTimestamp() }));
   });
 });
+
+describe('archives', () => {
+  const mkArchivist = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', 'sol2'), { roles: ['archivist'], perms: {}, pages: {}, lead: false }));
+  const mkAssoc = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'members/assoc'), member('Assoc', 'associate')));
+  const note = (status: string) => ({ date: '2026-10-04', title: 'Family Dinner', present: [], excused: [], absent: [], topics: 'x', decisions: '', announcements: '', quote: '', quoteBy: '', minutes: '', ranks: [], status, by: 'sol2', byName: 'Sol2', at: serverTimestamp() });
+  it('lets the Archivist write dinner notes; members read only published ones; associates read nothing', async () => {
+    await mkArchivist();
+    await mkAssoc();
+    await assertFails(setDoc(doc(as('sol'), 'dinnerNotes/2026-10-04'), note('published')));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'dinnerNotes/2026-10-04'), note('draft')));
+    await assertFails(getDoc(doc(as('sol'), 'dinnerNotes/2026-10-04')));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'dinnerNotes/2026-10-04'), note('published')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'dinnerNotes/2026-10-04')));
+    await assertFails(getDoc(doc(as('assoc'), 'dinnerNotes/2026-10-04')));
+  });
+  it('lets members send in stories for approval, not publish them', async () => {
+    await mkArchivist();
+    const story = { kind: 'story', title: 'Docks', era: '', body: 'It happened.', order: 0, images: [], color: '#000', credit: 'Sol', status: 'submitted', by: 'sol', byName: 'Sol', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'lore/s1'), story));
+    await assertFails(setDoc(doc(as('sol'), 'lore/s2'), { ...story, status: 'published' }));
+    await assertFails(setDoc(doc(as('sol'), 'lore/s3'), { ...story, kind: 'chapter' }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'lore/s1')));
+    await assertFails(getDoc(doc(as('capo'), 'lore/s1')));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'lore/s1'), { status: 'published' }));
+    await assertSucceeds(getDoc(doc(as('capo'), 'lore/s1')));
+    await assertFails(deleteDoc(doc(as('sol'), 'lore/s1')));
+  });
+  it('lets each member leave one reaction as themselves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'archiveReacts/note:2026-10-04_sol'), { target: 'note:2026-10-04', memberId: 'sol', emoji: '🔥' }));
+    await assertFails(setDoc(doc(as('sol'), 'archiveReacts/note:2026-10-04_sol2'), { target: 'note:2026-10-04', memberId: 'sol2', emoji: '🔥' }));
+    await assertFails(setDoc(doc(as('sol'), 'archiveReacts/note:2026-10-04_sol'), { target: 'note:2026-10-04', memberId: 'sol', emoji: '💩' }));
+    await assertFails(setDoc(doc(as('sol'), 'timeline/t1'), { date: '2026-01-01', title: 'x', note: '', by: 'sol' }));
+  });
+});

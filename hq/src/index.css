@@ -1868,3 +1868,72 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .patch-seal { display: grid; place-content: center; width: 220px; height: 220px; margin: 0 auto; border-radius: 50%; text-align: center; color: #1a1405; background: radial-gradient(circle at 35% 30%, #f8e7a8, #b8962e 70%, #8a6d1d); box-shadow: 0 0 60px rgba(212, 175, 55, 0.8), inset 0 0 0 8px rgba(0, 0, 0, 0.15); animation: patch-stamp 0.9s cubic-bezier(.3, 1.6, .5, 1) 0.3s both; }
 @keyframes patch-stamp { from { transform: scale(3) rotate(-30deg); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .welcome-stop.now .welcome-dot, .patch-seal { animation: none; } }
+
+/* ---------- The Archives: the vault library, the leather tome ---------- */
+.arch-shelves { padding: 18px 18px 4px; background: radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.08), transparent 60%), linear-gradient(#1a120a, #0e0a06); border: 1px solid #3a2a14; box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6); }
+.arch-shelf-label { margin: 0 0 8px 10px; font: 700 10px var(--font-hud); letter-spacing: 0.3em; text-transform: uppercase; color: #b8962e; }
+.arch-row { display: flex; align-items: flex-end; gap: 5px; min-height: 216px; margin-bottom: 22px; padding: 0 10px; overflow-x: auto; overflow-y: hidden; border-bottom: 14px solid #3a2614; box-shadow: 0 12px 12px -8px #000; scrollbar-width: thin; }
+.arch-empty { align-self: center; padding: 0 8px; font: italic 15px 'IM Fell English', Georgia, serif; color: #8b7a55; }
+.arch-spine { position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 18px 0; border-radius: 3px 3px 0 0; writing-mode: vertical-rl; transform: rotate(180deg); box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.08), inset -5px 0 0 rgba(0, 0, 0, 0.35), 0 0 8px rgba(0, 0, 0, 0.6); transition: transform 0.25s, box-shadow 0.25s; }
+.arch-spine::before, .arch-spine::after { content: ''; position: absolute; left: 5px; right: 5px; height: 2px; background: #d4af37; box-shadow: 0 4px 0 -1px rgba(212, 175, 55, 0.5); }
+.arch-spine::before { top: 12px; }
+.arch-spine::after { bottom: 12px; }
+.arch-spine span { max-height: 82%; overflow: hidden; font: 700 12px var(--font-display); letter-spacing: 0.1em; color: #f3d77a; white-space: nowrap; text-overflow: ellipsis; }
+.arch-spine small { font: 600 9px var(--font-hud); letter-spacing: 0.15em; text-transform: uppercase; color: rgba(243, 215, 122, 0.6); }
+.arch-spine:hover, .arch-spine:focus-visible { transform: rotate(180deg) translateY(16px); box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.08), inset -5px 0 0 rgba(0, 0, 0, 0.35), 0 0 16px rgba(212, 175, 55, 0.45); }
+.arch-spine.faded { opacity: 0.55; }
+.arch-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 12px; text-align: center; border: 1px solid #3a2a14; background: linear-gradient(170deg, #1a130b, #0c0906); transition: border-color 0.2s; }
+.arch-card:hover { border-color: #b8962e; }
+.arch-card b { font: 700 15px var(--font-display); color: var(--color-gold-100); }
+.arch-card small { font-size: 11px; color: var(--color-smoke); }
+.arch-plaque { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #3a2a14; background: linear-gradient(170deg, #15100a, #0a0806); filter: grayscale(0.35); transition: filter 0.3s; }
+.arch-plaque:hover { filter: none; }
+.arch-plaque b { display: block; font: 700 17px var(--font-display); color: var(--color-gold-100); }
+.arch-plaque small { display: block; font-size: 11px; color: var(--color-smoke); }
+.arch-plaque i { display: block; margin-top: 4px; font: italic 14px 'IM Fell English', Georgia, serif; color: #cdbb8e; }
+.arch-timeline { position: relative; padding-left: 26px; border-left: 2px solid rgba(212, 175, 55, 0.4); }
+.arch-year { margin: 18px 0 8px -40px; display: inline-block; padding: 2px 10px; font: 700 14px var(--font-display); color: #1a1405; background: linear-gradient(#f8e7a8, #b8962e); }
+.arch-event { position: relative; margin-bottom: 14px; }
+.arch-event::before { content: ''; position: absolute; left: -33px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #0b0a07; border: 2px solid #d4af37; }
+.arch-event.war::before { border-color: #dc2626; background: #dc2626; }
+.arch-event.peace::before { border-color: #38bdf8; }
+.arch-event.blood::before { border-color: #b91c1c; background: radial-gradient(circle, #ef4444, #7f1d1d); }
+.arch-event.dinner::before { background: #d4af37; }
+.arch-event b { font: 700 16px var(--font-display); color: var(--color-gold-100); }
+.arch-event-date { display: block; font: 700 10px var(--font-hud); letter-spacing: 0.2em; text-transform: uppercase; color: #b8962e; }
+
+.tome { position: relative; padding: 16px; border-radius: 10px; background: linear-gradient(135deg, #1d1610, #0b0806); box-shadow: 0 22px 44px rgba(0, 0, 0, 0.75), inset 0 0 0 2px #3a2a14, inset 0 0 0 7px #120d08, inset 0 0 0 8px #b8962e; perspective: 1800px; }
+.tome-ribbon { position: absolute; z-index: 2; top: -6px; right: 14%; width: 22px; height: 110px; background: linear-gradient(90deg, #5e0f0b, #8b1a12, #5e0f0b); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.tome-spread { min-height: 460px; border-radius: 3px; color: #2a1f10; background: linear-gradient(90deg, #e3d5b5, #f3ead2 8%, #f3ead2 46%, #c4b088 50%, #f3ead2 54%, #f3ead2 92%, #e3d5b5); box-shadow: inset 0 0 60px rgba(110, 80, 30, 0.35); transform-origin: left center; animation: tome-open 0.8s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes tome-open { from { transform: rotateY(-80deg) scale(0.92); opacity: 0; filter: brightness(0.4); } to { transform: none; opacity: 1; filter: none; } }
+.tome-pages { column-count: 2; column-gap: 96px; padding: 40px 48px 48px; font: 17px/1.6 'IM Fell English', Georgia, serif; }
+.tome-title { column-span: all; text-align: center; font: 700 28px var(--font-display); color: #5a1a12; }
+.tome-sub { column-span: all; margin: 4px 0 20px; text-align: center; font-style: italic; font-size: 15px; color: #6b5530; }
+.tome-draft { font-style: normal; color: #b91c1c; text-transform: uppercase; font-size: 11px; letter-spacing: 0.15em; }
+.tome-sec { margin-bottom: 14px; }
+.tome-label { margin-bottom: 4px; font: 700 10px var(--font-hud); letter-spacing: 0.24em; text-transform: uppercase; color: #7a1a10; break-after: avoid; }
+.tome-p { margin-bottom: 10px; text-align: justify; hyphens: auto; }
+.tome-drop::first-letter { float: left; margin: 6px 8px 0 0; font: 700 58px/0.82 var(--font-display); color: #8b1a10; }
+.tome-orn { margin: 12px 0; text-align: center; color: #8b6b2a; letter-spacing: 0.5em; }
+.tome-quote { text-align: center; font-style: italic; font-size: 19px; color: #3d2a12; break-inside: avoid; }
+.tome-quote-by { margin-bottom: 10px; text-align: center; font-size: 14px; color: #6b5530; }
+.tome-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.tome-chips i { padding: 1px 8px; font: normal 12.5px var(--font-sans); border: 1px solid #8b6b2a; border-radius: 9px; color: #3d2a12; }
+.tome-small { font-size: 13.5px; color: #6b5530; }
+.tome-img { width: 100%; margin: 6px 0 12px; border: 6px solid #fbf6e8; box-shadow: 1px 2px 6px rgba(60, 40, 10, 0.35); filter: sepia(0.25); break-inside: avoid; }
+.tome-facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 15px; }
+.tome-facts div { display: contents; }
+.tome-facts dt { color: #7a6440; font-style: italic; }
+.tome-react { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border: 1px solid var(--color-line); border-radius: 999px; font-size: 15px; transition: border-color 0.2s, background 0.2s; }
+.tome-react b { font: 700 11px var(--font-hud); color: var(--color-gold-200); }
+.tome-react.on { border-color: #d4af37; background: rgba(212, 175, 55, 0.15); }
+@media (max-width: 760px) {
+  .tome { padding: 8px; }
+  .tome-spread { background: linear-gradient(90deg, #e3d5b5, #f3ead2 6%, #f3ead2 94%, #e3d5b5); }
+  .tome-pages { column-count: 1; padding: 28px 20px 32px; font-size: 16px; }
+  .tome-spread { min-height: 0; }
+  .tome-ribbon { right: 10%; height: 70px; }
+}
+@media (prefers-reduced-motion: reduce) { .tome-spread { animation: none; } }
+.tome-spread.single { background: linear-gradient(90deg, #e3d5b5, #f3ead2 6%, #f3ead2 94%, #e3d5b5); }
+.tome-spread.single .tome-pages { column-count: 1; max-width: 760px; margin: 0 auto; }

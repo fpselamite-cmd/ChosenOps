@@ -639,6 +639,40 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'welcomeNotes', 'wn1'), { to: jax, text: 'Good work at the docks. Get that lab cook done and you\'re close.', by: kira, byName: 'Kira Lane', at: Timestamp.fromMillis(now - 20 * H) });
   await setDoc(doc(db, 'graduations', ids['Ghost']), { name: 'Ghost', rankName: 'Soldier', at: Timestamp.fromMillis(now - 30 * H) });
 
+  // The Archives: dinner notes, the lore book, stories, a character page, a war, the timeline and reactions.
+  const sal = ids['Sal Moretti'];
+  const P2 = (names) => names.map((n) => ids[n]);
+  const dn = (date, n, back) => setDoc(doc(db, 'dinnerNotes', date), { date, title: 'Family Dinner', present: [], excused: [], absent: [], topics: '', decisions: '', announcements: '', quote: '', quoteBy: '', minutes: '', ranks: [], status: 'published', by: sal, byName: 'Sal Moretti', at: Timestamp.fromMillis(now - back * H), publishedAt: Timestamp.fromMillis(now - back * H), ...n });
+  await dn(sun(1), {
+    present: P2(['Don Vito', 'Sal Moretti', 'Nico Bruno', 'Lena Russo', 'Marco Gallo', 'Rocco Vale', 'Dani Cruz', 'Ghost']), excused: P2(['Kira Lane']), absent: P2(['Tommy Reyes']),
+    topics: 'The Don opened with the matter of the Ballas. After the van on Grove there would be no more talk. Rocco asked for the streets, and the table gave them to him.\n\nLena laid out the books: the clubhouse fund is a tenth of the way there, and the washers are behind.',
+    decisions: 'War on the Ballas. A bounty of $50,000 on Tiny Loc.\n\nDues rise to $3,000 dirty for soldiers, starting next dinner.',
+    announcements: 'Blacksite at the docks Friday, 9PM. Hit Squad leads.',
+    quote: 'Loyalty is the only currency that never washes clean.', quoteBy: 'Don Vito',
+    ranks: [{ memberId: ids['Ghost'], name: 'Ghost', rankName: 'Soldier', kind: 'promoted' }],
+  }, 7 * 24 - 4);
+  await dn(sun(2), {
+    present: P2(['Don Vito', 'Sal Moretti', 'Nico Bruno', 'Lena Russo', 'Marco Gallo', 'Rocco Vale', 'Kira Lane']), absent: P2(['Dani Cruz']),
+    topics: 'A quiet table. The Families asked for a sit-down, and the Don agreed to hear them.',
+    decisions: 'One month of peace with the Families.',
+    minutes: 'Marco brought the first harvest from the new grow. The room was in good spirits; Nico told the story of the Pillbox job again, and it got longer.',
+  }, 14 * 24 - 4);
+  await dn(sun(0), { status: 'draft', publishedAt: null, present: P2(['Don Vito', 'Sal Moretti', 'Rocco Vale']), topics: 'Notes in progress…' }, 2);
+  const lo = (id, l, back) => setDoc(doc(db, 'lore', id), { kind: 'chapter', era: '', order: 0, memberId: null, gangId: null, credit: '', images: [], color: '#4a0f0c', status: 'published', reviewNote: '', by: sal, byName: 'Sal Moretti', at: Timestamp.fromMillis(now - back * H), publishedAt: Timestamp.fromMillis(now - back * H), ...l });
+  await lo('ch1', { title: 'The Founding', order: 1, era: 'Before the gold · 2024', color: '#4a0f0c', body: 'Before there was a family, there were three men at a table in the back of a restaurant on Vespucci. Vito Moretti had the money, Sal had the head for it, and Nico had the nerve.\n\nThey swore on bread and blood that what was built would be shared, and that no one at the table would be left behind. That oath is the first law of the Chosen, and it has never been broken.\n\nThe first year was small: a garage, two cars, and a reputation that grew faster than the crew.' }, 900);
+  await lo('ch2', { title: 'Grove Street Years', order: 2, era: '2025', color: '#0f1a2a', body: 'The family moved east when Marco found the grow house on Grove. It was there the family learned to cook, to wash, and to wait.\n\nIt was also there they learned who their neighbors were.' }, 600);
+  await lo('ch3', { title: 'The Ballas War', order: 3, era: 'Autumn 2026', color: '#2a0f2a', body: 'It began with a van on Grove Street and forty bags gone into the night. By Sunday the table had decided, and by Monday Rocco had the streets.\n\nThe first night, the liquor store on Davis. The Ballas did not expect us to come to them.' }, 30);
+  await lo('ch4', { title: 'The Clubhouse', order: 4, era: 'Coming', color: '#3a2a0c', status: 'draft', publishedAt: null, body: 'Draft. The fund, the place, the plan.' }, 3);
+  await lo('st1', { kind: 'story', title: 'The Pillbox Job', credit: 'Nico Bruno', by: ids['Nico Bruno'], byName: 'Nico Bruno', color: '#1a2a14', body: 'Nobody believes it now, but there were only two of us and a stolen ambulance.\n\nWe were in and out in six minutes. The doctor still sends a card every Christmas.' }, 200);
+  await lo('st2', { kind: 'story', title: 'Night at the docks', credit: 'Kira Lane', by: kira, byName: 'Kira Lane', status: 'submitted', publishedAt: null, color: '#14202a', body: 'I carried plates for six hours and never fired a shot. Rocco says that is why we won.' }, 5);
+  await lo('cp1', { kind: 'character', title: 'The Hammer', memberId: ids['Rocco Vale'], color: '#1a1a1a', body: 'Rocco Vale came to the family with nothing but a borrowed pistol and a long memory. He never forgets a debt, and he never lets one go unpaid.\n\nWhen the war came, it was Rocco who asked for the streets.' }, 100);
+  await lo('wr1', { kind: 'war', title: 'The van on Grove', gangId: 'ballas', color: '#2a0f2a', body: 'Forty bags, two purple Buffalos, and a driver who talked too much. That was the night the Ballas stopped being neighbors.' }, 28);
+  const tl = (id, date, title, note) => setDoc(doc(db, 'timeline', id), { date, title, note, by: sal, at: Timestamp.fromMillis(now) });
+  await tl('t1', '2024-03-14', 'The oath on Vespucci', 'Vito, Sal and Nico found the family.');
+  await tl('t2', '2025-02-01', 'The move to Grove Street', 'Marco finds the grow house.');
+  await tl('t3', '2025-09-20', 'First blacksite held', 'The docks, eleven hours.');
+  for (const [who, emoji] of [['Don Vito', '👑'], ['Rocco Vale', '🩸'], ['Dani Cruz', '🔥'], ['Lena Russo', '🥃']]) await setDoc(doc(db, 'archiveReacts', `note:${sun(1)}_${ids[who]}`), { target: `note:${sun(1)}`, memberId: ids[who], emoji });
+
   // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
   const mug = (bg, fg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${bg}"/><circle cx="80" cy="62" r="30" fill="${fg}"/><path d="M24 160c4-38 28-56 56-56s52 18 56 56z" fill="${fg}"/></svg>`);
   const logo = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#111"/><text x="80" y="104" fill="${c}" font-family="serif" font-weight="bold" font-size="72" text-anchor="middle">${t}</text></svg>`);
