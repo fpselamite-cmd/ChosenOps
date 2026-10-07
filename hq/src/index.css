@@ -1821,7 +1821,7 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .rboard-node img { width: 100%; aspect-ratio: 1; object-fit: cover; filter: grayscale(0.4); }
 @media (prefers-reduced-motion: reduce) { .map-extra.sighting { animation: none; } }
 
-/* ---------- Welcome center: the road to the patch, the associate card ---------- */
+/* ---------- Welcome center: the road to being blooded in, the associate card ---------- */
 .welcome-bar { height: 10px; background: #1d1a12; border: 1px solid var(--color-line); }
 .welcome-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #94741f, #f8e7a8); box-shadow: 0 0 10px rgba(212, 175, 55, 0.5); transition: width 0.8s; }
 .welcome-path { height: 330px; border: 1px solid var(--color-line); background: radial-gradient(ellipse at 85% 20%, rgba(212, 175, 55, 0.12), transparent 50%), linear-gradient(180deg, #110f09, #0a0906); }
@@ -1839,7 +1839,7 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .welcome-stop.lock b { color: #6b5f45; }
 @keyframes welcome-glow { 0%, 100% { box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.15), 0 0 14px rgba(212, 175, 55, 0.6); } 50% { box-shadow: 0 0 0 9px rgba(212, 175, 55, 0.08), 0 0 26px #d4af37; } }
 .welcome-patch { position: absolute; transform: translate(-50%, -50%); display: grid; place-content: center; width: 104px; height: 104px; border-radius: 50%; border: 3px dashed #3a3020; background: #0b0a07; text-align: center; color: #5a4d30; }
-.welcome-patch span { font: 700 10px var(--font-hud); letter-spacing: 0.3em; text-transform: uppercase; }
+.welcome-patch span { font: 700 10px var(--font-hud); letter-spacing: 0.18em; text-transform: uppercase; }
 .welcome-patch b { font: 700 20px var(--font-display); }
 .welcome-patch.on { border: 3px solid #d4af37; color: #1a1405; background: radial-gradient(circle at 35% 30%, #f8e7a8, #b8962e); box-shadow: 0 0 30px rgba(212, 175, 55, 0.7); }
 .welcome-card { padding: 20px; background: linear-gradient(150deg, #1d1709, #0b0905); border: 2px solid #d4af37; outline: 1px solid rgba(212, 175, 55, 0.4); outline-offset: -8px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5); }
@@ -1862,6 +1862,7 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .welcome-stop-v.lock .welcome-v-label { color: #6b5f45; }
 .welcome-patch.static { position: relative; transform: none; width: 64px; height: 64px; margin-left: -9px; }
 .welcome-patch.static b { font-size: 14px; }
+.welcome-patch.static span { font-size: 8px; letter-spacing: 0.1em; }
 
 .patch-moment { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 45%, rgba(60, 45, 10, 0.85), rgba(0, 0, 0, 0.94)); animation: sc-rise-in 0.5s both; }
 .patch-seal { display: grid; place-content: center; width: 220px; height: 220px; margin: 0 auto; border-radius: 50%; text-align: center; color: #1a1405; background: radial-gradient(circle at 35% 30%, #f8e7a8, #b8962e 70%, #8a6d1d); box-shadow: 0 0 60px rgba(212, 175, 55, 0.8), inset 0 0 0 8px rgba(0, 0, 0, 0.15); animation: patch-stamp 0.9s cubic-bezier(.3, 1.6, .5, 1) 0.3s both; }
