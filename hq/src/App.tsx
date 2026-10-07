@@ -17,6 +17,7 @@ import PettyCrime from './pages/PettyCrime';
 import Locker from './pages/Locker';
 import HallOfFame from './pages/HallOfFame';
 import Blacksites from './pages/Blacksites';
+import Rivals from './pages/rivals/Rivals';
 import Gear from './pages/Gear';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
@@ -131,6 +132,7 @@ function MemberRoutes() {
             </Gate>
           }
         />
+        <Route path="rivals" element={<Rivals />} />
         <Route
           path="gear"
           element={

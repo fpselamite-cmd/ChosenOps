@@ -46,6 +46,7 @@ import type { Pin } from '../lib/pins';
 import { lockerPath, useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { ToastProvider, useToast } from '../noel/ui';
+import type { Rival } from '../lib/rivals';
 
 const resultOf = (r: Result) => RESULTS.find((x) => x.id === r)!;
 const hold = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
@@ -73,6 +74,7 @@ function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void })
   const [at, setAt] = useState(toLocalInput(site?.at.toDate() ?? new Date()));
   const [result, setResult] = useState<Result>(site?.result ?? 'win');
   const [rivals, setRivals] = useState(site?.rivals.join(', ') ?? '');
+  const gangFiles = useCollection<Rival>('rivals') ?? [];
   const [holdMins, setHold] = useState(String(site?.holdMins ?? 30));
   const [rep, setRep] = useState(String(site?.rep ?? 0));
   const [notes, setNotes] = useState(site?.notes ?? '');
@@ -167,6 +169,26 @@ function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void })
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Rival gangs" hint="Comma-separated">
             <input className="input" value={rivals} onChange={(e) => setRivals(e.target.value)} placeholder="Ballas, Vagos" />
+            {/* Gangs with a case file on the Rivals page: tap to add or remove. */}
+            {gangFiles.length > 0 && (
+              <span className="mt-1.5 flex flex-wrap gap-1">
+                {gangFiles.map((g) => {
+                  const list = rivals.split(',').map((r) => r.trim()).filter(Boolean);
+                  const on = list.some((r) => r.toLowerCase() === g.name.toLowerCase());
+                  return (
+                    <button
+                      type="button"
+                      key={g.id}
+                      onClick={() => setRivals((on ? list.filter((r) => r.toLowerCase() !== g.name.toLowerCase()) : [...list, g.name]).join(', '))}
+                      className={`chip px-2 py-0.5 text-[11px] ${on ? 'text-void' : 'bg-raised text-ash'}`}
+                      style={on ? { background: g.color } : { boxShadow: `inset 0 0 0 1px ${g.color}` }}
+                    >
+                      {g.name}
+                    </button>
+                  );
+                })}
+              </span>
+            )}
           </Field>
           <Field label="Hold time (min)">
             <input className="input font-mono" inputMode="numeric" value={holdMins} onChange={(e) => setHold(e.target.value)} />
