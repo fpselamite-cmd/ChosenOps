@@ -9,6 +9,7 @@ import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { ItemPicker } from '../components/ItemPicker';
+import { WishlistButton } from '../components/WishlistButton';
 import { NewTrade, TradesPanel } from '../components/Trades';
 import { NO_CASH } from '../lib/trades';
 import { kitNeeds, useMyKits } from '../lib/kits';
@@ -789,6 +790,7 @@ function Inspect({ locker, storageId, t, kind, onAction, onClose }: { locker: Lo
           <button type="button" className="btn-ghost" onClick={onAction} disabled={!count}>
             <Send className="size-4" /> Move · give · stash · name
           </button>
+          {t.item && <WishlistButton label="Want more" className="btn-ghost" items={[{ item: t.item, qty: 1 }]} />}
           <button className="btn-gold">Save</button>
         </div>
       </form>
@@ -999,13 +1001,13 @@ function LockerGrid({ locker, onOpen }: { locker: LockerApi; onOpen: (storageId:
   );
 }
 
-/** My own shopping list, filled from my kits. Tick things off as I get them. */
+/** My Personal Wishlist: things I want, added from anywhere in the HQ. Tick them off as I get them. */
 function ShoppingPanel({ name }: { name: (id: string) => string }) {
   const { me } = useHub();
   const list = useShopping(me.id);
   if (!list?.length) return null;
   return (
-    <Panel title={`Shopping list · ${list.length}`} className="mb-6" right={<ShoppingCart className="size-4 text-gold-500" />}>
+    <Panel title={`Personal Wishlist · ${list.length}`} className="mb-6" right={<ShoppingCart className="size-4 text-gold-500" />}>
       <ul className="divide-y divide-line-soft">
         {list.map((s) => (
           <li key={s.item} className="flex items-center gap-2 py-1.5 text-sm">
@@ -1018,7 +1020,7 @@ function ShoppingPanel({ name }: { name: (id: string) => string }) {
           </li>
         ))}
       </ul>
-      <button className="mt-2 text-xs text-smoke hover:text-gold-200" onClick={() => confirm('Clear the whole shopping list?') && saveShopping(me.id, [])}>
+      <button className="mt-2 text-xs text-smoke hover:text-gold-200" onClick={() => confirm('Clear your whole Personal Wishlist?') && saveShopping(me.id, [])}>
         Clear the list
       </button>
     </Panel>
