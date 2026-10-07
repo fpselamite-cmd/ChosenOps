@@ -108,6 +108,11 @@ function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {
               <input type="date" className="input" value={day(x.endsAt)} onChange={(e) => setX({ ...x, endsAt: e.target.value ? Timestamp.fromDate(new Date(`${e.target.value}T23:59:59`)) : null })} />
             </Field>
           </div>
+          {isLead && (
+            <Field label="Chip shop price (0 = not for sale)">
+              <input className="input w-40 font-mono" inputMode="numeric" value={x.price || ''} onChange={(e) => setX({ ...x, price: Number(e.target.value.replace(/\D/g, '')) || 0 })} />
+            </Field>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!x.secret} onChange={(e) => setX({ ...x, secret: e.target.checked })} /> Secret: shows as “???” until earned
           </label>

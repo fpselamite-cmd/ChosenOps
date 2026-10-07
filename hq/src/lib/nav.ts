@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Cannabis,
   Crosshair,
+  Dices,
   FolderSearch,
   HandCoins,
   HandHeart,
@@ -47,6 +48,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/welcome', label: 'Welcome', icon: HandHeart, welcome: true },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
       { to: '/archives', label: 'Archives', icon: Library, archives: true },
+      { to: '/casino', label: 'Casino', icon: Dices },
     ],
   },
   {

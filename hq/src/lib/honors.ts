@@ -29,12 +29,12 @@ export const KINDS: { id: HonorKind; label: string; plural: string }[] = [
   { id: 'effect', label: 'Name effect', plural: 'Name effects' },
 ];
 
-export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames'] as const;
+export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards'] as const;
 export type FrameTheme = (typeof FRAME_THEMES)[number];
 export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
 /** Badge icons, by lucide name (see HonorArt). */
-export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost'] as const;
+export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry'] as const;
 export const BADGE_SHAPES = ['gem', 'shield', 'hex'] as const;
 
 /** What a milestone counts. */
@@ -59,6 +59,11 @@ export const STATS = [
   { id: 'sightings', label: 'Rival sightings reported', group: 'Fun & lore' },
   { id: 'bounties', label: 'Bounties collected', group: 'Fun & lore' },
   { id: 'reactions', label: 'Reactions in the Archives', group: 'Fun & lore' },
+  { id: 'hands', label: 'Casino games played', group: 'Casino' },
+  { id: 'chipsWon', label: 'Chips won (lifetime)', group: 'Casino' },
+  { id: 'biggestWin', label: 'Biggest single win', group: 'Casino' },
+  { id: 'blackjacks', label: 'Blackjacks dealt', group: 'Casino' },
+  { id: 'jackpots', label: 'Slot jackpots', group: 'Casino' },
 ] as const;
 export type StatId = (typeof STATS)[number]['id'];
 export type HonorStats = Record<StatId, number>;
@@ -81,6 +86,10 @@ export interface Honor {
   startsAt?: Timestamp | null;
   endsAt?: Timestamp | null;
   // Looks, by kind:
+  /** For sale in the casino's chip shop at this price (0 = not for sale). */
+  price?: number;
+  /** Chips paid out when unlocked (defaults by rarity). */
+  chips?: number;
   icon?: string;
   shape?: (typeof BADGE_SHAPES)[number];
   theme?: FrameTheme;
@@ -193,20 +202,39 @@ export const DEFAULT_HONORS: Omit<Honor, 'at'>[] = [
   m('e-glitch', 'effect', 'Glitch', 'epic', 'sightings', 25, 'Twenty-five sightings.', { effect: 'glitch' }),
   m('e-starlight', 'effect', 'Starlight', 'legendary', 'dinners', 75, 'Seventy-five dinners.', { effect: 'starlight' }),
   h('e-bleeding', 'effect', 'Bleeding', 'mythic', 'Given by High Table.', { effect: 'blood' }),
+  // Casino milestones
+  m('c-regular', 'badge', 'Regular at the Tables', 'uncommon', 'hands', 200, 'Two hundred games at the casino.', { icon: 'Dices', shape: 'hex' }),
+  m('c-natural', 'badge', 'Natural', 'rare', 'blackjacks', 10, 'Ten blackjacks dealt to you.', { icon: 'Spade', shape: 'gem' }),
+  m('c-bigwin', 'badge', 'Big Win', 'epic', 'biggestWin', 5000, 'Won 5,000 chips in one go.', { icon: 'Coins', shape: 'gem' }),
+  m('c-jackpot', 'badge', 'Jackpot', 'legendary', 'jackpots', 1, 'Hit the crown jackpot on the slots.', { icon: 'Crown', shape: 'hex' }),
+  m('c-million', 'title', 'Made a Million', 'legendary', 'chipsWon', 1000000, 'A million chips won at the casino.'),
+  // The chip shop
+  h('s-felt', 'hue', 'Felt Green', 'uncommon', 'From the chip shop.', { color: '#15803d', price: 1500 }),
+  h('s-neon', 'hue', 'Neon', 'rare', 'From the chip shop.', { color: '#22d3ee', price: 3000 }),
+  h('s-jackpot', 'effect', 'Jackpot Gold', 'epic', 'From the chip shop.', { effect: 'shimmer', price: 7500 }),
+  h('s-dealer', 'frame', 'The Dealer', 'rare', 'From the chip shop.', { theme: 'cards', price: 2500 }),
+  h('s-stack', 'frame', 'Chip Stack', 'epic', 'From the chip shop.', { theme: 'chips', price: 6000 }),
+  h('s-shark', 'title', 'Card Shark', 'rare', 'From the chip shop.', { price: 3000 }),
+  h('s-roller', 'title', 'High Roller', 'epic', 'From the chip shop.', { price: 10000 }),
+  h('s-house', 'title', 'The House', 'legendary', 'From the chip shop.', { price: 50000 }),
 ];
+/** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
+export const HONORS_VERSION = 2;
 
 // ---------- writes ----------
 
 type Me = { id: string; name: string };
 const clean = <T extends object>(o: T) => JSON.parse(JSON.stringify(o)) as T;
 
-/** Writes the starting catalog (High Table, once). */
-export async function setUpHonors() {
+/** Writes the starting catalog, or adds defaults it's missing (High Table). Never overwrites edits. */
+export async function setUpHonors(have: Set<string> = new Set()) {
   const b = writeBatch(db);
-  DEFAULT_HONORS.forEach((x) => b.set(doc(db, 'honors', x.id), { ...clean(x), at: serverTimestamp() }));
-  b.set(doc(db, 'settings', 'honors'), { setUp: true });
+  DEFAULT_HONORS.filter((x) => !have.has(x.id)).forEach((x) => b.set(doc(db, 'honors', x.id), { ...clean(x), at: serverTimestamp() }));
+  b.set(doc(db, 'settings', 'honors'), { setUp: true, version: HONORS_VERSION });
   await b.commit();
 }
+/** Chips paid out for unlocking an honor. */
+export const CHIPS_FOR: Record<Rarity, number> = { common: 50, uncommon: 100, rare: 250, epic: 500, legendary: 1500, mythic: 5000 };
 export const saveHonor = (x: Omit<Honor, 'at'>) => setDoc(doc(db, 'honors', x.id), { ...clean(x), at: serverTimestamp() });
 export const approveHonor = (id: string) => updateDoc(doc(db, 'honors', id), { status: 'active' });
 export const removeHonor = (id: string) => deleteDoc(doc(db, 'honors', id));
