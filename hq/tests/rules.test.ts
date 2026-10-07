@@ -715,3 +715,26 @@ describe('locker storages', () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'lockerStock/sol__onme'), { items: { lockpick: 1 }, owner: 'sol' }));
   });
 });
+
+describe('hall of fame', () => {
+  it('lets leadership name the MVP, hang plaques and mark past members', async () => {
+    await assertSucceeds(setDoc(doc(as('ub'), 'monthMvp/2026-10'), { memberId: 'sol', why: 'Held the docks', by: 'ub' }));
+    await assertFails(setDoc(doc(as('sol'), 'monthMvp/2026-10'), { memberId: 'sol', why: 'me', by: 'sol' }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'legends/l1'), { memberId: 'sol', name: 'Sol', title: 'The Wall', text: 'Held it alone.', by: 'ub', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'legends/l2'), { memberId: 'sol', name: 'Sol', title: 'Me', text: '', by: 'sol', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('ub'), 'pastMembers/sol'), { kind: 'retired', day: '2026-10-07', epitaph: 'Good run.' }));
+    await assertSucceeds(updateDoc(doc(as('ub'), 'members/sol'), { status: 'suspended', rankId: 'soldier' }));
+    await assertFails(setDoc(doc(as('capo'), 'pastMembers/sol2'), { kind: 'exiled', day: '2026-10-07', epitaph: '' }));
+  });
+  it('keeps exiled members visible to leadership only', async () => {
+    await assertSucceeds(setDoc(doc(as('ub'), 'pastMembers/sol2'), { kind: 'exiled', day: '2026-10-07', epitaph: '' }));
+    await assertFails(getDoc(doc(as('capo'), 'pastMembers/sol2')));
+    await assertSucceeds(getDoc(doc(as('ub'), 'pastMembers/sol2')));
+  });
+  it('lets anyone light only their own candle and leave a memory', async () => {
+    await assertSucceeds(setDoc(doc(as('sol2'), 'tributes/sol'), { candles: { sol2: true } }, { merge: true }));
+    await assertFails(setDoc(doc(as('sol2'), 'tributes/sol'), { candles: { capo: true } }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'tributes/sol/memories/m1'), { by: 'capo', byName: 'Capo', text: 'Legend.', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('capo'), 'tributes/sol/memories/m2'), { by: 'sol2', byName: 'Sol2', text: 'fake', at: serverTimestamp() }));
+  });
+});

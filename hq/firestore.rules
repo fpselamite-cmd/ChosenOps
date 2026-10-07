@@ -348,6 +348,41 @@ service cloud.firestore {
         && request.resource.data.kind in ['joined', 'promoted'];
     }
 
+    // Hall of Fame: leadership's MVP of the month and legend plaques.
+    match /monthMvp/{ym} {
+      allow read: if active();
+      allow write: if can('manageMembers') && ym.matches('[0-9]{4}-[0-9]{2}')
+        && request.resource.data.keys().hasOnly(['memberId', 'why', 'by']) && str(request.resource.data.why, 140);
+    }
+    // Past members: deceased, retired, moved on or exiled. Exiled ones only leadership can read.
+    // (Leaving the roster is the member's status going to 'suspended', set alongside.)
+    match /pastMembers/{memberId} {
+      allow read: if active() && (resource.data.kind != 'exiled' || can('manageMembers'));
+      allow write: if can('manageMembers') && memberId != myId()
+        && below(get(/databases/$(database)/documents/members/$(memberId)).data.rankId)
+        && (request.resource == null || (request.resource.data.kind in ['deceased', 'retired', 'moved', 'exiled']
+            && str(request.resource.data.epitaph, 200) && request.resource.data.day is string));
+    }
+    match /legends/{id} {
+      allow read: if active();
+      allow create: if can('manageMembers') && request.resource.data.at == request.time
+        && str(request.resource.data.title, 60) && str(request.resource.data.text, 400);
+      allow delete: if can('manageMembers');
+    }
+    // Paying respects to past members: one candle per member, and short memories.
+    match /tributes/{memberId} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.keys().hasOnly(['candles'])
+        && request.resource.data.candles.keys().hasOnly([myId()]);
+      allow update: if active() && onlyChanges(['candles'])
+        && request.resource.data.candles.diff(resource.data.get('candles', {})).affectedKeys().hasOnly([myId()]);
+      match /memories/{mid} {
+        allow read: if active();
+        allow create: if active() && mine('by') && request.resource.data.at == request.time && str(request.resource.data.text, 140);
+        allow delete: if active() && (wasMine('by') || can('manageMembers'));
+      }
+    }
+
     match /lockers/{memberId} {
       allow read, write: if active() && myId() == memberId;
     }

@@ -78,6 +78,8 @@ export interface Member {
   prefs?: import('./appearance').Prefs;
   /** Character's birthday, "MM-DD". */
   birthday?: string | null;
+  /** A past member (filled in from pastMembers where shown). */
+  past?: import('./hall').Past | null;
   /** Sign-in account currently bound to this member; absent means the original one. */
   authUid?: string;
 }
