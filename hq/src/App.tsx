@@ -23,6 +23,7 @@ import Archives from './pages/archives/Archives';
 import Casino from './pages/casino/Casino';
 import Polls from './pages/polls/Polls';
 import { HonorsProvider } from './pages/honors/useHonors';
+import { PartyProvider } from './pages/parties/Parties';
 import Gear from './pages/Gear';
 import MapPage from './pages/MapPage';
 import CalendarPage from './pages/CalendarPage';
@@ -113,7 +114,9 @@ function MemberRoutes() {
       <Route
         element={
           <HonorsProvider>
-            <AppShell />
+            <PartyProvider>
+              <AppShell />
+            </PartyProvider>
           </HonorsProvider>
         }
       >

@@ -53,6 +53,7 @@ import { Podium } from './HallOfFame';
 import { MoodPicker } from './Profile';
 import { MyProgress, NewlyPatched, PatchMoment } from './welcome/DashboardBits';
 import { OpenPolls } from './polls/PollsBits';
+import { PartyBanner } from './parties/Parties';
 import { useWelcomeAttention } from './welcome/useWelcome';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -632,6 +633,7 @@ export default function Dashboard() {
           </div>
         } />
 
+      <PartyBanner />
       <PatchMoment />
       <NewlyPatched />
       <WelcomeNote />

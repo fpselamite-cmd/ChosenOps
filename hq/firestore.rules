@@ -1152,6 +1152,16 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Parties ----------
+    // A note on someone's birthday or anniversary card: yours to write (not on your own card) or take back.
+    match /partyNotes/{id} {
+      allow read: if active();
+      allow create, update: if active() && request.resource.data.by == myId() && id == request.resource.data.party + '_' + myId()
+        && request.resource.data['for'] != myId() && request.resource.data.party.matches('(birthday|anniversary)_' + request.resource.data['for'] + '_.*')
+        && str(request.resource.data.text, 200) && request.resource.data.text.size() > 0 && str(request.resource.data.name, 60) && str(request.resource.data.label, 60);
+      allow delete: if active() && (resource.data.by == myId() || lead());
+    }
+
     // ---------- Polls ----------
     // Leadership asks, the audience votes. A vote is pointed to by the voter's private ballot, so an
     // anonymous one carries no name. Results open once you've voted (live) or when the poll closes.

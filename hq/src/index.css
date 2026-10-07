@@ -2165,3 +2165,23 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 @media (min-width: 640px) { .poll-drop { position: absolute; top: calc(100% + 10px); left: auto; right: -8px; width: 380px; max-height: 72vh; } }
 @keyframes poll-drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ballot-bar, .poll-seal, .poll-badge, .ballot-flash, .poll-drop { animation: none !important; } }
+
+/* ---------- Parties ---------- */
+.party-hat { position: absolute; top: -38%; left: 50%; z-index: 2; width: 52%; height: auto; transform: translateX(-30%) rotate(16deg); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)); pointer-events: none; animation: party-hat 2.4s ease-in-out infinite; }
+@keyframes party-hat { 0%, 100% { transform: translateX(-30%) rotate(16deg); } 50% { transform: translateX(-30%) rotate(8deg) translateY(-1px); } }
+.confetti { position: fixed; inset: 0; z-index: 70; overflow: hidden; pointer-events: none; }
+.confetti i { position: absolute; top: -20px; border-radius: 1px; opacity: 0; animation: confetti-fall linear forwards; }
+@keyframes confetti-fall { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--drift), 105vh) rotate(var(--spin)); } }
+.party-banner { position: relative; overflow: hidden; padding: 14px 16px; border: 1px solid rgba(244, 114, 182, 0.45); background: radial-gradient(circle at 10% 0%, rgba(244, 114, 182, 0.18), transparent 50%), radial-gradient(circle at 90% 100%, rgba(168, 85, 247, 0.16), transparent 55%), linear-gradient(160deg, #160f14, #0b0a07 70%); box-shadow: 0 0 24px rgba(244, 114, 182, 0.12); }
+.party-streamers { position: absolute; inset: 0; background: repeating-linear-gradient(115deg, transparent 0 46px, rgba(251, 191, 36, 0.06) 46px 50px, transparent 50px 96px, rgba(244, 114, 182, 0.06) 96px 100px); animation: party-slide 14s linear infinite; }
+@keyframes party-slide { to { background-position: 400px 0; } }
+.party-row { display: flex; align-items: center; gap: 12px; padding: 14px 12px 10px; border: 1px solid rgba(212, 175, 55, 0.2); background: rgba(0, 0, 0, 0.35); }
+.party-card { position: relative; }
+.party-note { padding: 8px 10px; border-left: 2px solid rgba(244, 114, 182, 0.55); background: rgba(244, 114, 182, 0.05); }
+.party-card-kept { padding: 12px 14px; border: 1px solid rgba(244, 114, 182, 0.3); background: linear-gradient(160deg, rgba(244, 114, 182, 0.07), transparent 60%); }
+.party-surprise { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: radial-gradient(circle, rgba(76, 29, 61, 0.55), rgba(0, 0, 0, 0.88) 70%); backdrop-filter: blur(4px); animation: poll-drop 0.3s ease-out both; }
+.party-surprise-box { position: relative; z-index: 71; display: flex; max-width: 460px; flex-direction: column; align-items: center; gap: 10px; padding: 28px 24px 22px; text-align: center; border: 1px solid rgba(244, 114, 182, 0.55); background: linear-gradient(160deg, #1d1219, #0b0a07 70%); box-shadow: 0 0 60px rgba(244, 114, 182, 0.25), 0 20px 50px rgba(0, 0, 0, 0.8); animation: party-pop 0.6s cubic-bezier(.2, 1.5, .4, 1) both; }
+.party-surprise-icon { display: grid; place-items: center; width: 84px; height: 84px; margin-top: -70px; border-radius: 999px; color: #fde68a; background: radial-gradient(circle at 35% 30%, #f472b6, #9d174d 70%); box-shadow: 0 0 0 4px #0b0a07, 0 0 30px rgba(244, 114, 182, 0.6); animation: party-bounce 1.6s ease-in-out infinite; }
+@keyframes party-pop { from { opacity: 0; transform: scale(0.7) translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes party-bounce { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .party-hat, .party-streamers, .party-surprise-icon, .confetti { animation: none !important; } .confetti { display: none; } }

@@ -18,6 +18,8 @@ export interface Chips {
   paidFor?: Record<string, number>;
   /** Honors already paid out for. */
   honorsPaid?: string[];
+  /** Parties the house already sent a gift for. */
+  partiesPaid?: string[];
   hands?: number;
   chipsWon?: number;
   biggestWin?: number;

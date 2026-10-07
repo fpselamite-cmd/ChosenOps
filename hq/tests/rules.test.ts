@@ -1353,3 +1353,16 @@ describe('polls', () => {
     await assertFails(getDoc(doc(as('sol'), 'pollTemplates/t1')));
   });
 });
+
+describe('party cards', () => {
+  const note = (by: string, over: Record<string, unknown> = {}) => ({ party: 'birthday_sol_2026', for: 'sol', kind: 'birthday', label: 'Birthday', by, name: by, text: 'Happy birthday!', at: serverTimestamp(), ...over });
+  it('lets the family sign, but not your own card or as someone else', async () => {
+    await assertSucceeds(setDoc(doc(as('sol2'), 'partyNotes/birthday_sol_2026_sol2'), note('sol2')));
+    await assertFails(setDoc(doc(as('sol'), 'partyNotes/birthday_sol_2026_sol'), note('sol')));
+    await assertFails(setDoc(doc(as('sol2'), 'partyNotes/birthday_sol_2026_capo'), note('capo')));
+    await assertFails(setDoc(doc(as('capo'), 'partyNotes/birthday_sol_2026_capo'), note('capo', { for: 'sol2' })));
+    await assertFails(setDoc(doc(as('capo'), 'partyNotes/birthday_sol_2026_capo'), note('capo', { text: 'x'.repeat(201) })));
+    await assertFails(deleteDoc(doc(as('capo'), 'partyNotes/birthday_sol_2026_sol2')));
+    await assertSucceeds(deleteDoc(doc(as('sol2'), 'partyNotes/birthday_sol_2026_sol2')));
+  });
+});
