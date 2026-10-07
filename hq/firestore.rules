@@ -1028,6 +1028,34 @@ service cloud.firestore {
       allow write: if active() && lead();
     }
 
+    // ---------- The Archives ----------
+    // Members read (associates wait until they're blooded in); the Archivist and High Table write.
+    function archivist() { return lead() || (hasRoles() && 'archivist' in roles().get('roles', [])); }
+    function blooded() { return active() && me().rankId != 'associate'; }
+    match /dinnerNotes/{date} {
+      allow read: if blooded() && (resource.data.status == 'published' || archivist());
+      allow write: if blooded() && archivist() && date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+    match /lore/{id} {
+      allow read: if blooded() && (resource.data.status == 'published' || resource.data.by == myId() || archivist());
+      // Anyone sends in a story; the Archivist approves it.
+      allow create: if blooded() && request.resource.data.status == 'submitted' && request.resource.data.kind == 'story'
+        && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && str(request.resource.data.title, 80) && request.resource.data.images.size() <= 4;
+      allow create, update: if blooded() && archivist();
+      allow delete: if blooded() && (archivist() || (resource.data.by == myId() && resource.data.status in ['submitted', 'rejected']));
+    }
+    match /timeline/{id} {
+      allow read: if blooded();
+      allow write: if blooded() && archivist();
+    }
+    match /archiveReacts/{id} {
+      allow read: if blooded();
+      allow create, update: if blooded() && request.resource.data.memberId == myId() && id == request.resource.data.target + '_' + myId()
+        && request.resource.data.emoji in ['🔥', '👑', '🩸', '🥃', '💀'];
+      allow delete: if blooded() && resource.data.memberId == myId();
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();
