@@ -341,9 +341,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const pin = (id, owner, name, type, x, y, scope, extra = {}) =>
     setDoc(doc(db, 'pins', id), { owner: ids[owner], ownerName: owner, name, type, x, y, scope, ranks: [], crewIds: [], minRank: null, note: '', at: Timestamp.fromMillis(now - 3 * D), ...extra });
   const LEAD = ['boss', 'consigliere', 'underboss', 'treasurer'];
-  await pin('p1', 'Marco Gallo', 'Leon VW grow', 'grow', 0.52, 0.71, 'gang', { note: 'Postal 7078. Knock twice.' });
-  await pin('p2', 'Marco Gallo', 'Leon JT grow', 'grow', 0.61, 0.66, 'gang', { note: 'Postal 9182' });
-  await pin('p3', 'Don Vito', 'Main Stash', 'stash', 0.44, 0.78, 'limited', { ranks: [...LEAD, 'caporegime', 'lieutenant'], minRank: 'lieutenant', note: 'Lieutenant and up only.' });
+  await pin('p1', 'Marco Gallo', 'Leon VW grow', 'grow', 0.52, 0.71, 'gang', { postal: '7078', note: 'Knock twice.' });
+  await pin('p2', 'Marco Gallo', 'Leon JT grow', 'grow', 0.61, 0.66, 'gang', { postal: '9182' });
+  await pin('p3', 'Don Vito', 'Main Stash', 'stash', 0.44, 0.78, 'limited', { ranks: [...LEAD, 'caporegime', 'lieutenant'], minRank: 'lieutenant', note: 'Lieutenant and up only.', postal: '8021', access: 'Keypad 4471 · back door key with Lena', stashId: 'main', at: Timestamp.fromMillis(now - 3 * D) });
   await pin('p4', 'Nico Bruno', 'Blue Kitchen lab', 'lab', 0.70, 0.40, 'limited', { ranks: LEAD, crewIds: ['cook'], note: 'Cook crew + leadership.' });
   await pin('p5', 'Rocco Vale', 'Docks blacksite', 'blacksite', 0.38, 0.88, 'gang', { note: 'King of the Hill zone. Friday 9PM.' });
   await pin('p6', 'Rocco Vale', 'Ballas block', 'rival', 0.56, 0.84, 'gang', { note: 'Stay off after dark.' });
@@ -357,10 +357,11 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const ev = (id, owner, title, kind, start, mins, repeat, scope, extra = {}) =>
     setDoc(doc(db, 'events', id), { owner: ids[owner], ownerName: owner, title, kind, start, mins, repeat, scope, ranks: [], crewIds: [], minRank: null, place: '', note: '', rsvp: { [ids[owner]]: 'yes' }, ...extra });
   await ev('e1', 'Don Vito', 'Family sit-down', 'meeting', at(-6, 20), 60, 'weekly', 'gang', { place: 'The Yacht', note: 'Weekly. Bring numbers.', rsvp: { [ids['Don Vito']]: 'yes', [ids['Sal Moretti']]: 'yes', [ids['Lena Russo']]: 'yes', [ids['Rocco Vale']]: 'maybe', [ids['Ghost']]: 'no' } });
-  await ev('e2', 'Rocco Vale', 'Docks blacksite', 'blacksite', at(3, 21), 120, 'none', 'gang', { place: 'Docks blacksite', note: 'Hit Squad leads, everyone else on standby. Bring armor.', rsvp: { [ids['Rocco Vale']]: 'yes', [ids['Dani Cruz']]: 'yes', [ids['Tommy Reyes']]: 'yes', [ids['Kira Lane']]: 'maybe' } });
+  await ev('e2', 'Rocco Vale', 'Docks blacksite', 'blacksite', at(3, 21), 120, 'none', 'gang', { place: 'Docks blacksite', pinId: 'spot:sp_docks', note: 'Hit Squad leads, everyone else on standby. Bring armor.', rsvp: { [ids['Rocco Vale']]: 'yes', [ids['Dani Cruz']]: 'yes', [ids['Tommy Reyes']]: 'yes', [ids['Kira Lane']]: 'maybe' } });
   await ev('e3', 'Don Vito', 'Leadership: territory talk', 'meeting', at(1, 19), 60, 'none', 'limited', { ranks: LEAD, note: 'Leadership only.' });
   await ev('e4', 'Marco Gallo', 'Coca leaves harvest', 'op', at(-2, 18), 60, 'weekly', 'limited', { ranks: LEAD, crewIds: ['grow'] });
   await ev('e5', 'Lena Russo', 'Payout day', 'other', at(-5, 17), 30, 'biweekly', 'gang', { place: 'Laundromat' });
+  await ev('e8', 'Don Vito', 'Buyer meet', 'meeting', at(2, 22), 30, 'none', 'gang', { place: 'Pier meet', pinId: 'p8' });
   await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD, crewIds: ['hit'] });
   await ev('e7', 'Mia Santos', 'Rooftop party', 'party', at(10, 23), 240, 'none', 'gang', { place: 'Vinewood rooftop' });
 

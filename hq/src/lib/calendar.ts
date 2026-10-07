@@ -69,11 +69,13 @@ export interface CalEvent extends Audience {
   mins: number;
   repeat: Repeat;
   place?: string;
+  /** Where on the map: a pin id, or `spot:<id>` for a blacksite location. */
+  pinId?: string | null;
   note?: string;
   rsvp: Record<string, Rsvp>;
   ownerName?: string;
 }
-export type EventDraft = Pick<CalEvent, 'title' | 'kind' | 'mins' | 'repeat' | 'place' | 'note'> & { start: Date } & AudienceDraft;
+export type EventDraft = Pick<CalEvent, 'title' | 'kind' | 'mins' | 'repeat' | 'place' | 'pinId' | 'note'> & { start: Date } & AudienceDraft;
 
 /** One thing on one day: a posted event (or one repeat of it), an ops timer, a birthday… */
 export interface Occurrence {

@@ -24,11 +24,19 @@ export interface Pin extends Audience {
   /** Position on the map image, 0–1 from the left and from the top. */
   x: number;
   y: number;
+  /** In-city postal, typed by whoever drops it. */
+  postal?: string;
+  /** A screenshot of the spot (door, entrance). */
+  photo?: string | null;
+  /** Door codes, keys, who has access. Seen by the same people as the pin. */
+  access?: string;
+  /** The stash this place is (a Stash page location id). */
+  stashId?: string | null;
   ownerName?: string;
   at?: Timestamp;
 }
 
-export type PinDraft = Pick<Pin, 'name' | 'type' | 'note' | 'x' | 'y'> & AudienceDraft;
+export type PinDraft = Pick<Pin, 'name' | 'type' | 'note' | 'x' | 'y' | 'postal' | 'photo' | 'access' | 'stashId'> & AudienceDraft;
 
 export const addPin = (me: { id: string; name: string }, p: PinDraft) =>
   addDoc(collection(db, 'pins'), { ...p, owner: me.id, ownerName: me.name, at: serverTimestamp() });

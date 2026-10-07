@@ -1,4 +1,4 @@
-import { Crosshair, Lock, Map as MapIcon, Minus, Move, Pencil, Plus, ShieldHalf, Trash2, Users, X } from 'lucide-react';
+import { CalendarDays, Copy, Crosshair, Flag, ImagePlus, KeyRound, Lock, Map as MapIcon, Minus, Move, Pencil, Plus, Search, ShieldHalf, Swords, Trash2, Users, Warehouse, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from 'react';
 import { AudiencePicker } from '../components/AudiencePicker';
 import { Field } from '../components/Field';
@@ -9,6 +9,13 @@ import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft, type Scope } from '../lib/audience';
 import { ago } from '../lib/format';
 import { addPin, PIN_TYPES, pinType, removePin, savePin, type Pin } from '../lib/pins';
+import { Link } from 'react-router-dom';
+import { useCollection } from '../hooks/useCollection';
+import { spotOf, type Blacksite, type Spot } from '../lib/blacksites';
+import { addDays, et, eventKind, keyOf, occurrences, timeLabel, type CalEvent } from '../lib/calendar';
+import { shrinkImage } from '../lib/image';
+import { thingsIn } from '../lib/locker';
+import { NarcoticsProvider, useNarcotics } from '../noel/store';
 
 /** Your server's map goes in public/map/city.jpg; until then a placeholder shows. */
 const MAP_SRC = '/map/city.jpg';
@@ -26,13 +33,19 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
   const [name, setName] = useState(pin?.name ?? '');
   const [type, setType] = useState(pin?.type ?? 'meet');
   const [note, setNote] = useState(pin?.note ?? '');
+  const [postal, setPostal] = useState(pin?.postal ?? '');
+  const [access, setAccess] = useState(pin?.access ?? '');
+  const [photo, setPhoto] = useState<string | null>(pin?.photo ?? null);
+  const [stashId, setStashId] = useState<string | null>(pin?.stashId ?? null);
+  const { storage, locLabel } = useNarcotics();
+  const photoRef = useRef<HTMLInputElement>(null);
   const [aud, setAud] = useState<AudienceDraft>(pin ? { scope: pin.scope, ranks: pin.ranks, crewIds: pin.crewIds, minRank: pin.minRank ?? null } : { ...GANG });
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     setBusy(true);
-    const data = { name: name.trim().slice(0, 40), type, note: note.trim().slice(0, 300), ...aud };
+    const data = { name: name.trim().slice(0, 40), type, note: note.trim().slice(0, 300), postal: postal.trim().slice(0, 10), access: access.trim().slice(0, 300), photo, stashId: type === 'stash' ? stashId : null, ...aud };
     if (pin) await savePin(pin.id, data);
     else await addPin(me, { ...data, x: at!.x, y: at!.y });
     onClose();
@@ -58,9 +71,46 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
             ))}
           </div>
         </div>
-        <Field label="Note" hint="Postal, door code, who to ask for…">
-          <textarea className="input min-h-20" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+        <div className="grid grid-cols-[110px_1fr] gap-3">
+          <Field label="Postal">
+            <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value.replace(/[^\w-]/g, ''))} maxLength={10} placeholder="8021" />
+          </Field>
+          {type === 'stash' ? (
+            <Field label="Which stash" hint="Shows its live counts on the pin">
+              <select className="input" value={stashId ?? ''} onChange={(e) => setStashId(e.target.value || null)}>
+                <option value="">Not linked</option>
+                {storage.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {locLabel(l.id)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <span />
+          )}
+        </div>
+        <Field label="Note">
+          <textarea className="input min-h-16" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="What it is, how to get there" />
         </Field>
+        <Field label="Access" hint="Door codes, keys, who to ask. Same people as the pin can see it.">
+          <input className="input" value={access} onChange={(e) => setAccess(e.target.value)} maxLength={300} />
+        </Field>
+        <div>
+          <span className="label mb-1.5 block">Photo</span>
+          <div className="flex items-center gap-2">
+            {photo && <img src={photo} alt="" className="h-16 rounded object-cover ring-1 ring-line" />}
+            <button type="button" className="btn-ghost btn-sm" onClick={() => photoRef.current?.click()}>
+              <ImagePlus className="size-3.5" /> {photo ? 'Change' : 'Add a screenshot'}
+            </button>
+            {photo && (
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setPhoto(null)}>
+                Remove
+              </button>
+            )}
+            <input ref={photoRef} type="file" accept="image/*" hidden onChange={async (e) => e.target.files?.[0] && setPhoto(await shrinkImage(e.target.files[0], 900, 0.75))} />
+          </div>
+        </div>
         <div>
           <span className="label mb-1.5 block">Who can see it</span>
           <AudiencePicker value={aud} onChange={setAud} limited={lead} />
@@ -79,12 +129,12 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
   );
 }
 
-function Marker({ pin, k, selected, onClick }: { pin: Pin; k: number; selected: boolean; onClick: () => void }) {
+function Marker({ pin, k, selected, fresh, onClick }: { pin: Pin; k: number; selected: boolean; fresh: boolean; onClick: () => void }) {
   const t = pinType(pin.type);
   return (
     <button
       className="absolute"
-      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%`, transform: `translate(-50%, -100%) scale(${1 / k})`, transformOrigin: '50% 100%', zIndex: selected ? 5 : 2 }}
+      style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%`, transform: `translate(-50%, -50%) scale(${1 / k})`, zIndex: selected ? 5 : 2 }}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
@@ -92,27 +142,81 @@ function Marker({ pin, k, selected, onClick }: { pin: Pin; k: number; selected: 
       }}
       title={pin.name}
     >
-      <span className="relative flex flex-col items-center">
-        <span
-          className={`grid size-8 place-items-center rounded-full rounded-br-none rotate-45 shadow-lg ring-2 ${selected ? 'ring-white' : 'ring-black/60'}`}
-          style={{ background: t.color }}
-        >
-          <t.icon className="size-4 -rotate-45 text-black/80" />
-        </span>
-        {pin.scope !== 'gang' && (
-          <span className="absolute -top-1 -right-2 grid size-4 place-items-center rounded-full bg-void ring-1 ring-gold-500">
-            {pin.scope === 'personal' ? <Lock className="size-2.5 text-gold-300" /> : <ShieldHalf className="size-2.5 text-gold-300" />}
-          </span>
-        )}
-        {(selected || k >= 1.5) && (
-          <span className="mt-1.5 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold whitespace-nowrap text-gold-100">{pin.name}</span>
-        )}
+      <span className={`map-pin ${selected ? 'on' : ''} ${fresh ? 'drop' : ''}`} style={{ '--c': t.color } as React.CSSProperties}>
+        <t.icon className="size-4" />
+        {pin.scope !== 'gang' && <span className="map-pin-lock">{pin.scope === 'personal' ? <Lock className="size-2.5" /> : <ShieldHalf className="size-2.5" />}</span>}
+        {(selected || k >= 1.5) && <span className="map-pin-label">{pin.name}</span>}
       </span>
     </button>
   );
 }
 
-export default function MapPage() {
+/** Something else on the map at a spot: a blacksite location or an upcoming event. */
+function Extra({ x, y, k, kind, label, sub, tone }: { x: number; y: number; k: number; kind: 'spot' | 'event'; label: string; sub?: string; tone?: string }) {
+  const Icon = kind === 'event' ? CalendarDays : tone === 'win' ? Flag : tone === 'loss' ? X : Swords;
+  return (
+    <span className="pointer-events-none absolute" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(-50%, -50%) scale(${1 / k})`, zIndex: 3 }}>
+      <span className={`map-extra ${kind} ${tone ?? ''}`}>
+        <Icon className="size-3.5" />
+        {(k >= 1.5 || kind === 'event') && (
+          <span className="map-pin-label">
+            {label}
+            {sub && <small> · {sub}</small>}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/** City time is night: 8pm to 6am ET. */
+function useNight() {
+  const isNight = () => {
+    const h = et(Date.now()).h;
+    return h >= 20 || h < 6;
+  };
+  const [night, setNight] = useState(isNight);
+  useEffect(() => {
+    const t = setInterval(() => setNight(isNight()), 60e3);
+    return () => clearInterval(t);
+  }, []);
+  return night;
+}
+
+/** A stash pin's live counts. */
+function StashCounts({ id }: { id: string }) {
+  const { stock, locLabel } = useNarcotics();
+  const items = useCollection<{ id: string; name: string }>('itemTypes') ?? [];
+  const name = (i: string) => items.find((t) => t.id === i)?.name ?? i;
+  const things = thingsIn(stock.get(id), name).sort((a, b) => b.qty - a.qty);
+  return (
+    <Link to={`/stash?place=${id}`} className="mt-2 block border border-line-soft p-2 text-xs hover:bg-raised/50">
+      <span className="flex items-center gap-1.5 font-bold text-gold-200">
+        <Warehouse className="size-3.5" /> {locLabel(id)}
+      </span>
+      {things.length ? (
+        <span className="mt-1 flex flex-wrap gap-x-2 text-ash">
+          {things.slice(0, 6).map((t) => (
+            <span key={t.label}>
+              {t.label} <b className="font-mono text-gold-100">{t.qty}</b>
+            </span>
+          ))}
+          {things.length > 6 && <span className="text-smoke">+{things.length - 6} more</span>}
+        </span>
+      ) : (
+        <span className="mt-1 block text-smoke">Empty right now.</span>
+      )}
+    </Link>
+  );
+}
+
+const LAYERS = [
+  ...PIN_TYPES.map((t) => ({ id: t.id, label: t.label, color: t.color, icon: t.icon })),
+  { id: '_spots', label: 'Blacksite locations', color: '#ef4444', icon: Swords },
+  { id: '_events', label: 'Events · 7 days', color: '#a78bfa', icon: CalendarDays },
+];
+
+function MapPage() {
   const { me, rankById, crewById } = useHub();
   const lead = useLead();
   const pins = useVisible<Pin>('pins');
@@ -123,7 +227,16 @@ export default function MapPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [newAt, setNewAt] = useState<{ x: number; y: number } | null>(null);
   const [editing, setEditing] = useState<Pin | null>(null);
-  const [types, setTypes] = useState<Set<string>>(new Set());
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [bigPhoto, setBigPhoto] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const night = useNight();
+  const spots = (useCollection<Spot>('blacksiteSpots') ?? []).filter((x) => x.x != null && x.y != null);
+  const fights = useCollection<Blacksite>('blacksites') ?? [];
+  const events = useVisible<CalEvent>('events') ?? [];
+  // Pins that show up after the page opened drop in.
+  const firstIds = useRef<Set<string> | null>(null);
+  if (pins && !firstIds.current) firstIds.current = new Set(pins.map((p) => p.id));
   const [scope, setScope] = useState<Scope | 'all'>('all');
   const [search, setSearch] = useState('');
   const box = useRef<HTMLDivElement>(null);
@@ -133,12 +246,22 @@ export default function MapPage() {
   const shown = useMemo(
     () =>
       (pins ?? [])
-        .filter((p) => (types.size ? types.has(p.type) : true) && (scope === 'all' || p.scope === scope))
-        .filter((p) => !search || `${p.name} ${p.note ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+        .filter((p) => !hidden.has(p.type) && (scope === 'all' || p.scope === scope))
+        .filter((p) => !search || `${p.name} ${p.note ?? ''} ${p.postal ?? ''}`.toLowerCase().includes(search.toLowerCase().replace(/^postal\s*/, '')))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [pins, types, scope, search],
+    [pins, hidden, scope, search],
   );
   const sel = (pins ?? []).find((p) => p.id === selected);
+  // The week's events tied to a pin or a blacksite location.
+  const today = keyOf(Date.now());
+  const upcoming = events
+    .filter((e) => e.pinId)
+    .flatMap((e) => occurrences(e, today, addDays(today, 7)).slice(0, 1).map((o) => ({ e, o })))
+    .map(({ e, o }) => {
+      const at = e.pinId!.startsWith('spot:') ? spots.find((x) => `spot:${x.id}` === e.pinId) : (pins ?? []).find((p) => p.id === e.pinId);
+      return at ? { id: e.id, x: at.x!, y: at.y!, label: e.title, sub: `${o.at.toLocaleDateString('en-US', { weekday: 'short' })} ${timeLabel(o.at)}`, color: eventKind(e.kind).color } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => !!x);
   const canEdit = (p: Pin) => p.owner === me.id || (lead && p.scope !== 'personal');
 
   // Keep the map inside its frame.
@@ -247,7 +370,7 @@ export default function MapPage() {
         icon={MapIcon}
         kicker="City"
         title="Map"
-        sub="Tap “Drop a pin”, then tap the map. Pins can be just yours, for the family, or (leadership) limited to ranks and crews."
+        sub="Where our stuff is. Drop a pin with its postal, a photo and how to get in. Blacksite locations and the week’s events show too."
         actions={
           <button className={mode === 'add' ? 'btn-ghost' : 'btn-gold'} onClick={() => setMode(mode === 'add' ? 'look' : 'add')}>
             {mode === 'add' ? (
@@ -282,11 +405,18 @@ export default function MapPage() {
                 onLoad={(e) => setAspect(e.currentTarget.naturalHeight / e.currentTarget.naturalWidth || 1.5)}
                 onError={() => src !== PLACEHOLDER && setSrc(PLACEHOLDER)}
               />
+              {!hidden.has('_spots') &&
+                spots.map((x) => {
+                  const last = fights.filter((f) => spotOf(f, spots)?.id === x.id).sort((a, b) => b.at.toMillis() - a.at.toMillis())[0];
+                  return <Extra key={x.id} x={x.x!} y={x.y!} k={view.k} kind="spot" label={x.name} tone={last?.result} />;
+                })}
+              {!hidden.has('_events') && upcoming.map((u) => <Extra key={u.id} x={u.x} y={u.y} k={view.k} kind="event" label={u.label} sub={u.sub} />)}
               {shown.map((p) => (
-                <Marker key={p.id} pin={p} k={view.k} selected={p.id === selected} onClick={() => (mode === 'look' ? setSelected(p.id) : null)} />
+                <Marker key={p.id} pin={p} k={view.k} selected={p.id === selected} fresh={!!firstIds.current && !firstIds.current.has(p.id)} onClick={() => (mode === 'look' ? setSelected(p.id) : null)} />
               ))}
             </div>
 
+            {night && <div className="map-night" aria-hidden />}
             {mode !== 'look' && (
               <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
                 <span className="hud flex items-center gap-2 px-3 py-1.5 text-sm text-gold-100">
@@ -316,7 +446,27 @@ export default function MapPage() {
                     <p className="text-xs text-smoke">
                       {pinType(sel.type).label} · {audienceLabel(sel, rankById, crewById)}
                     </p>
+                    {sel.postal && (
+                      <button
+                        className="mt-1 inline-flex items-center gap-1 rounded bg-raised px-1.5 py-0.5 font-mono text-xs text-gold-200 hover:text-gold-50"
+                        onClick={() => navigator.clipboard?.writeText(`postal ${sel.postal}`).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
+                        title="Copy for chat"
+                      >
+                        postal {sel.postal} <Copy className="size-3" /> {copied && <span className="text-ok">copied</span>}
+                      </button>
+                    )}
                     {sel.note && <p className="mt-1.5 text-sm whitespace-pre-wrap text-ash">{sel.note}</p>}
+                    {sel.access && (
+                      <p className="mt-1.5 flex items-start gap-1.5 text-sm text-gold-100">
+                        <KeyRound className="mt-0.5 size-3.5 shrink-0 text-gold-400" /> {sel.access}
+                      </p>
+                    )}
+                    {sel.photo && (
+                      <button onClick={() => setBigPhoto(sel.photo!)} className="mt-2 block">
+                        <img src={sel.photo} alt="" className="max-h-28 rounded object-cover ring-1 ring-line" />
+                      </button>
+                    )}
+                    {sel.stashId && <StashCounts id={sel.stashId} />}
                     <p className="mt-1.5 text-xs text-smoke">
                       Dropped by <MemberName id={sel.owner} /> · {ago(sel.at)}
                     </p>
@@ -353,7 +503,16 @@ export default function MapPage() {
         </div>
 
         <Panel title={`Pins · ${shown.length}`}>
-          <input className="input mb-3" placeholder="Search pins" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <form
+            className="mb-3 flex items-center gap-2 border-b border-line-soft"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (shown[0]) center(shown[0]);
+            }}
+          >
+            <Search className="size-4 text-smoke" />
+            <input className="w-full bg-transparent py-2 text-sm text-gold-50 outline-none placeholder:text-smoke" placeholder="Search a name or postal" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </form>
           <div className="mb-2 flex flex-wrap gap-1">
             {scopeChips.map((c) => (
               <button key={c.id} onClick={() => setScope(c.id)} className={`chip inline-flex items-center gap-1 px-2.5 py-1 text-xs ${scope === c.id ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
@@ -361,22 +520,22 @@ export default function MapPage() {
               </button>
             ))}
           </div>
-          <div className="mb-3 flex flex-wrap gap-1">
-            {PIN_TYPES.map((t) => {
-              const on = types.has(t.id);
+          <p className="label mb-1 text-[10px]">Layers</p>
+          <div className="mb-3 grid grid-cols-2 gap-1">
+            {LAYERS.map((t) => {
+              const on = !hidden.has(t.id);
               return (
                 <button
                   key={t.id}
                   onClick={() => {
-                    const n = new Set(types);
-                    if (on) n.delete(t.id);
-                    else n.add(t.id);
-                    setTypes(n);
+                    const n = new Set(hidden);
+                    if (on) n.add(t.id);
+                    else n.delete(t.id);
+                    setHidden(n);
                   }}
-                  className="chip inline-flex items-center gap-1 px-2 py-1 text-[11px]"
-                  style={on ? { background: t.color, color: '#0a0a0b' } : { border: `1px solid ${t.color}55`, color: t.color }}
+                  className={`flex items-center gap-1.5 border px-2 py-1 text-left text-[11px] transition ${on ? 'border-line text-gold-100' : 'border-line-soft text-smoke opacity-50'}`}
                 >
-                  <t.icon className="size-3" /> {t.label}
+                  <t.icon className="size-3.5 shrink-0" style={{ color: t.color }} /> <span className="truncate">{t.label}</span>
                 </button>
               );
             })}
@@ -390,7 +549,10 @@ export default function MapPage() {
                     <t.icon className="size-4 shrink-0" style={{ color: t.color }} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-gold-100">{p.name}</span>
-                      <span className="block truncate text-[11px] text-smoke">{audienceLabel(p, rankById, crewById)}</span>
+                      <span className="block truncate text-[11px] text-smoke">
+                        {p.postal ? `postal ${p.postal} · ` : ''}
+                        {audienceLabel(p, rankById, crewById)}
+                      </span>
                     </span>
                     {p.scope === 'personal' ? <Lock className="size-3.5 text-smoke" /> : p.scope === 'limited' ? <ShieldHalf className="size-3.5 text-smoke" /> : null}
                   </button>
@@ -404,6 +566,19 @@ export default function MapPage() {
 
       {newAt && <PinDialog at={newAt} onClose={() => setNewAt(null)} />}
       {editing && <PinDialog pin={editing} onClose={() => setEditing(null)} />}
+      {bigPhoto && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/90 p-4" onClick={() => setBigPhoto(null)}>
+          <img src={bigPhoto} alt="" className="max-h-full max-w-full" />
+        </div>
+      )}
     </>
+  );
+}
+
+export default function MapPageWithStash() {
+  return (
+    <NarcoticsProvider>
+      <MapPage />
+    </NarcoticsProvider>
   );
 }
