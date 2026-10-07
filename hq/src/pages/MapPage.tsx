@@ -9,7 +9,7 @@ import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft, type Scope } from '../lib/audience';
 import { ago } from '../lib/format';
 import { addPin, PIN_TYPES, pinType, removePin, savePin, type Pin } from '../lib/pins';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
 import { spotOf, type Blacksite, type Spot } from '../lib/blacksites';
 import { addDays, et, eventKind, keyOf, occurrences, timeLabel, type CalEvent } from '../lib/calendar';
@@ -155,7 +155,7 @@ function Marker({ pin, k, selected, fresh, onClick }: { pin: Pin; k: number; sel
 function Extra({ x, y, k, kind, label, sub, tone }: { x: number; y: number; k: number; kind: 'spot' | 'event'; label: string; sub?: string; tone?: string }) {
   const Icon = kind === 'event' ? CalendarDays : tone === 'win' ? Flag : tone === 'loss' ? X : Swords;
   return (
-    <span className="pointer-events-none absolute" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(-50%, -50%) scale(${1 / k})`, zIndex: 3 }}>
+    <span className="pointer-events-none absolute" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(-50%, ${kind === 'event' ? '-130%' : '-50%'}) scale(${1 / k})`, transformOrigin: kind === 'event' ? '50% 130%' : undefined, zIndex: 3 }}>
       <span className={`map-extra ${kind} ${tone ?? ''}`}>
         <Icon className="size-3.5" />
         {(k >= 1.5 || kind === 'event') && (
@@ -252,6 +252,18 @@ function MapPage() {
     [pins, hidden, scope, search],
   );
   const sel = (pins ?? []).find((p) => p.id === selected);
+  // Opened from an event or a banner: ?pin=<id> centers on it.
+  const [params] = useSearchParams();
+  const opened = useRef(false);
+  useEffect(() => {
+    const id = params.get('pin');
+    const p = id && (pins ?? []).find((x) => x.id === id);
+    if (p && !opened.current && box.current) {
+      opened.current = true;
+      setTimeout(() => center(p), 300);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pins, params]);
   // The week's events tied to a pin or a blacksite location.
   const today = keyOf(Date.now());
   const upcoming = events

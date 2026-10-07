@@ -86,8 +86,10 @@ export interface Occurrence {
   allDay?: boolean;
   title: string;
   color: string;
-  kind: 'event' | 'grow' | 'cook' | 'run' | 'birthday' | 'anniversary';
+  kind: 'event' | 'grow' | 'cook' | 'run' | 'birthday' | 'anniversary' | 'fight';
   sub?: string;
+  /** Where tapping it goes (e.g. a blacksite fight). */
+  href?: string;
   event?: CalEvent;
   memberId?: string;
 }
