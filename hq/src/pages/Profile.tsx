@@ -930,7 +930,7 @@ export default function Profile() {
               <h1 className="font-display text-3xl font-bold sm:text-4xl">{worn.nameHue || worn.effect ? <FancyName name={m.name} hue={worn.nameHue} effect={worn.effect?.effect} /> : <span className="foil">{m.name}</span>}</h1>
               {worn.title && <TitleTag h={worn.title} className="mt-1" />}
               {!!worn.showcase.length && (
-                <button className="mt-2 flex justify-center gap-1.5 sm:justify-start" onClick={() => setParams({ view: 'honors' }, { replace: true })} title="Vault of Honors">
+                <button className="mt-2 flex justify-center gap-1.5 sm:justify-start" onClick={() => setParams({ view: 'honors' }, { replace: true })} title="Honorwall">
                   {worn.showcase.map((h) => (
                     <Badge key={h.id} h={h} size={36} />
                   ))}
@@ -1046,7 +1046,7 @@ export default function Profile() {
               onChange={(v) => setParams(v === 'sheet' ? {} : { view: v }, { replace: true })}
               tabs={[
                 { id: 'sheet', label: 'Sheet' },
-                { id: 'honors', label: 'Vault of Honors' },
+                { id: 'honors', label: 'Honorwall' },
                 { id: 'trophies', label: 'Trophy Wall' },
                 { id: 'journal', label: 'Journal' },
               ]}

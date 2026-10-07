@@ -113,7 +113,7 @@ function GiveDialog({ m, h, onClose }: { m: Member; h: Honor; onClose: () => voi
   );
 }
 
-/** Someone's Vault of Honors: everything earned and still to earn, on their character page. */
+/** Someone's Honorwall: everything earned and still to earn, on their character page. */
 export function Vault({ m }: { m: Member }) {
   const { me, isLead } = useHub();
   const { isArchivist } = useArchiveAccess();
@@ -135,7 +135,7 @@ export function Vault({ m }: { m: Member }) {
     <div className="space-y-6">
       <div className="hud flex flex-wrap items-center gap-5 p-5">
         <div>
-          <p className="label text-gold-500">Vault of Honors</p>
+          <p className="label text-gold-500">Honorwall</p>
           <p className="font-display text-3xl text-gold-100">
             {score(m.id).toLocaleString()} <span className="text-base text-smoke">honor</span>
           </p>
@@ -217,7 +217,7 @@ export function Vault({ m }: { m: Member }) {
         })}
         {!list.length && (
           <p className="col-span-full flex items-center gap-2 text-sm text-smoke">
-            <Sparkles className="size-4" /> {honors.length ? 'Nothing here yet.' : 'The Vault is being set up.'}
+            <Sparkles className="size-4" /> {honors.length ? 'Nothing here yet.' : 'The Honorwall is being set up.'}
           </p>
         )}
       </div>
