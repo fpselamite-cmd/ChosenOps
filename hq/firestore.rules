@@ -67,6 +67,9 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid', 'v'])
         && request.resource.data.uid == request.auth.uid && request.resource.data.v == 0
         && getAfter(/databases/$(database)/documents/members/$(request.auth.uid)).data.nameLower == key;
+      // An admin renaming someone adds their new name (the old one keeps signing them in until a PIN reset).
+      allow create: if active() && isAdmin() && request.resource.data.keys().hasOnly(['uid', 'v']) && request.resource.data.v == 0
+        && getAfter(/databases/$(database)/documents/members/$(request.resource.data.uid)).data.nameLower == key;
       // The PIN-reset flow bumps the version from the new sign-in account.
       allow update: if signedIn() && onlyChanges(['v']) && request.resource.data.v == resource.data.get('v', 0) + 1
         && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == resource.data.uid;
@@ -110,35 +113,46 @@ service cloud.firestore {
 
       // Admin access, on its own (only the 'admin' field changes).
       // Becoming an admin with the admin password, written to your own claim in the same go:
-      allow update: if onlyChanges(['admin']) && request.resource.data.admin == true && active() && myId() == id
+      allow update: if request.resource.data.get('admin', false) != resource.data.get('admin', false) && onlyChanges(['admin']) && request.resource.data.admin == true && active() && myId() == id
         && hashing.sha256('chosenops-admin:' + getAfter(/databases/$(database)/documents/adminClaims/$(id)).data.code).toHexString().lower()
            == get(/databases/$(database)/documents/settings/adminKey).data.hash;
       // Stepping down yourself:
-      allow update: if onlyChanges(['admin']) && request.resource.data.admin == false && active() && myId() == id;
+      allow update: if request.resource.data.get('admin', false) != resource.data.get('admin', false) && onlyChanges(['admin']) && request.resource.data.admin == false && active() && myId() == id;
       // An owner granting or taking it away:
-      allow update: if onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
+      allow update: if request.resource.data.get('admin', false) != resource.data.get('admin', false) && onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
 
+      // An admin fixing someone's display name.
+      allow update: if request.resource.data.name != resource.data.name && isAdmin() && onlyChanges(['name', 'nameLower'])
+        && str(request.resource.data.name, 30) && request.resource.data.name.size() >= 2
+        && request.resource.data.nameLower == request.resource.data.name.lower();
       allow update: if
         // Your own profile.
-        (active() && myId() == id && onlyChanges(['avatar', 'alias', 'phone', 'bio', 'birthday', 'prefs']) && validProfile())
+        (onlyChanges(['avatar', 'alias', 'phone', 'bio', 'birthday', 'prefs']) && myId() == id && active() && validProfile())
         // Approving a newcomer into a rank below your own.
-        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status', 'rankId'])
-            && request.resource.data.status == 'active' && below(request.resource.data.rankId))
+        || (resource.data.status == 'pending' && request.resource.data.status == 'active' && onlyChanges(['status', 'rankId'])
+            && can('approveMembers') && below(request.resource.data.rankId))
         // Turning a newcomer away.
-        || (can('approveMembers') && resource.data.status == 'pending' && onlyChanges(['status'])
-            && request.resource.data.status == 'suspended')
+        || (resource.data.status == 'pending' && request.resource.data.status == 'suspended' && onlyChanges(['status'])
+            && can('approveMembers'))
         // Rank, status and chain of command for members below you, into ranks below you.
-        || (can('manageMembers') && id != myId() && resource.data.status != 'pending' && below(resource.data.rankId)
-            && onlyChanges(['rankId', 'status', 'reportsTo'])
+        // (An admin may also pick their own in-character rank: admin is out-of-character.)
+        || (resource.data.status != 'pending' && onlyChanges(['rankId', 'status', 'reportsTo'])
+            && can('manageMembers') && (id != myId() || isAdmin()) && below(resource.data.rankId)
             && request.resource.data.rankId is string && below(request.resource.data.rankId)
             && request.resource.data.status in ['active', 'suspended']
             && (request.resource.data.reportsTo == null || request.resource.data.reportsTo is string))
         // The crews someone is in, copied onto their file so pins and events can be shared by crew.
         // Anyone may sync it, but every crew listed must really have them (checked after the write).
-        || (active() && onlyChanges(['crewIds']) && crewIdsTrue(id, request.resource.data.crewIds))
+        // Crews are retired: a member's old crew list can only be cleared.
+        || (onlyChanges(['crewIds']) && request.resource.data.crewIds == [] && active())
         // PIN reset: the new sign-in account claims the member file (code checked on authLinks).
-        || (signedIn() && onlyChanges(['authUid']) && request.resource.data.authUid == request.auth.uid
+        || (onlyChanges(['authUid']) && signedIn() && request.resource.data.authUid == request.auth.uid
             && getAfter(/databases/$(database)/documents/authLinks/$(request.auth.uid)).data.memberId == id);
+    }
+
+    // Owners only: wiping a test account or the old half of a merged one.
+    match /members/{id} {
+      allow delete: if active() && isOwner() && id != myId();
     }
 
     // Online check-ins and custom statuses. Each member writes only their own.
@@ -350,6 +364,11 @@ service cloud.firestore {
         && request.resource.data.get('loaUntil', null) == (resource == null ? null : resource.data.get('loaUntil', null));
       allow update: if isAdmin() && onlyChanges(['loaFrom', 'loaUntil']);
       allow create: if isAdmin() && request.resource.data.keys().hasOnly(['loaFrom', 'loaUntil']);
+      // Admin fix: set the numbers straight.
+      allow create, update: if active() && isAdmin()
+        && request.resource.data.keys().hasOnly(['current', 'best', 'last', 'freezes', 'loaFrom', 'loaUntil', 'at'])
+        && request.resource.data.current is int && request.resource.data.best is int
+        && request.resource.data.current >= 0 && request.resource.data.best >= request.resource.data.current;
     }
     // Today's spotlight, when leadership picks someone.
     match /spotlight/{id} {
@@ -443,7 +462,7 @@ service cloud.firestore {
     // Cash members add to or take out of their own locker (city money, not gang sales).
     match /myCash/{id} {
       allow read: if active() && (wasMine('memberId') || can('money'));
-      allow create: if active() && mine('memberId') && request.resource.data.at == request.time
+      allow create: if active() && (mine('memberId') || isAdmin()) && request.resource.data.at == request.time
         && request.resource.data.keys().hasOnly(['memberId', 'dirty', 'clean', 'note', 'at'])
         && request.resource.data.dirty is int && request.resource.data.clean is int
         && str(request.resource.data.get('note', ''), 60);
@@ -494,7 +513,7 @@ service cloud.firestore {
     // Each member's own work counters (harvests, presses, cooks, runs) for achievements.
     match /stats/{memberId} {
       allow read: if active();
-      allow write: if active() && myId() == memberId;
+      allow write: if active() && (myId() == memberId || (isAdmin() && memberId != 'familyRep'));
     }
 
     // ── BlackMarket: drugs sell for dirty money ─────────────────
@@ -571,6 +590,10 @@ service cloud.firestore {
     // A confirmer may only add back the exact amount of a transfer they're rejecting.
     match /petty/{id} {
       allow read: if active();
+      // Admin fix of someone's rep total.
+      allow create, update: if active() && isAdmin()
+        && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
+        && request.resource.data.rep is int && request.resource.data.rep >= 0;
       allow create, update: if active() && myId() == id
         && request.resource.data.keys().hasOnly(['rep', 'refundOf'])
         && request.resource.data.rep is int && request.resource.data.rep >= 0
@@ -800,7 +823,8 @@ service cloud.firestore {
           || (d.get('scope', '') == 'limited'
               && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))))));
     }
-    function lead() { return rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0; }
+    // Admins count as leadership whatever their rank: admin is out-of-character, rank is in-character.
+    function lead() { return isAdmin() || rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0; }
     function validAudience(d) {
       return d.scope in ['personal', 'gang', 'limited'] && d.owner == myId()
         && d.ranks is list && d.ranks.size() <= 20 && d.crewIds is list && d.crewIds.size() <= 10;
@@ -848,6 +872,47 @@ service cloud.firestore {
 
     // ── Gear & Loadouts ─────────────────────────────────────────
     // Shared weapon builds: anyone makes one; anyone likes (their own like only).
+    // ---------- Admin ----------
+    // App-wide defaults (call-in cost, weekly goal, snapshot days, city clock) and editable lists (crime types, cars, products).
+    match /settings/defaults {
+      allow read: if active();
+      allow write: if active() && (isAdmin() || can('manageSettings'));
+    }
+    match /settings/lists {
+      allow read: if active();
+      allow write: if active() && (isAdmin() || can('manageOps'))
+        && request.resource.data.get('crimes', []) is list && request.resource.data.get('crimes', []).size() <= 40
+        && request.resource.data.get('vehicles', []) is list && request.resource.data.get('vehicles', []).size() <= 300
+        && request.resource.data.get('products', []) is list && request.resource.data.get('products', []).size() <= 40;
+    }
+    // Big actions, for admins only.
+    match /adminFeed/{id} {
+      allow read, delete: if active() && isAdmin();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['kind', 'text', 'by', 'byName', 'target', 'reason', 'at'])
+        && str(request.resource.data.kind, 20) && str(request.resource.data.text, 200)
+        && str(request.resource.data.get('reason', ''), 140);
+    }
+    // A welcome note for a newcomer, shown on their first Dashboard until they dismiss it.
+    match /welcomes/{memberId} {
+      allow read: if active() && (myId() == memberId || can('approveMembers'));
+      allow create, update: if active() && can('approveMembers') && str(request.resource.data.text, 300)
+        && request.resource.data.keys().hasOnly(['text', 'by', 'byName', 'at']) && request.resource.data.by == myId();
+      allow delete: if active() && (myId() == memberId || can('approveMembers'));
+    }
+    // BlackMarket price changes over time.
+    match /priceLog/{id} {
+      allow read: if active();
+      allow create: if active() && (can('money') || isAdmin()) && request.resource.data.by == myId()
+        && request.resource.data.keys().hasOnly(['product', 'price', 'was', 'by', 'byName', 'at'])
+        && request.resource.data.price is int && request.resource.data.at == request.time;
+    }
+    // Owners only: merging a duplicate account or wiping a test one moves or removes that member's things.
+    match /{coll}/{id} {
+      allow read, update, delete: if coll in ['names', 'presence', 'sales', 'myCash', 'trophies', 'pettyLog', 'petty', 'repTransfers', 'builds', 'kits', 'kitPicks', 'signouts', 'lockerStock', 'stats', 'streaks', 'sheets', 'pettyGoals', 'shopping', 'welcomes', 'nudges'] && active() && isOwner();
+      allow create: if coll in ['lockerStock', 'petty', 'stats', 'streaks', 'sheets', 'shopping', 'kitPicks'] && active() && isOwner();
+    }
+
     match /builds/{id} {
       // Family builds are for everyone; private ones only for whoever made them.
       // Leadership and admins also see builds from before the family/private choice, so their page can mark them family.

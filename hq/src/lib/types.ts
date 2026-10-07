@@ -154,6 +154,10 @@ export interface Presence {
 export interface GangSettings {
   name: string;
   motto: string;
+  /** The gang logo (a small square picture); the seal shows when there's none. */
+  logo?: string | null;
+  /** Everyone's default accent until they pick their own. */
+  accent?: 'gold' | 'rose' | 'silver' | 'emerald' | 'violet' | 'platinum' | 'crimson' | 'sapphire' | 'aurora';
 }
 
 export interface Announcement {

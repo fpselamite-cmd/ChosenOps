@@ -23,6 +23,7 @@ import { MAIN_STASH, ROOT_FIELDS, STRAINS, toCount, type OpsLocation, type Stock
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { ToastProvider, useToast } from '../noel/ui';
+import { useDefaults, useLists } from '../lib/adminData';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 const DRAG = 'application/x-chosenops-stash';
@@ -66,10 +67,23 @@ const kindOfThing = (t: Thing, byId: Map<string, ItemType>) => (t.item ? kindOf(
 const logoOf = (t: Thing) => `/noel/logos/${t.strain ?? (t.field === 'coca' ? 'cokeSmall' : t.field)}.png`;
 
 /** What one of a thing is worth here: the owner's value, or the BlackMarket price for drugs that sell. */
+/** BlackMarket prices, plus catalog items sold as products (keyed item:<id>). */
+function useStashPrices(base?: Record<string, number>) {
+  const products = useLists().products;
+  return useMemo(() => {
+    const p: Record<string, number> = { ...(base ?? {}) };
+    products.forEach((x) => {
+      if (!x.retired && p[x.id]) p[`item:${x.itemId}`] = p[x.id]!;
+    });
+    return p;
+  }, [base, products]);
+}
+
 function unitValue(t: Thing, loc: OpsLocation | undefined, prices: Record<string, number>) {
   const own = loc?.values?.[thingKey(t)];
   if (own) return own;
-  if (t.item) return 0;
+  // Catalog items sold on the BlackMarket carry that product's price.
+  if (t.item) return prices[`item:${t.item}`] ?? 0;
   if (t.strain && t.field === 'bricks') return prices[t.strain] ?? 0;
   if (!t.strain && (t.field === 'meth' || t.field === 'cokeSmall' || t.field === 'cokeLarge')) return prices[t.field] ?? 0;
   return 0;
@@ -447,9 +461,9 @@ function Deposit({ place, onClose }: { place: Place; onClose: () => void }) {
 // ---------- stash settings ----------
 
 function StashSettings({ place, onClose }: { place: Place; onClose: () => void }) {
-  const { ranks, myRank, me, isAdmin } = useHub();
+  const { ranks, me, isLead } = useHub();
   const ops = useOps('stash');
-  const lead = isAdmin || myRank?.order === 0 || !!myRank?.leadership;
+  const lead = isLead;
   const loc = place.loc!;
   const [name, setName] = useState(loc.name);
   const [postal, setPostal] = useState(loc.postal ?? '');
@@ -745,7 +759,7 @@ function StashView({ place, access, places, onSettings }: { place: Place; access
   const { noelDown } = useNarcotics();
   const names = useNames();
   const bm = useDoc<BmSettings>('settings/blackmarket');
-  const prices = bm?.prices ?? {};
+  const prices = useStashPrices(bm?.prices);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('all');
@@ -1024,11 +1038,12 @@ function LogTab({ places }: { places: Place[] }) {
   const [q, setQ] = useState('');
   const [day, setDay] = useState('');
   const [allChanges, setAllChanges] = useState(false);
-  // Snapshots older than 90 days roll off.
+  // Old snapshots roll off (90 days unless an admin changes it).
+  const keep = useDefaults().snapDays;
   useEffect(() => {
-    const cutoff = keyOf(Date.now() - 90 * 86400e3);
+    const cutoff = keyOf(Date.now() - keep * 86400e3);
     snaps.filter((s) => s.day < cutoff).forEach((s) => void removeSnap(s.id).catch(() => {}));
-  }, [snaps]);
+  }, [snaps, keep]);
   const list = moves.filter((m) => (!stash || m.from === stash || m.to === stash) && (!who || m.by === who) && (!q || m.label.toLowerCase().includes(q.toLowerCase())));
   const snap = snaps.find((s) => s.day === day) ?? snaps[0];
   const prev = snap ? snaps.find((s) => s.day < snap.day) : undefined;
@@ -1141,7 +1156,7 @@ function LogTab({ places }: { places: Place[] }) {
         ) : (
           <p className="text-sm text-smoke">No snapshots yet. The first one is taken today.</p>
         )}
-        <p className="mt-2 text-[11px] text-smoke">Taken at the first visit each day; kept 90 days. Biggest drops first.</p>
+        <p className="mt-2 text-[11px] text-smoke">Taken at the first visit each day; kept {keep} days. Biggest drops first.</p>
       </Panel>
     </div>
   );
@@ -1153,7 +1168,7 @@ type TabId = 'inventory' | 'out' | 'restock' | 'log';
 
 function Body() {
   const { ready, locations, stock, storage, locLabel } = useNarcotics();
-  const { me, myRank, rankById, isAdmin, can } = useHub();
+  const { me, myRank, rankById, isAdmin, isLead, can } = useHub();
   const ops = useOps('stash');
   const toast = useToast();
   const locker = useLocker();
@@ -1163,7 +1178,7 @@ function Body() {
   const [making, setMaking] = useState(false);
   const [settings, setSettings] = useState<Place | null>(null);
   const [over, setOver] = useState<string | null>(null);
-  const lead = isAdmin || myRank?.order === 0 || !!myRank?.leadership || can('manageOps');
+  const lead = isLead || can('manageOps');
   const snapped = useRef(false);
 
   const access = (p: Place) => (p.personal ? { manage: true, see: true, take: true } : stashAccess(p.loc!, me, myRank, rankById, lead));
@@ -1178,7 +1193,7 @@ function Body() {
   const tabParam = params.get('tab');
   const tab: TabId = tabParam === 'out' && lead ? 'out' : tabParam === 'restock' ? 'restock' : tabParam === 'log' && isAdmin ? 'log' : 'inventory';
   const restock = useRestock([...gang, ...grows]);
-  const prices = bm?.prices ?? {};
+  const prices = useStashPrices(bm?.prices);
 
   // The first visitor of the day takes the snapshot.
   useEffect(() => {

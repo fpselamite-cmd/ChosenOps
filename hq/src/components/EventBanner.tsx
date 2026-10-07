@@ -2,7 +2,7 @@ import { CalendarClock, MapPin, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useVisible } from '../lib/audience';
-import { addDays, keyOf, occurrences, timeLabel, type CalEvent } from '../lib/calendar';
+import { addDays, keyOf, occurrences, timeLabel, TZ_LABEL, type CalEvent } from '../lib/calendar';
 
 const SEEN = 'chosenops.banner.dismissed';
 const read = (): string[] => {
@@ -44,7 +44,7 @@ export function EventBanner() {
       <span className="min-w-0 flex-1 text-sm">
         <b className="text-gold-50">{soon.title}</b>{' '}
         <span className="text-gold-200">{mins > 0 ? `starts in ${mins} min` : mins === 0 ? 'is starting now' : 'is happening now'}</span>
-        <span className="text-ash"> · {timeLabel(soon.at)} ET{soon.sub ? ` · ${soon.sub}` : ''}</span>
+        <span className="text-ash"> · {timeLabel(soon.at)} {TZ_LABEL}{soon.sub ? ` · ${soon.sub}` : ''}</span>
       </span>
       {soon.event?.pinId && !soon.event.pinId.startsWith('spot:') && (
         <Link to={`/map?pin=${soon.event.pinId}`} className="btn-ghost btn-sm">

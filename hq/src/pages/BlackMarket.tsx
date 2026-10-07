@@ -1,4 +1,4 @@
-import { Check, Crown, Download, HandCoins, ListChecks, Minus, Pin, Plus, Settings2, ShoppingBag, Siren, Sparkles, Trash2, Users, VenetianMask, X } from 'lucide-react';
+import { Check, Crown, Download, HandCoins, ListChecks, Minus, Package, Pin, Plus, Settings2, ShoppingBag, Siren, Sparkles, Trash2, Users, VenetianMask, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
@@ -9,22 +9,23 @@ import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat, Tabs } from '../components/Page';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
-import { ago } from '../lib/format';
+import { ago, TZ } from '../lib/format';
 import { itemTitle, type ItemType } from '../lib/items';
 import { countOf, useLocker } from '../lib/locker';
-import { SALE_ITEMS, money, payoutSplit, saleItem, saleKind, unitWord, useMoney, useMoneyOps, type Sale, type SaleKind, type WashRequest, type Wish } from '../lib/money';
+import { saleItems, setExtraProducts, money, payoutSplit, saleItem, saleKind, unitWord, useMoney, useMoneyOps, type Sale, type SaleKind, type WashRequest, type Wish } from '../lib/money';
 import { NOELOPS_URL } from '../lib/noelops';
 import { toCount } from '../noel/data';
 import { useOps } from '../noel/ops';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 import { Logo, ToastProvider, useToast } from '../noel/ui';
 import { WishlistButton } from '../components/WishlistButton';
+import { useLists } from '../lib/adminData';
 
 type View = 'sell' | 'money' | 'wish' | 'washing';
 const DAY = 86400e3;
 const at = (x: { at?: { toMillis(): number } }) => x.at?.toMillis() ?? Date.now();
 const fmtWhen = (ms: number) =>
-  `${new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })} ${new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}`;
+  `${new Date(ms).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' })} ${new Date(ms).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' })}`;
 const digits = (v: string) => v.replace(/\D/g, '');
 
 /** Places a sale can come from: gang stashes, then your own locker storages. */
@@ -113,7 +114,7 @@ function SellPanel({ onSold }: { onSold: (total: number) => void }) {
   const [error, setError] = useState('');
   const have = (src: Source | undefined, p: string) => {
     const it = saleItem(p);
-    return src && it ? countOf(src.stock, { strain: it.strain, field: it.field }) : 0;
+    return src && it ? countOf(src.stock, { strain: it.strain, field: it.field, item: it.item }) : 0;
   };
   const gangHas = (p: string) => sources.filter((s) => !s.mine).reduce((t, s) => t + have(s, p), 0);
   const mineHas = (p: string) => sources.filter((s) => s.mine).reduce((t, s) => t + have(s, p), 0);
@@ -124,7 +125,7 @@ function SellPanel({ onSold }: { onSold: (total: number) => void }) {
     setLines((ls) => [...ls, { key: `${p}${Date.now()}`, product: p, from: best?.key ?? null, qty: 1, price: '', touched: false }]);
   };
   const total = lines.reduce((t, l) => t + priceOf(l), 0);
-  const stocked = SALE_ITEMS.filter((it) => gangHas(it.id) + mineHas(it.id) > 0);
+  const stocked = saleItems().filter((it) => gangHas(it.id) + mineHas(it.id) > 0);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -172,14 +173,14 @@ function SellPanel({ onSold }: { onSold: (total: number) => void }) {
         <p className="text-xs text-smoke">Tap what’s going out. Gang stash = gang money · your locker = your money.</p>
       </div>
       <div className="grid grid-cols-3 gap-2 p-4 sm:grid-cols-4 lg:grid-cols-6">
-        {(stocked.length ? stocked : SALE_ITEMS).map((it) => {
+        {(stocked.length ? stocked : saleItems()).map((it) => {
           const g = gangHas(it.id);
           const mine = mineHas(it.id);
           const on = lines.filter((l) => l.product === it.id).reduce((t, l) => t + l.qty, 0);
           return (
             <button type="button" key={it.id} onClick={() => add(it.id)} disabled={!g && !mine} className={`bm-tile ${on ? 'on' : ''}`} title={`${it.name}: ${g} in gang stashes, ${mine} in your locker`}>
               <span className="bm-tile-logo">
-                <Logo id={it.id === 'coca' ? 'cokeSmall' : it.id} />
+                <ProductLogo it={it} />
               </span>
               <span className="truncate text-[11px] font-bold text-gold-100">{it.name}</span>
               <span className="font-mono text-[10px] text-smoke">
@@ -504,12 +505,12 @@ function SellView() {
 
       <Panel title="Going rate">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {SALE_ITEMS.map((it) => {
+          {saleItems().map((it) => {
             const last = lastPrice(it.id);
             return (
               <div key={it.id} className="flex items-center gap-2 text-sm">
                 <span className="size-7 shrink-0">
-                  <Logo id={it.id === 'coca' ? 'cokeSmall' : it.id} />
+                  <ProductLogo it={it} />
                 </span>
                 <span className="flex-1 truncate text-ash">{it.name}</span>
                 <span className="font-mono text-gold-200">{m.prices[it.id] ? money(m.prices[it.id]!) : '—'}</span>
@@ -736,7 +737,7 @@ function MoneyView() {
 // ---------- wish list ----------
 
 function WishView() {
-  const { me, can, myRank } = useHub();
+  const { me, can, isLead } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
   const toast = useToast();
@@ -744,7 +745,7 @@ function WishView() {
   const ops = useOps('stash');
   const types = useCollection<ItemType>('itemTypes') ?? [];
   const byId = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
-  const lead = can('money') || myRank?.order === 0 || !!myRank?.leadership;
+  const lead = can('money') || isLead;
   const fields = m.settings.wishFields ?? [];
   const [posting, setPosting] = useState(false);
   const [title, setTitle] = useState('');
@@ -1009,7 +1010,7 @@ function WashingView() {
 function Settings({ onClose }: { onClose: () => void }) {
   const m = useMoney();
   const mops = useMoneyOps();
-  const [prices, setPrices] = useState<Record<string, string>>(() => Object.fromEntries(SALE_ITEMS.map((s) => [s.id, m.prices[s.id] ? String(m.prices[s.id]) : ''])));
+  const [prices, setPrices] = useState<Record<string, string>>(() => Object.fromEntries(saleItems().map((s) => [s.id, m.prices[s.id] ? String(m.prices[s.id]) : ''])));
   const [wash, setWash] = useState(String(m.washPct));
   const [fields, setFields] = useState((m.settings.wishFields ?? []).map((f) => f.label).join(', '));
   return (
@@ -1037,7 +1038,7 @@ function Settings({ onClose }: { onClose: () => void }) {
         <div>
           <p className="label mb-1.5">Usual price (per brick / bin)</p>
           <div className="grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-            {SALE_ITEMS.map((s) => (
+            {saleItems().map((s) => (
               <label key={s.id} className="block text-[11px] text-smoke">
                 {s.name}
                 <input className="input mt-0.5 py-1 font-mono" inputMode="numeric" placeholder="$" value={prices[s.id]} onChange={(e) => setPrices({ ...prices, [s.id]: digits(e.target.value) })} />
@@ -1097,8 +1098,21 @@ function NoelStatus() {
   );
 }
 
+/** A drug's NoelOps logo, or a gold box for a catalog product. */
+function ProductLogo({ it }: { it: { id: string; item?: string } }) {
+  if (it.item)
+    return (
+      <span className="grid h-full w-full place-items-center rounded-xl border border-gold-600/50 bg-coal text-gold-300">
+        <Package className="size-6" />
+      </span>
+    );
+  return <Logo id={it.id === 'coca' ? 'cokeSmall' : it.id} />;
+}
+
 function Body() {
   const [params, setParams] = useSearchParams();
+  // Catalog products an admin added (Admin → Lists) join the drugs on the call.
+  setExtraProducts(useLists().products);
   const m = useMoney();
   const { ready } = useNarcotics();
   const [settings, setSettings] = useState(false);

@@ -26,7 +26,26 @@ export const SALE_ITEMS = [
   ...STRAINS.map((s) => ({ id: s.id as string, name: s.name, tint: s.tint, nameColor: s.nameColor, unit: 'brick', strain: s.id as StrainId, field: 'bricks' as BudField | RootField })),
   ...PRODUCTS.map((p) => ({ id: p.id as string, name: p.name, tint: p.tint, nameColor: p.nameColor, unit: p.unit, strain: undefined, field: p.id as BudField | RootField })),
 ];
-export const saleItem = (id: string) => SALE_ITEMS.find((x) => x.id === id);
+interface SaleItem {
+  id: string;
+  name: string;
+  tint: string;
+  nameColor: string;
+  unit: string;
+  strain: StrainId | undefined;
+  field: BudField | RootField;
+  /** A catalog item sold as a product (taken from the stash's items). */
+  item?: string;
+  retired?: boolean;
+}
+/** Catalog items an admin added as products (Admin → Lists). Set by the BlackMarket page from the saved list. */
+let EXTRA: SaleItem[] = [];
+export function setExtraProducts(ps: { id: string; name: string; unit: string; itemId: string; retired?: boolean }[]) {
+  EXTRA = ps.map((p) => ({ id: p.id, name: p.name, tint: '212,175,55', nameColor: 'text-gold-200', unit: p.unit, strain: undefined, field: 'meth' as BudField | RootField, item: p.itemId, retired: !!p.retired }));
+}
+/** Everything that can be sold right now: the NoelOps drugs plus live catalog products. */
+export const saleItems = (): SaleItem[] => [...SALE_ITEMS, ...EXTRA.filter((x) => !x.retired)];
+export const saleItem = (id: string): SaleItem | undefined => SALE_ITEMS.find((x) => x.id === id) ?? EXTRA.find((x) => x.id === id);
 export const unitWord = (id: string, n: number) => {
   const u = saleItem(id)?.unit ?? 'brick';
   return n === 1 ? u : `${u}s`;
@@ -317,14 +336,15 @@ export function useMoneyOps() {
   return {
     async sell(p: { product: string; qty: number; from: string; fromLabel: string; seller: { id: string; name: string }; cut: number; price: number | null; narco: boolean; note: string; kind: SaleKind; team: string[]; callId: string }) {
       const item = saleItem(p.product)!;
-      const taken = await ops.applyDeltas([{ loc: p.from, strain: item.strain, field: item.field, delta: -p.qty }]);
+      const taken = await ops.applyDeltas([{ loc: p.from, strain: item.strain, field: item.field, item: item.item, delta: -p.qty }]);
       if (!taken.length || -taken[0]!.delta < p.qty) {
         if (taken.length) await ops.reverse(taken)();
         return null;
       }
       // NoelOps gets the sale too (its sales log and feed); the HQ copy remembers its key so it can be taken back out.
       const ref = doc(collection(db, 'sales'));
-      const noelKey = await noelSale({
+      // Catalog products don't go in NoelOps' drug sales log.
+      const noelKey = item.item ? null : await noelSale({
         strain: p.product, bricks: p.qty, bucket: bucketOf(p.from) ?? `HQ · ${p.fromLabel}`, who: p.seller.name, by: me.name,
         cut: p.cut, price: p.price, note: p.note.slice(0, 60), narco: p.narco, hqId: ref.id,
       }).catch(() => null);
@@ -361,7 +381,7 @@ export function useMoneyOps() {
     /** Money power: take a sale back out and return the product to where it came from. */
     async removeSale(x: Sale) {
       const item = saleItem(x.product)!;
-      await ops.applyDeltas([{ loc: x.from, strain: item.strain, field: item.field, delta: x.qty }]);
+      await ops.applyDeltas([{ loc: x.from, strain: item.strain, field: item.field, item: item.item, delta: x.qty }]);
       await deleteDoc(doc(db, 'sales', x.id));
       if (x.noelKey) await removeNoelSale(x.noelKey);
       if (x.price) await countSale(sign, x.sellerId, -x.price, x.at);

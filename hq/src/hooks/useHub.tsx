@@ -1,6 +1,11 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { applyPrefs, cachedPrefs, DEFAULT_PREFS } from '../lib/appearance';
+import type { Defaults } from '../lib/adminData';
 import { db } from '../lib/firebase';
+import { setCallInCost } from '../lib/blacksites';
+import { setCityClock } from '../lib/format';
+import { setReadOnly } from '../lib/guard/state';
 import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
 import type { Announcement, Crew, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
 import { useAuth } from './useAuth';
@@ -9,6 +14,12 @@ import { useCollection, useDoc } from './useCollection';
 /** Someone counts as online if their page checked in within this window. */
 const ONLINE_MS = 3 * 60_000;
 const HEARTBEAT_MS = 90_000;
+
+/** View the app as a rank, or as one member. */
+export interface Preview {
+  rankId?: string;
+  memberId?: string;
+}
 
 interface Hub {
   ready: boolean;
@@ -36,8 +47,15 @@ interface Hub {
   canSee: (page: PageId) => boolean;
   /** Admin access (the admin password, or given by an owner): every power except acting on the top rank. */
   isAdmin: boolean;
+  /** Leadership powers: a leadership rank, the top rank, or admin (admin is out-of-character, so any rank). */
+  isLead: boolean;
   /** An owner of the HQ (set from GitHub): hands out admin. */
   isOwner: boolean;
+  /** An admin previewing the app as a rank or a member: read-only until they stop. */
+  preview: Preview | null;
+  setPreview: (p: Preview | null) => void;
+  /** Who is really signed in (the same as `me` unless previewing). */
+  realMe: Member;
   /** Whether I can act on people in, or edit, this rank. */
   actsOn: (rank?: Rank) => boolean;
   /**
@@ -59,6 +77,21 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const settings = useDoc<GangSettings>('settings/gang');
   const announcement = useDoc<Announcement>('settings/announcement');
   const familyRep = useDoc<FamilyRep>('stats/familyRep');
+  const defaults = useDoc<Defaults>('settings/defaults');
+  const [preview, setPreviewState] = useState<Preview | null>(null);
+  const setPreview = (p: Preview | null) => {
+    // Writes stop the moment a preview starts, before anything renders as them.
+    setReadOnly(p ? 'previewing as someone else' : null);
+    setPreviewState(p);
+  };
+
+  // The gang's look: its accent is everyone's default until they pick their own.
+  useEffect(() => {
+    const accent = settings?.accent;
+    if (!accent || DEFAULT_PREFS.accent === accent) return;
+    DEFAULT_PREFS.accent = accent;
+    applyPrefs(cachedPrefs());
+  }, [settings]);
 
   // Check in while the page is open so the crew can see who's around.
   useEffect(() => {
@@ -89,14 +122,25 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;
     const ready =
-      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined;
+      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined && defaults !== undefined;
+    // The city clock, before anything shows a time.
+    if (defaults) setCallInCost(defaults.callInCost);
+    if (defaults) setCityClock(defaults.zone, defaults.zoneLabel, defaults.nightFrom != null && defaults.nightTo != null ? { from: defaults.nightFrom, to: defaults.nightTo } : undefined);
     const sortedRanks = [...(ranks ?? [])].sort((a, b) => a.order - b.order);
     const rankById = new Map(sortedRanks.map((r) => [r.id, r]));
     const allMembers = members ?? [];
     const memberById = new Map(allMembers.map((m) => [m.id, m]));
     const sortedCrews = [...(crews ?? [])].sort((a, b) => a.name.localeCompare(b.name));
     const presence = new Map((presenceRows ?? []).map((p) => [p.id, p]));
-    const liveMe = memberById.get(me.id) ?? me;
+    const realMe = memberById.get(me.id) ?? me;
+    const realAdmin = realMe.admin === true;
+    // Previewing: everything below is worked out for them, with no admin powers.
+    const liveMe: Member =
+      preview && realAdmin
+        ? preview.memberId
+          ? { ...(memberById.get(preview.memberId) ?? realMe), admin: false }
+          : { ...realMe, rankId: preview.rankId ?? realMe.rankId, admin: false }
+        : realMe;
     const myRank = liveMe.rankId ? rankById.get(liveMe.rankId) : undefined;
     const crewsOf = (id: string) => sortedCrews.filter((c) => c.memberIds?.includes(id));
     const myCrews = crewsOf(me.id);
@@ -132,10 +176,14 @@ export function HubProvider({ children }: { children: ReactNode }) {
       viaFor: (page) =>
         liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page])) ? 'rank' : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
       isAdmin: liveMe.admin === true,
-      isOwner: owner,
+      isLead: liveMe.admin === true || !!myRank && (myRank.order === 0 || !!myRank.leadership),
+      isOwner: owner && !preview,
+      preview: realAdmin ? preview : null,
+      setPreview,
+      realMe,
       actsOn: (rank) => (liveMe.admin === true ? rankOrder(rank) > 0 : outranks(myRank, rank)),
     };
-  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner]);
+  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner, defaults, preview]);
 
   if (!value) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

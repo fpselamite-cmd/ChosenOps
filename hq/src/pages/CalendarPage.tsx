@@ -10,6 +10,7 @@ import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft } from '../lib/audience';
 import { useCollection } from '../hooks/useCollection';
 import { RESULTS, type Blacksite, type Spot } from '../lib/blacksites';
+import { TZ, TZ_LABEL } from '../lib/format';
 import { Link } from 'react-router-dom';
 import type { Pin } from '../lib/pins';
 import {
@@ -95,7 +96,7 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
           <Field label="Day">
             <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} required />
           </Field>
-          <Field label="Time (ET)">
+          <Field label={`Time (${TZ_LABEL})`}>
             <input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} required />
           </Field>
           <Field label="How long">
@@ -176,9 +177,9 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
 }
 
 function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void }) {
-  const { me, myRank, memberById, rankById, crewById } = useHub();
+  const { me, isLead, memberById, rankById, crewById } = useHub();
   const e = o.event;
-  const lead = !!myRank && (myRank.order === 0 || !!myRank.leadership);
+  const lead = isLead;
   const canEdit = e && (e.owner === me.id || (lead && e.scope !== 'personal'));
   const going = e ? Object.entries(e.rsvp ?? {}) : [];
   const mine = e?.rsvp?.[me.id];
@@ -206,7 +207,7 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
               <span className="inline-flex items-center gap-1">
                 <Clock className="size-3" />
                 {timeLabel(o.at)}
-                {e ? ` – ${timeLabel(new Date(o.at.getTime() + e.mins * 60e3))}` : ''} ET
+                {e ? ` – ${timeLabel(new Date(o.at.getTime() + e.mins * 60e3))}` : ''} {TZ_LABEL}
               </span>
             )}
             {o.sub && (
@@ -366,12 +367,12 @@ export default function CalendarPage() {
   const shift = (n: number) => setMonth(({ y, m }) => ({ y: m + n > 12 ? y + 1 : m + n < 1 ? y - 1 : y, m: ((m + n + 11) % 12) + 1 }));
   const label = (k: string) => {
     const p = parseKey(k);
-    return k === today ? 'Today' : k === addDays(today, 1) ? 'Tomorrow' : fromET(p.y, p.m, p.d, 12).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    return k === today ? 'Today' : k === addDays(today, 1) ? 'Tomorrow' : fromET(p.y, p.m, p.d, 12).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: TZ });
   };
 
   const short = (k: string) => {
     const p = parseKey(k);
-    return k === today ? 'Today' : k === addDays(today, 1) ? 'Tmrw' : fromET(p.y, p.m, p.d, 12).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', timeZone: 'America/New_York' });
+    return k === today ? 'Today' : k === addDays(today, 1) ? 'Tmrw' : fromET(p.y, p.m, p.d, 12).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', timeZone: TZ });
   };
 
   return (

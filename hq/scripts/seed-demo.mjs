@@ -261,7 +261,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'ledger', 'l0'), { type: 'payout', amount: 7600, toId: ids['Lena Russo'], toName: 'Lena Russo', note: 'Weekly cut', byName: 'Lena Russo', at: Timestamp.fromMillis(now - D) });
   await setDoc(doc(db, 'ledger', 'l1'), { type: 'expense', amount: 12000, toId: null, note: 'Lab supplies', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 3 * D) });
   await setDoc(doc(db, 'settings', 'blackmarket'), {
-    prices: { dosidos: 19000, nl: 17000, acapulco: 17500, rainbow: 17500, meth: 25000, cokeSmall: 22000, cokeLarge: 61000 },
+    prices: { dosidos: 19000, nl: 17000, acapulco: 17500, rainbow: 17500, meth: 25000, cokeSmall: 22000, cokeLarge: 61000, p_lockpicks: 400 },
     defaultCut: 20, cuts: { [ids['Kira Lane']]: 15, [ids['Jax Holt']]: 15, [ids['Rocco Vale']]: 25, [ids['Don Vito']]: 30 }, washPct: 50,
     wishFields: [{ id: 'pay', label: 'Will pay' }],
   });
@@ -543,6 +543,31 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   for (const [who, star] of [['Lena Russo', 'rose'], ['Rocco Vale', 'crimson'], ['Kira Lane', 'ice'], ['Marco Gallo', 'emerald'], ['Nico Bruno', 'violet'], ['Ghost', 'white']])
     await setDoc(doc(db, 'sheets', ids[who]), { star }, { merge: true });
 
+  // The demo boss is also an owner (normally set from GitHub), so the owner-only tools show.
+  await setDoc(doc(db, 'meta', 'owners'), { ids: [vito] });
+  // Admin: editable lists, a price history, the feed, and a welcome note.
+  await setDoc(doc(db, 'settings', 'lists'), {
+    crimes: [
+      { id: 'delivery', name: 'Delivery', icon: 'package', rep: 15, cash: 1200 },
+      { id: 'vehicle', name: 'Vehicle', icon: 'car', rep: 25, cash: 2500 },
+      { id: 'arson', name: 'Arson', icon: 'flame', rep: 30 },
+      { id: 'assassination', name: 'Assassination', icon: 'crosshair', rep: 60, cash: 5000 },
+      { id: 'special', name: 'Special', icon: 'star' },
+      { id: 'heist', name: 'Store Heist', icon: 'store', rep: 40, cash: 4000 },
+    ],
+    products: [{ id: 'p_lockpicks', name: 'Lockpicks', unit: 'pick', itemId: 'lockpick' }],
+  });
+  const pl = (id, product, was, price, back) => setDoc(doc(db, 'priceLog', id), { product, was, price, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H) });
+  await pl('pl0', 'meth', 22000, 25000, 50);
+  await pl('pl1', 'dosidos', 21000, 19000, 30);
+  await pl('pl2', 'p_lockpicks', 0, 400, 2);
+  const fd = (id, kind, text, back, extra = {}) => setDoc(doc(db, 'adminFeed', id), { kind, text, by: vito, byName: 'Don Vito', target: null, reason: '', at: Timestamp.fromMillis(now - back * H), ...extra });
+  await fd('fd0', 'join', 'Let Ghost in as Associate', 49, { target: ids['Ghost'] });
+  await fd('fd1', 'rank', 'Promoted Rocco Vale to Lieutenant', 5, { target: ids['Rocco Vale'] });
+  await fd('fd2', 'price', 'Changed 1 BlackMarket price (Lockpicks $400)', 2);
+  await fd('fd3', 'fix', "Fixed Tommy Reyes's petty rep (120 → 95)", 1, { target: ids['Tommy Reyes'], reason: 'Logged the same session twice' });
+  await fd('fd4', 'list', 'Updated the petty crime types (Delivery, Vehicle, Arson, Assassination, Special, Store Heist)', 0.5);
+  await setDoc(doc(db, 'welcomes', ids['Ghost']), { text: 'Glad to have you. Ask Rocco for your first run.', by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - 49 * H) });
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',
