@@ -606,6 +606,75 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'washRequests', 'gw3'), { memberId: ids['Rocco Vale'], memberName: 'Rocco Vale', dirty: 12000, pct: 50, clean: 6000, status: 'claimed', claimerId: vito, claimerName: 'Don Vito', note: '', at: Timestamp.fromMillis(now - 1 * H) });
   await setDoc(doc(db, 'washRequests', 'gw1'), { memberId: 'gang', memberName: 'The gang', dirty: 40000, pct: 50, clean: 20000, status: 'done', claimerId: ids['Marco Gallo'], claimerName: 'Marco Gallo', note: 'Gang money', at: Timestamp.fromMillis(now - 30 * H), doneAt: Timestamp.fromMillis(now - 26 * H) });
 
+  // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
+  const mug = (bg, fg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${bg}"/><circle cx="80" cy="62" r="30" fill="${fg}"/><path d="M24 160c4-38 28-56 56-56s52 18 56 56z" fill="${fg}"/></svg>`);
+  const logo = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#111"/><text x="80" y="104" fill="${c}" font-family="serif" font-weight="bold" font-size="72" text-anchor="middle">${t}</text></svg>`);
+  const sq = (pts) => pts.map(([x, y]) => ({ x, y }));
+  const rv = (id, r) => setDoc(doc(db, 'rivals', id), { logo: null, relationLog: [], zones: [], cars: [], notes: '', at: Timestamp.fromMillis(now - 200 * H), ...r });
+  await rv('ballas', {
+    name: 'Ballas', color: '#a855f7', logo: logo('#a855f7', 'B'), relation: 'war', size: 14, danger: 4, weapons: 'SMGs, two or three rifles',
+    turfNote: 'Grove and the Davis projects', hangouts: 'The liquor store on Davis, Chamberlain basketball court',
+    cars: [{ model: 'Buffalo', plate: '42BLS117', color: 'Purple' }, { model: 'Baller', plate: '88PRP003', color: 'Black' }],
+    notes: 'Run crack out of the projects. Push hard at night, go quiet by day. Their OG never rolls without two cars.',
+    zones: [{ label: 'Davis', points: sq([[0.42, 0.68], [0.5, 0.66], [0.53, 0.75], [0.44, 0.78]]) }],
+    relationLog: [{ rel: 'war', note: 'Hit our van on Grove. No more talking.', by: 'Don Vito', at: now - 30 * H }, { rel: 'tense', note: 'Words at the docks', by: 'Don Vito', at: now - 160 * H }],
+  });
+  await rv('vagos', {
+    name: 'Vagos', color: '#eab308', logo: logo('#eab308', 'V'), relation: 'hostile', size: 10, danger: 3, weapons: 'Pistols, a few shotguns',
+    turfNote: 'El Burro Heights and Rancho', hangouts: 'Taco truck on Jamestown',
+    zones: [{ label: 'Rancho', points: sq([[0.56, 0.7], [0.64, 0.68], [0.66, 0.78], [0.57, 0.8]]) }],
+    relationLog: [{ rel: 'hostile', note: 'Took the docks from us yesterday', by: 'Lena Russo', at: now - 25 * H }],
+  });
+  await rv('families', { name: 'Families', color: '#22c55e', logo: logo('#22c55e', 'F'), relation: 'truce', size: 18, danger: 2, turfNote: 'Forum Drive', hangouts: 'Forum Dr cul-de-sac', relationLog: [{ rel: 'truce', note: 'Sit-down at the diner, no hits for a month', by: 'Don Vito', at: now - 70 * H }] });
+  await rv('lost', { name: 'Lost MC', color: '#94a3b8', relation: 'neutral', size: 8, danger: 3, turfNote: 'Sandy Shores clubhouse', hangouts: 'Yellow Jack Inn' });
+  const rm = (g, id, m) => setDoc(doc(db, 'rivals', g, 'members', id), { photo: null, notes: '', lastSeenAt: null, lastSeenWhere: '', ...m });
+  await rm('ballas', 'b1', { name: 'Tiny Loc', role: 'OG', threat: 'kos', photo: mug('#2b1240', '#8b5cf6'), lastSeenAt: Timestamp.fromMillis(now - 2 * H), lastSeenWhere: 'postal 8042' });
+  await rm('ballas', 'b2', { name: 'Smoke', role: 'Shooter', threat: 'high', photo: mug('#24123a', '#a78bfa') });
+  await rm('ballas', 'b3', { name: 'Lil Dre', role: 'Runner', threat: 'medium' });
+  await rm('ballas', 'b4', { name: 'Keisha', role: 'Driver', threat: 'low', photo: mug('#1f1430', '#c4b5fd') });
+  await rm('vagos', 'v1', { name: 'El Toro', role: 'Jefe', threat: 'high', photo: mug('#3a2e06', '#eab308') });
+  await rm('vagos', 'v2', { name: 'Chuy', role: 'Shooter', threat: 'medium' });
+  await rm('families', 'f1', { name: 'Big Mike', role: 'Leader', threat: 'low', photo: mug('#0f2a17', '#22c55e') });
+  const ri = (id, i, back) => setDoc(doc(db, 'rivalIncidents', id), { notes: '', where: '', outcome: null, by: ids['Rocco Vale'], byName: 'Rocco Vale', at: Timestamp.fromMillis(now - back * H), ...i });
+  await ri('ri1', { gangId: 'ballas', kind: 'robbery', title: 'Hit our product van on Grove', where: 'Grove St', outcome: 'loss', notes: 'Took 40 bags of meth. Two purple Buffalos.' }, 31);
+  await ri('ri2', { gangId: 'ballas', kind: 'fight', title: 'Shootout at the liquor store', where: 'Davis', outcome: 'win' }, 12);
+  await ri('ri3', { gangId: 'families', kind: 'deal', title: 'Sit-down at the diner', where: 'Vespucci', outcome: 'draw', notes: 'One month truce.', by: vito, byName: 'Don Vito' }, 70);
+  await ri('ri4', { gangId: 'vagos', kind: 'turf', title: 'Tagged our wall in La Mesa', where: 'La Mesa' }, 6);
+  await setDoc(doc(db, 'rivalNotes', 'rn1'), { gangId: 'ballas', text: 'Tiny Loc keeps a stash in the back of the Davis liquor store.', by: ids['Kira Lane'], byName: 'Kira Lane', at: Timestamp.fromMillis(now - 20 * H) });
+  await setDoc(doc(db, 'rivalNotes', 'rn2'), { gangId: 'ballas', text: 'Smoke owes the Vagos money. Could use that.', by: ids['Dani Cruz'], byName: 'Dani Cruz', at: Timestamp.fromMillis(now - 8 * H) });
+  const sg = (id, s, back) => setDoc(doc(db, 'sightings', id), { memberIds: [], postal: '', x: null, y: null, note: '', by: ids['Tommy Reyes'], byName: 'Tommy Reyes', at: Timestamp.fromMillis(now - back * H), ...s });
+  await sg('sg1', { gangId: 'ballas', memberIds: ['b1', 'b2'], postal: '8042', x: 0.47, y: 0.72, note: 'Two cars outside the liquor store, strapped' }, 2);
+  await sg('sg2', { gangId: 'vagos', memberIds: ['v1'], postal: '9011', x: 0.6, y: 0.74, note: 'Buying at the taco truck' }, 0.5);
+  await sg('sg3', { gangId: 'lost', postal: '1012', note: 'Bikes parked at the Yellow Jack' }, 20);
+  await setDoc(doc(db, 'bounties', 'bt1'), { gangId: 'ballas', memberId: 'b1', memberName: 'Tiny Loc', photo: mug('#2b1240', '#8b5cf6'), amount: 50000, cash: 'dirty', reason: 'Ordered the hit on our van', status: 'open', claimBy: null, claimName: null, claimProof: null, claimAt: null, by: vito, at: Timestamp.fromMillis(now - 20 * H) });
+  await setDoc(doc(db, 'bounties', 'bt2'), { gangId: 'ballas', memberId: 'b2', memberName: 'Smoke', photo: mug('#24123a', '#a78bfa'), amount: 20000, cash: 'dirty', reason: 'Shooter on Grove', status: 'claimed', claimBy: ids['Rocco Vale'], claimName: 'Rocco Vale', claimProof: 'Dropped him behind the liquor store at 11pm, clip in #blacksites', claimAt: Timestamp.fromMillis(now - H), by: vito, at: Timestamp.fromMillis(now - 18 * H) });
+  await setDoc(doc(db, 'bounties', 'bt3'), { gangId: 'vagos', memberId: 'v1', memberName: 'El Toro', photo: mug('#3a2e06', '#eab308'), amount: 35000, cash: 'clean', reason: 'Took the docks', status: 'open', claimBy: null, claimName: null, claimProof: null, claimAt: null, by: vito, at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'rivalBoard', 'main'), {
+    nodes: [
+      { id: 'n1', kind: 'gang', ref: 'ballas', label: 'Ballas', color: '#a855f7', x: 0.2, y: 0.2 },
+      { id: 'n2', kind: 'gang', ref: 'vagos', label: 'Vagos', color: '#eab308', x: 0.8, y: 0.2 },
+      { id: 'n3', kind: 'member', ref: 'ballas/b1', label: 'Tiny Loc', color: '#dc2626', x: 0.18, y: 0.6 },
+      { id: 'n4', kind: 'member', ref: 'ballas/b2', label: 'Smoke', color: '#f97316', x: 0.45, y: 0.5 },
+      { id: 'n5', kind: 'member', ref: 'vagos/v1', label: 'El Toro', color: '#f97316', x: 0.78, y: 0.62 },
+      { id: 'n6', kind: 'note', ref: '', label: "Who's supplying the Ballas guns?", x: 0.5, y: 0.85 },
+      { id: 'n7', kind: 'gang', ref: 'families', label: 'Families', color: '#22c55e', x: 0.5, y: 0.15 },
+    ],
+    links: [
+      { a: 'n3', b: 'n1', color: '#eab308' },
+      { a: 'n4', b: 'n1', color: '#eab308' },
+      { a: 'n4', b: 'n5', color: '#38bdf8' },
+      { a: 'n1', b: 'n2', color: '#dc2626' },
+      { a: 'n3', b: 'n6', color: '#38bdf8' },
+      { a: 'n7', b: 'n1', color: '#dc2626' },
+    ],
+    legend: [
+      { color: '#dc2626', meaning: 'Beef / enemies' },
+      { color: '#22c55e', meaning: 'Allies / work together' },
+      { color: '#eab308', meaning: 'Family / close' },
+      { color: '#38bdf8', meaning: 'Business / owes money' },
+    ],
+  });
+
   // Admin: editable lists, a price history, the feed, and a welcome note.
   await setDoc(doc(db, 'settings', 'lists'), {
     crimes: [

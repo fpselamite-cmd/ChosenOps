@@ -939,6 +939,49 @@ service cloud.firestore {
         && request.resource.data.status in ['confirmed', 'rejected'] && onlyChanges(['status', 'decidedBy']) && request.resource.data.decidedBy == myId();
     }
 
+    // ---------- Rivals ----------
+    // Case files are everyone's to read; High Table (leadership) keeps them.
+    match /rivals/{id} {
+      allow read: if active();
+      allow write: if active() && lead();
+      match /members/{mid} {
+        allow read: if active();
+        allow write: if active() && lead();
+        // Anyone who spots them updates when and where they were last seen.
+        allow update: if active() && onlyChanges(['lastSeenAt', 'lastSeenWhere']) && request.resource.data.lastSeenAt == request.time && str(request.resource.data.lastSeenWhere, 60);
+      }
+    }
+    match /rivalIncidents/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.kind in ['fight', 'robbery', 'turf', 'deal'] && str(request.resource.data.title, 80) && str(request.resource.data.notes, 1000);
+      allow delete: if active() && (resource.data.by == myId() || lead());
+    }
+    match /rivalNotes/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time && str(request.resource.data.text, 500);
+      allow delete: if active() && (resource.data.by == myId() || lead());
+    }
+    match /sightings/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.memberIds is list && request.resource.data.memberIds.size() <= 12 && str(request.resource.data.note, 140);
+      allow delete: if active() && (resource.data.by == myId() || lead());
+    }
+    match /bounties/{id} {
+      allow read: if active();
+      allow create: if active() && lead() && request.resource.data.status == 'open' && request.resource.data.amount is int && request.resource.data.amount > 0;
+      allow update: if active() && (
+        // Anyone claims an open bounty for themselves, with proof.
+        (resource.data.status == 'open' && request.resource.data.status == 'claimed' && request.resource.data.claimBy == myId()
+          && onlyChanges(['status', 'claimBy', 'claimName', 'claimProof', 'claimAt']) && str(request.resource.data.claimProof, 300))
+        || lead());
+    }
+    match /rivalBoard/{id} {
+      allow read: if active();
+      allow write: if active() && lead();
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();

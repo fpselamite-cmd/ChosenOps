@@ -15,6 +15,8 @@ import { spotOf, type Blacksite, type Spot } from '../lib/blacksites';
 import { addDays, et, eventKind, keyOf, occurrences, timeLabel, type CalEvent } from '../lib/calendar';
 import { shrinkImage } from '../lib/image';
 import { thingsIn } from '../lib/locker';
+import { freshSighting, type Rival, type Sighting } from '../lib/rivals';
+import { ZoneLayer } from './rivals/common';
 import { NarcoticsProvider, useNarcotics } from '../noel/store';
 
 /** Your server's map goes in public/map/city.jpg; until then a placeholder shows. */
@@ -152,13 +154,13 @@ function Marker({ pin, k, selected, fresh, onClick }: { pin: Pin; k: number; sel
 }
 
 /** Something else on the map at a spot: a blacksite location or an upcoming event. */
-function Extra({ x, y, k, kind, label, sub, tone }: { x: number; y: number; k: number; kind: 'spot' | 'event'; label: string; sub?: string; tone?: string }) {
-  const Icon = kind === 'event' ? CalendarDays : tone === 'win' ? Flag : tone === 'loss' ? X : Swords;
+function Extra({ x, y, k, kind, label, sub, tone }: { x: number; y: number; k: number; kind: 'spot' | 'event' | 'sighting'; label: string; sub?: string; tone?: string }) {
+  const Icon = kind === 'event' ? CalendarDays : kind === 'sighting' ? Crosshair : tone === 'win' ? Flag : tone === 'loss' ? X : Swords;
   return (
     <span className="pointer-events-none absolute" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(-50%, ${kind === 'event' ? '-130%' : '-50%'}) scale(${1 / k})`, transformOrigin: kind === 'event' ? '50% 130%' : undefined, zIndex: 3 }}>
       <span className={`map-extra ${kind} ${tone ?? ''}`}>
         <Icon className="size-3.5" />
-        {(k >= 1.5 || kind === 'event') && (
+        {(k >= 1.5 || kind !== 'spot') && (
           <span className="map-pin-label">
             {label}
             {sub && <small> · {sub}</small>}
@@ -215,12 +217,16 @@ const LAYERS = [
   ...PIN_TYPES.map((t) => ({ id: t.id, label: t.label, color: t.color, icon: t.icon })),
   { id: '_spots', label: 'Blacksite locations', color: '#ef4444', icon: Swords },
   { id: '_events', label: 'Events · 7 days', color: '#a78bfa', icon: CalendarDays },
+  { id: '_turf', label: 'Rival turf', color: '#f97316', icon: ShieldHalf },
+  { id: '_sightings', label: 'Rival sightings · 6h', color: '#dc2626', icon: Crosshair },
 ];
 
 function MapPage() {
   const { me, rankById, crewById } = useHub();
   const lead = useLead();
   const pins = useVisible<Pin>('pins');
+  const rivals = useCollection<Rival>('rivals') ?? [];
+  const sightings = useCollection<Sighting>('sightings') ?? [];
   const [src, setSrc] = useState(MAP_SRC);
   const [aspect, setAspect] = useState(1.5);
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
@@ -418,6 +424,14 @@ function MapPage() {
                 onLoad={(e) => setAspect(e.currentTarget.naturalHeight / e.currentTarget.naturalWidth || 1.5)}
                 onError={() => src !== PLACEHOLDER && setSrc(PLACEHOLDER)}
               />
+              {!hidden.has('_turf') && <ZoneLayer zones={rivals.flatMap((g) => (g.zones ?? []).map((zone) => ({ gang: g, zone })))} />}
+              {!hidden.has('_sightings') &&
+                sightings
+                  .filter((s) => s.x != null && s.y != null && freshSighting(s))
+                  .map((s) => {
+                    const g = rivals.find((r) => r.id === s.gangId);
+                    return <Extra key={s.id} x={s.x!} y={s.y!} k={view.k} kind="sighting" label={`${g?.name ?? 'Rivals'} spotted`} sub={ago(s.at)} />;
+                  })}
               {!hidden.has('_spots') &&
                 spots.map((x) => {
                   const last = fights.filter((f) => spotOf(f, spots)?.id === x.id).sort((a, b) => b.at.toMillis() - a.at.toMillis())[0];

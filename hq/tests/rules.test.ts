@@ -1028,3 +1028,48 @@ describe('money & dues', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'washRequests/w1'), { timerMins: 999, timerEnd: null }));
   });
 });
+
+describe('rivals', () => {
+  const gang = { name: 'Ballas', color: '#a855f7', relation: 'hostile', zones: [] };
+  it('lets leadership keep case files; everyone reads them', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'rivals/b'), gang));
+    await assertSucceeds(setDoc(doc(as('boss'), 'rivals/b'), gang));
+    await assertSucceeds(getDoc(doc(as('sol'), 'rivals/b')));
+    await assertFails(setDoc(doc(as('sol'), 'rivals/b/members/m1'), { name: 'Tiny', role: 'OG', threat: 'high' }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'rivals/b/members/m1'), { name: 'Tiny', role: 'OG', threat: 'high' }));
+  });
+  it('lets anyone log a sighting and mark who was last seen, nothing more', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'rivals/b/members/m1'), { name: 'Tiny', role: 'OG', threat: 'high' }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'sightings/s1'), { gangId: 'b', memberIds: ['m1'], postal: '8042', x: null, y: null, note: 'Outside Pillbox', by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'sightings/s2'), { gangId: 'b', memberIds: [], postal: '', x: null, y: null, note: '', by: 'sol2', byName: 'Sol2', at: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'rivals/b/members/m1'), { lastSeenAt: serverTimestamp(), lastSeenWhere: 'postal 8042' }));
+    await assertFails(updateDoc(doc(as('sol'), 'rivals/b/members/m1'), { threat: 'low' }));
+    await assertFails(deleteDoc(doc(as('sol2'), 'sightings/s1')));
+    await assertSucceeds(deleteDoc(doc(as('sol'), 'sightings/s1')));
+  });
+  it('lets anyone add incidents and notes as themselves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'rivalIncidents/i1'), { gangId: 'b', kind: 'robbery', title: 'Hit our van', notes: '', where: 'Grove', outcome: 'loss', by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'rivalIncidents/i2'), { gangId: 'b', kind: 'party', title: 'x', notes: '', where: '', outcome: null, by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'rivalNotes/n1'), { gangId: 'b', text: 'Drive purple Buffalos', by: 'sol', byName: 'Sol', at: serverTimestamp() }));
+    await assertFails(deleteDoc(doc(as('sol2'), 'rivalNotes/n1')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'rivalNotes/n1')));
+  });
+  it('bounties: leadership posts, anyone claims for themselves, leadership pays it out', async () => {
+    const b = { gangId: 'b', memberId: 'm1', memberName: 'Tiny', amount: 25000, cash: 'dirty', reason: '', status: 'open', claimBy: null, claimName: null, claimProof: null, claimAt: null, by: 'sol', at: serverTimestamp() };
+    await assertFails(setDoc(doc(as('sol'), 'bounties/x1'), b));
+    await assertSucceeds(setDoc(doc(as('boss'), 'bounties/x1'), { ...b, by: 'boss' }));
+    await assertFails(updateDoc(doc(as('sol'), 'bounties/x1'), { status: 'claimed', claimBy: 'sol2', claimName: 'Sol2', claimProof: 'clip', claimAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'bounties/x1'), { status: 'claimed', claimBy: 'sol', claimName: 'Sol', claimProof: 'clip', claimAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('sol'), 'bounties/x1'), { status: 'paid' }));
+    const db = as('boss');
+    const w = writeBatch(db);
+    w.update(doc(db, 'bounties/x1'), { status: 'paid' });
+    w.set(doc(db, 'payouts/bp1'), { memberId: 'sol', memberName: 'Sol', cash: 'dirty', amount: 25000, reason: 'Bounty: Tiny', status: 'owed', by: 'boss', at: serverTimestamp() });
+    await assertSucceeds(w.commit());
+  });
+  it('keeps the red-string board to leadership', async () => {
+    await assertFails(setDoc(doc(as('sol'), 'rivalBoard/main'), { nodes: [], links: [], legend: [] }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'rivalBoard/main'), { nodes: [], links: [], legend: [] }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'rivalBoard/main')));
+  });
+});

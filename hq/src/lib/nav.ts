@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Cannabis,
   Crosshair,
+  FolderSearch,
   HandCoins,
   Lock,
   LayoutDashboard,
@@ -54,7 +55,13 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
     ],
   },
-  { group: 'Operations', items: [{ to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' }] },
+  {
+    group: 'Operations',
+    items: [
+      { to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' },
+      { to: '/rivals', label: 'Rivals', icon: FolderSearch },
+    ],
+  },
 ];
 
 /** Shown as buttons in the header rather than in the menu. */
