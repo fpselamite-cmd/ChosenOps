@@ -25,3 +25,19 @@ export async function shrinkImage(file: File, max = 1280, quality = 0.72): Promi
   while (url.length > 380_000 && q > 0.3) url = canvas.toDataURL('image/jpeg', (q -= 0.1));
   return url;
 }
+
+/** A small square thumbnail of a picture that's already a data URL (for sharing with NoelOps). */
+export function thumbnail(dataUrl: string, size = 64, quality = 0.8): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      canvas.getContext('2d')!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}

@@ -6,9 +6,11 @@ import {
   Crosshair,
   Crown,
   Download,
+  ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
+  Leaf,
   Link2,
   Lock,
   Music,
@@ -42,6 +44,7 @@ import { db } from '../lib/firebase';
 import { ago, fmtDate } from '../lib/format';
 import { squareImage } from '../lib/image';
 import { setPresenceStatus, updateProfile } from '../lib/members';
+import { NOELOPS_URL, noelStatKey, useNoel, type NoelCrewMember } from '../lib/noelops';
 import {
   addEntry,
   addNote,
@@ -656,6 +659,53 @@ function ChangePin({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** What they've done in NoelOps (grows, cooks, runs), matched by name. Read live from NoelOps. */
+function NoelOpsRecord({ name }: { name: string }) {
+  const crew = useNoel<Record<string, NoelCrewMember>>('crew');
+  const key = crew.data === undefined ? '' : noelStatKey(name, crew.data);
+  const stats = useNoel<Record<string, unknown>>(`stats/${key}`, !!key);
+  const titles = useNoel<Record<string, unknown>>(`titles/${key}`, !!key);
+  const n = (f: string) => Math.max(0, Math.floor(Number(stats.data?.[f]) || 0));
+  const short = (v: number) => (v >= 10_000 ? `${Math.round(v / 1000)}k` : v.toLocaleString());
+  const cells: [string, number][] = [
+    ['Harvests', n('harvests')],
+    ['Bud', n('bud')],
+    ['Bricks', n('bricks')],
+    ['Meth cooks', n('cooks')],
+    ['Coke runs', n('runs')],
+    ['Coca leaves', n('coca')],
+  ];
+  const titleCount = titles.data ? Object.keys(titles.data).length : 0;
+  const any = cells.some(([, v]) => v > 0) || titleCount > 0;
+  return (
+    <a href={NOELOPS_URL} target="_blank" rel="noopener" className="hud flex gap-3 p-4 hover:bg-raised/40">
+      <Leaf className="mt-0.5 size-5 shrink-0 text-ok" />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-1.5 font-hud font-bold text-gold-200">
+          NoelOps record <ExternalLink className="size-3.5 text-smoke" />
+        </p>
+        {stats.data === undefined && key ? (
+          <p className="text-sm text-smoke">Loading…</p>
+        ) : any ? (
+          <>
+            <div className="mt-1 grid grid-cols-3 gap-1 text-center">
+              {cells.map(([l, v]) => (
+                <div key={l}>
+                  <p className="font-mono text-lg text-gold-100">{short(v)}</p>
+                  <p className="label">{l}</p>
+                </div>
+              ))}
+            </div>
+            {titleCount > 0 && <p className="mt-1 text-xs text-smoke">{titleCount} NoelOps {titleCount === 1 ? 'title' : 'titles'} unlocked</p>}
+          </>
+        ) : (
+          <p className="text-sm text-smoke">Nothing logged in NoelOps yet. Using the same name on both sites links them.</p>
+        )}
+      </div>
+    </a>
+  );
+}
+
 function BlacksiteRecord({ id }: { id: string }) {
   const sites = useCollection<Blacksite>('blacksites');
   const r = sites ? records(sites).get(id) : undefined;
@@ -950,6 +1000,7 @@ export default function Profile() {
             <StatBlock m={m} />
             <FamilyCard member={m} />
             <BlacksiteRecord id={m.id} />
+            <NoelOpsRecord name={m.name} />
             <LoadoutCard memberId={m.id} />
           </div>
 
