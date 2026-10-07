@@ -681,6 +681,15 @@ describe('gear & loadouts', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'builds/p2'), { 'saves.sol': true }));
     await assertSucceeds(updateDoc(doc(as('sol'), 'builds/p2'), { public: false, tags: ['Run'] }));
   });
+  it('lets leadership find builds from before the family/private choice and mark them family', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'builds/old1'), build('sol')));
+    await assertFails(getDoc(doc(as('sol2'), 'builds/old1')));
+    await assertSucceeds(getDocs(collection(as('boss'), 'builds')));
+    await assertFails(updateDoc(doc(as('boss'), 'builds/old1'), { public: false }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'builds/old1'), { public: true }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'builds/old1')));
+    await assertFails(updateDoc(doc(as('boss'), 'builds/old1'), { public: false }));
+  });
   const kit = (owner: string, pub = false) => ({ owner, name: 'Heist', public: pub, mode: 'real', hotbar: [{ item: 'w_mk18_rifle', qty: 1, parts: {} }, null, null, null, null], bag: [], vest: null, plates: 2, bagType: null, outfit: 'Oni mask', vehicle: { name: 'Sultan RS', cls: 'sports' } });
   it('lets members keep kits: owner edits, the family sees public ones, leadership sees all', async () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'kits/k1'), kit('sol')));

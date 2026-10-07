@@ -579,7 +579,7 @@ function MapPage() {
       {newAt && <PinDialog at={newAt} onClose={() => setNewAt(null)} />}
       {editing && <PinDialog pin={editing} onClose={() => setEditing(null)} />}
       {bigPhoto && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/90 p-4" onClick={() => setBigPhoto(null)}>
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/90 p-4 cursor-zoom-out" onClick={() => setBigPhoto(null)}>
           <img src={bigPhoto} alt="" className="max-h-full max-w-full" />
         </div>
       )}

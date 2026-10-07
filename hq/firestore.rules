@@ -850,7 +850,8 @@ service cloud.firestore {
     // Shared weapon builds: anyone makes one; anyone likes (their own like only).
     match /builds/{id} {
       // Family builds are for everyone; private ones only for whoever made them.
-      allow read: if active() && (resource.data.public == true || resource.data.by == myId());
+      // Leadership and admins also see builds from before the family/private choice, so their page can mark them family.
+      allow read: if active() && (resource.data.public == true || resource.data.by == myId() || can('manageOps'));
       function validBuild() {
         let d = request.resource.data;
         return str(d.name, 40) && d.name.size() > 0 && str(d.weaponId, 80) && d.parts is map && d.parts.size() <= 16
@@ -864,7 +865,8 @@ service cloud.firestore {
       allow update: if active() && (
         (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes', 'tags', 'public']))
         || (onlyChanges(['likes']) && mapOnlyMine(request.resource.data.likes, resource.data.get('likes', {})))
-        || (onlyChanges(['saves']) && mapOnlyMine(request.resource.data.saves, resource.data.get('saves', {}))));
+        || (onlyChanges(['saves']) && mapOnlyMine(request.resource.data.saves, resource.data.get('saves', {})))
+        || (!('public' in resource.data) && onlyChanges(['public']) && request.resource.data.public == true));
       allow delete: if active() && (resource.data.by == myId() || can('manageOps'));
     }
     // Admin pictures of guns, with where each attachment slot sits on the picture.

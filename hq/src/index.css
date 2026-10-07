@@ -58,6 +58,34 @@
     color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
   }
+  /* Anything you can click shows the hand; disabled things say no; draggable tiles show the grab hand. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  a[href],
+  summary,
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']),
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='color'],
+  input[type='file'],
+  input[type='range'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  textarea:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+  [draggable='true'] {
+    cursor: grab;
+  }
+  [draggable='true']:active {
+    cursor: grabbing;
+  }
   body {
     @apply bg-void text-bone font-sans antialiased;
     /* The night sky from the Chosen seal: deep blue-black, a warm glow, two layers of stars. */

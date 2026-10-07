@@ -698,7 +698,7 @@ function SpotCard({ spot, fights, spots, lead, selected, onSelect, onPlace }: { 
   const recs = [...records(fights).values()].sort((a, b) => b.kills - a.kills || b.mvps - a.mvps).slice(0, 3);
   const last = fights[0];
   return (
-    <div className={`hud p-4 transition ${selected ? 'ring-1 ring-gold-400' : ''}`} onClick={onSelect}>
+    <div className={`hud cursor-pointer p-4 transition ${selected ? 'ring-1 ring-gold-400' : ''}`} onClick={onSelect}>
       <div className="flex items-start gap-2">
         <span className="min-w-0 flex-1">
           <p className="font-hud text-lg font-bold text-gold-100">{spot.name}</p>
