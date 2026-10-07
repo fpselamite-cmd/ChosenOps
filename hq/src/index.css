@@ -2116,3 +2116,9 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .live-seat .pc-mid { font-size: 24px; }
 .live-seat .pc-corner { font-size: 11px; }
 .pc-mini { display: inline-block; width: 26px; height: 38px; border-radius: 4px; border: 1.5px solid #d4af37; background: repeating-linear-gradient(45deg, #1a1409 0 4px, #2a1f0d 4px 8px); }
+/* Name effects, second wave */
+.hn-neon { color: var(--hue, #22d3ee); text-shadow: 0 0 2px #fff, 0 0 6px var(--hue, #22d3ee), 0 0 14px var(--hue, #22d3ee); animation: honor-neon 3s steps(1) infinite; }
+@keyframes honor-neon { 0%, 18%, 22%, 100% { opacity: 1; } 20% { opacity: 0.45; } 64% { opacity: 1; } 65% { opacity: 0.6; } 66% { opacity: 1; } }
+.hn-frost { background: linear-gradient(180deg, #ffffff 0%, var(--hue, #bae6fd) 45%, #38bdf8 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 0 4px rgba(186, 230, 253, 0.7)); }
+.hn-prism { background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80, #38bdf8, #a78bfa, #f472b6, #f87171) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: honor-name-shine 4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .hn-neon, .hn-prism { animation: none; } }

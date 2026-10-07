@@ -29,9 +29,9 @@ export const KINDS: { id: HonorKind; label: string; plural: string }[] = [
   { id: 'effect', label: 'Name effect', plural: 'Name effects' },
 ];
 
-export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards'] as const;
+export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards', 'stars', 'lightning', 'hearts'] as const;
 export type FrameTheme = (typeof FRAME_THEMES)[number];
-export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood'] as const;
+export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
 /** Badge icons, by lucide name (see HonorArt). */
 export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry'] as const;
@@ -218,8 +218,128 @@ export const DEFAULT_HONORS: Omit<Honor, 'at'>[] = [
   h('s-roller', 'title', 'High Roller', 'epic', 'From the chip shop.', { price: 10000 }),
   h('s-house', 'title', 'The House', 'legendary', 'From the chip shop.', { price: 50000 }),
 ];
+
+// ---------- The second wave: 100+ more to earn, be given, or buy ----------
+type Ladder = [StatId, number, string, Rarity, string, string?][];
+/** Milestone badges: [stat, goal, name, rarity, icon, secret?]. */
+const BADGE_LADDER: Ladder = [
+  ['runs', 100, 'Courier', 'uncommon', 'Package'], ['runs', 500, 'Road Warrior', 'epic', 'Car'], ['runs', 1000, 'Never Stops Driving', 'legendary', 'Car'],
+  ['harvests', 10, 'First Crop', 'common', 'Sprout'], ['harvests', 200, 'Harvest Moon', 'rare', 'Moon'], ['harvests', 500, 'The Farmer', 'epic', 'Sprout'],
+  ['cooks', 10, 'Apprentice Cook', 'common', 'FlaskConical'], ['cooks', 250, 'Blue Sky', 'epic', 'FlaskConical'], ['cooks', 1000, 'The Chemist', 'legendary', 'FlaskConical'],
+  ['pressed', 25, 'Pressed', 'common', 'Box'], ['pressed', 500, 'Brick House', 'epic', 'Box'], ['pressed', 2000, 'Wall of Bricks', 'legendary', 'Landmark'],
+  ['sold', 100, 'Street Seller', 'common', 'Coins'], ['sold', 500, 'Supplier', 'uncommon', 'Gem'], ['sold', 10000, 'Cartel Connect', 'legendary', 'Gem'],
+  ['washed', 10000, 'First Rinse', 'common', 'WashingMachine'], ['washed', 100000, 'Spin Cycle', 'rare', 'WashingMachine'], ['washed', 5000000, 'Squeaky Clean', 'legendary', 'Gem'],
+  ['petty', 10, 'Pickpocket', 'common', 'HandCoins'], ['petty', 500, 'Career Criminal', 'rare', 'HandCoins'], ['petty', 1000, 'Menace', 'epic', 'Skull'],
+  ['fights', 50, 'Veteran', 'epic', 'Shield'], ['fights', 250, 'Forever War', 'legendary', 'Swords'],
+  ['wins', 1, 'First Victory', 'common', 'Flag'], ['wins', 25, 'Ground Taker', 'rare', 'Flag'], ['wins', 100, 'Conqueror', 'legendary', 'Crown'],
+  ['mvps', 5, 'Star Player', 'epic', 'Star'],
+  ['kills', 10, 'Trigger Finger', 'common', 'Crosshair'], ['kills', 50, 'Marksman', 'uncommon', 'Crosshair'], ['kills', 1000, 'The Reaper', 'legendary', 'Skull', 'secret'],
+  ['dinners', 5, 'Familiar Face', 'common', 'Utensils'], ['dinners', 10, 'Family Man', 'uncommon', 'Heart'],
+  ['duesPaid', 5, 'Square With the House', 'common', 'Coins'], ['duesPaid', 50, 'Tithe Keeper', 'rare', 'Landmark'], ['duesPaid', 100, 'Pillar of Dues', 'epic', 'Landmark'],
+  ['days', 180, 'Half a Year', 'uncommon', 'CalendarDays'], ['days', 1000, 'Old Guard', 'legendary', 'Shield'],
+  ['streak', 3, 'Showing Up', 'common', 'Flame'], ['streak', 14, 'Two Weeks Strong', 'uncommon', 'Flame'], ['streak', 100, 'Unbroken', 'epic', 'Flame'], ['streak', 365, 'Every Single Day', 'legendary', 'Flame', 'secret'],
+  ['repSent', 100, 'Paying Respect', 'common', 'Heart'], ['repSent', 1000, 'Rep Builder', 'uncommon', 'Landmark'], ['repSent', 20000, 'Foundation Stone', 'legendary', 'Landmark'],
+  ['stories', 5, 'Chronicler', 'rare', 'Feather'], ['stories', 15, 'The Bard', 'epic', 'Feather'],
+  ['sightings', 1, 'Spotter', 'common', 'Eye'], ['sightings', 50, 'All-Seeing', 'epic', 'Eye'],
+  ['bounties', 3, 'Headhunter', 'legendary', 'Target'],
+  ['reactions', 10, 'Applause', 'common', 'MessageCircle'], ['reactions', 250, 'Loudmouth', 'rare', 'MessageCircle'],
+  ['hands', 25, 'Card Curious', 'common', 'Spade'], ['hands', 1000, 'House Regular', 'rare', 'Club'], ['hands', 5000, 'Lives at the Casino', 'epic', 'Dices'],
+  ['chipsWon', 10000, 'Lucky', 'uncommon', 'Cherry'], ['chipsWon', 100000, 'Hot Streak', 'rare', 'Coins'], ['chipsWon', 500000, 'Whale', 'epic', 'Gem'],
+  ['biggestWin', 1000, 'Nice Hand', 'common', 'Diamond'], ['biggestWin', 20000, 'Breaking the Bank', 'legendary', 'Crown'],
+  ['blackjacks', 1, 'Twenty-One', 'common', 'Spade'], ['blackjacks', 50, 'Card Counter', 'epic', 'Spade'],
+  ['jackpots', 3, 'Triple Crown', 'legendary', 'Crown', 'secret'],
+];
+const SHAPES: Honor['shape'][] = ['gem', 'shield', 'hex'];
+const slug = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const STAT_WORD: Record<string, string> = Object.fromEntries(STATS.map((x) => [x.id, x.label.toLowerCase()]));
+const said = (stat: StatId, goal: number) => `${goal.toLocaleString('en-US')} ${STAT_WORD[stat]}.`;
+
+const WAVE2: Omit<Honor, 'at'>[] = [
+  ...BADGE_LADDER.map(([stat, goal, name, rarity, icon, secret], i) => m(`b2-${slug(name)}`, 'badge', name, rarity, stat, goal, said(stat, goal), { icon, shape: SHAPES[i % 3], secret: !!secret })),
+  // Titles you earn
+  m('t2-courier', 'title', 'The Courier', 'uncommon', 'runs', 100, said('runs', 100)),
+  m('t2-cook-year', 'title', 'Cook of the Year', 'epic', 'cooks', 500, said('cooks', 500)),
+  m('t2-collector', 'title', 'The Collector', 'legendary', 'washed', 2000000, said('washed', 2000000)),
+  m('t2-docks', 'title', 'Veteran of the Docks', 'rare', 'fights', 50, said('fights', 50)),
+  m('t2-grim', 'title', 'Grim', 'epic', 'kills', 500, said('kills', 500)),
+  m('t2-seat', 'title', 'Seat Warmer', 'rare', 'dinners', 20, said('dinners', 20)),
+  m('t2-tales', 'title', 'Teller of Tales', 'rare', 'stories', 3, said('stories', 3)),
+  m('t2-lookout', 'title', 'The Lookout', 'rare', 'sightings', 25, said('sightings', 25)),
+  m('t2-lady-luck', 'title', "Lady Luck's Favorite", 'epic', 'jackpots', 2, said('jackpots', 2)),
+  m('t2-twentyone', 'title', 'Twenty-One', 'rare', 'blackjacks', 25, said('blackjacks', 25)),
+  m('t2-iron-will', 'title', 'Iron Will', 'epic', 'streak', 50, said('streak', 50)),
+  m('t2-patriarch', 'title', 'Patriarch', 'legendary', 'days', 1095, 'Three years in the family.', { secret: true }),
+  // Titles High Table gives
+  h('t2-enforcer-year', 'title', 'Enforcer of the Year', 'epic', 'Given by High Table.'),
+  h('t2-fixer', 'title', 'The Fixer', 'rare', 'Given by High Table.'),
+  h('t2-silent', 'title', 'Silent Partner', 'rare', 'Given by High Table.'),
+  h('t2-ghost-grove', 'title', 'Ghost of Grove Street', 'legendary', 'Given by High Table.'),
+  h('t2-golden-boy', 'title', 'Golden Child', 'epic', 'Given by High Table.'),
+  h('t2-made-blood', 'title', 'Made in Blood', 'mythic', 'Given by High Table, rarely.'),
+  // Badges High Table gives
+  h('g2-loyalty', 'badge', 'Medal of Loyalty', 'epic', 'Given by High Table.', { icon: 'Heart', shape: 'shield' }),
+  h('g2-wounded', 'badge', 'Took a Bullet', 'rare', 'Given by High Table.', { icon: 'Heart', shape: 'gem' }),
+  h('g2-night-watch', 'badge', 'Night Watch', 'rare', 'Given by High Table.', { icon: 'Moon', shape: 'hex' }),
+  h('g2-silver-tongue', 'badge', 'Silver Tongue', 'rare', 'Given by High Table.', { icon: 'MessageCircle', shape: 'gem' }),
+  h('g2-blessing', 'badge', "The Don's Blessing", 'mythic', 'Given by High Table, rarely.', { icon: 'Crown', shape: 'shield' }),
+  // Frames you earn
+  m('f2-starlit', 'frame', 'Starlit', 'rare', 'dinners', 30, said('dinners', 30), { theme: 'stars' }),
+  m('f2-lightning', 'frame', 'Lightning Rod', 'epic', 'wins', 50, said('wins', 50), { theme: 'lightning' }),
+  m('f2-heartbound', 'frame', 'Heartbound', 'uncommon', 'repSent', 500, said('repSent', 500), { theme: 'hearts' }),
+  m('f2-thornwreath', 'frame', 'Thornwreath', 'epic', 'stories', 10, said('stories', 10), { theme: 'roses' }),
+  m('f2-coin-ring', 'frame', 'Coin Ring', 'uncommon', 'hands', 100, said('hands', 100), { theme: 'chips' }),
+  m('f2-skull-throne', 'frame', 'Skull Throne', 'legendary', 'kills', 1000, said('kills', 1000), { theme: 'skulls' }),
+  m('f2-iron-crown', 'frame', 'Iron Crown', 'epic', 'fights', 150, said('fights', 150), { theme: 'crown' }),
+  m('f2-inferno', 'frame', 'Inferno', 'legendary', 'streak', 200, said('streak', 200), { theme: 'flames' }),
+  // Hues you earn
+  m('h2-steel', 'hue', 'Steel', 'common', 'fights', 3, said('fights', 3), { color: '#94a3b8' }),
+  m('h2-moss', 'hue', 'Moss', 'common', 'harvests', 20, said('harvests', 20), { color: '#65a30d' }),
+  m('h2-copper', 'hue', 'Copper', 'uncommon', 'pressed', 50, said('pressed', 50), { color: '#c2410c' }),
+  m('h2-sky', 'hue', 'Sky', 'uncommon', 'sightings', 5, said('sightings', 5), { color: '#38bdf8' }),
+  m('h2-sunset', 'hue', 'Sunset', 'uncommon', 'streak', 21, said('streak', 21), { color: '#fb7185' }),
+  m('h2-lilac', 'hue', 'Lilac', 'rare', 'stories', 2, said('stories', 2), { color: '#c084fc' }),
+  m('h2-amber', 'hue', 'Amber', 'rare', 'duesPaid', 30, said('duesPaid', 30), { color: '#f59e0b' }),
+  m('h2-jade', 'hue', 'Jade', 'rare', 'chipsWon', 25000, said('chipsWon', 25000), { color: '#10b981' }),
+  m('h2-crimson-tide', 'hue', 'Crimson Tide', 'epic', 'wins', 40, said('wins', 40), { color: '#be123c' }),
+  m('h2-obsidian', 'hue', 'Obsidian Violet', 'legendary', 'days', 500, said('days', 500), { color: '#6d28d9' }),
+  // Name effects you earn
+  m('e2-neon', 'effect', 'Neon Sign', 'epic', 'hands', 2000, said('hands', 2000), { effect: 'neon' }),
+  m('e2-frost', 'effect', 'Frostbite', 'rare', 'kills', 75, said('kills', 75), { effect: 'frost' }),
+  m('e2-prism', 'effect', 'Prism', 'legendary', 'chipsWon', 250000, said('chipsWon', 250000), { effect: 'prism' }),
+  // The chip shop, second shelf
+  h('s2-cherry', 'hue', 'Cherry Red', 'common', 'From the chip shop.', { color: '#e11d48', price: 1000 }),
+  h('s2-ocean', 'hue', 'Ocean', 'uncommon', 'From the chip shop.', { color: '#0284c7', price: 1500 }),
+  h('s2-mint', 'hue', 'Mint', 'uncommon', 'From the chip shop.', { color: '#34d399', price: 1500 }),
+  h('s2-bubblegum', 'hue', 'Bubblegum', 'uncommon', 'From the chip shop.', { color: '#f472b6', price: 2000 }),
+  h('s2-ink', 'hue', 'Midnight Ink', 'rare', 'From the chip shop.', { color: '#4338ca', price: 4000 }),
+  h('s2-toxic', 'hue', 'Toxic', 'rare', 'From the chip shop.', { color: '#84cc16', price: 4000 }),
+  h('s2-rose-gold', 'hue', 'Rose Gold', 'epic', 'From the chip shop.', { color: '#e8a99c', price: 5000 }),
+  h('s2-royal-gold', 'hue', 'Royal Gold', 'epic', 'From the chip shop.', { color: '#eab308', price: 6000 }),
+  h('s2-lucky-hearts', 'frame', 'Lucky Hearts', 'rare', 'From the chip shop.', { theme: 'hearts', price: 3500 }),
+  h('s2-shooting-stars', 'frame', 'Shooting Stars', 'epic', 'From the chip shop.', { theme: 'stars', price: 8000 }),
+  h('s2-storm', 'frame', 'The Storm', 'epic', 'From the chip shop.', { theme: 'lightning', price: 9000 }),
+  h('s2-bone-yard', 'frame', 'Bone Yard', 'epic', 'From the chip shop.', { theme: 'skulls', price: 12000 }),
+  h('s2-golden-crown', 'frame', 'Golden Crown', 'legendary', 'From the chip shop.', { theme: 'crown', price: 30000 }),
+  h('s2-lucky-seven', 'title', 'Lucky Seven', 'uncommon', 'From the chip shop.', { price: 1500 }),
+  h('s2-mr-lucky', 'title', 'Mr. Lucky', 'uncommon', 'From the chip shop.', { price: 2000 }),
+  h('s2-gambler', 'title', 'The Gambler', 'rare', 'From the chip shop.', { price: 2500 }),
+  h('s2-big-spender', 'title', 'Big Spender', 'rare', 'From the chip shop.', { price: 4000 }),
+  h('s2-loan-shark', 'title', 'Loan Shark', 'rare', 'From the chip shop.', { price: 6000 }),
+  h('s2-pit-boss', 'title', 'Pit Boss', 'epic', 'From the chip shop.', { price: 8000 }),
+  h('s2-kingmaker', 'title', 'Kingmaker', 'legendary', 'From the chip shop.', { price: 40000 }),
+  h('s2-neon', 'effect', 'Neon Lights', 'epic', 'From the chip shop.', { effect: 'neon', price: 12000 }),
+  h('s2-ice', 'effect', 'Ice Cold', 'epic', 'From the chip shop.', { effect: 'frost', price: 9000 }),
+  h('s2-smoke', 'effect', 'Smoke & Fire', 'epic', 'From the chip shop.', { effect: 'flames', price: 15000 }),
+  h('s2-rainbow', 'effect', 'Rainbow Road', 'legendary', 'From the chip shop.', { effect: 'prism', price: 35000 }),
+  h('s2-roller', 'badge', 'Roller', 'uncommon', 'From the chip shop.', { icon: 'Dices', shape: 'hex', price: 1000 }),
+  h('s2-high-stakes', 'badge', 'High Stakes', 'rare', 'From the chip shop.', { icon: 'Diamond', shape: 'gem', price: 5000 }),
+  h('s2-golden-chip', 'badge', 'Golden Chip', 'epic', 'From the chip shop.', { icon: 'Coins', shape: 'gem', price: 20000 }),
+  h('s2-house-edge', 'badge', 'House Edge', 'legendary', 'From the chip shop.', { icon: 'Crown', shape: 'shield', price: 75000 }),
+];
+DEFAULT_HONORS.push(...WAVE2);
+
 /** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
-export const HONORS_VERSION = 2;
+export const HONORS_VERSION = 3;
 
 // ---------- writes ----------
 

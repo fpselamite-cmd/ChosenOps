@@ -41,9 +41,9 @@ const CashTag = ({ c }: { c: Cash }) => <span className={`chip px-1.5 py-0.5 tex
 
 function CashToggle({ value, onChange }: { value: Cash; onChange: (c: Cash) => void }) {
   return (
-    <span className="flex overflow-hidden rounded-full ring-1 ring-line">
+    <span className="inline-flex shrink-0 overflow-hidden rounded-full ring-1 ring-line">
       {CASH.map((c) => (
-        <button type="button" key={c} onClick={() => onChange(c)} className={`px-3 py-1 text-xs font-bold capitalize ${value === c ? (c === 'dirty' ? 'bg-red-500/80 text-white' : 'bg-emerald-500/80 text-void') : 'bg-raised text-ash'}`}>
+        <button type="button" key={c} onClick={() => onChange(c)} className={`shrink-0 px-3 py-1 text-xs font-bold whitespace-nowrap capitalize ${value === c ? (c === 'dirty' ? 'bg-red-500/80 text-white' : 'bg-emerald-500/80 text-void') : 'bg-raised text-ash'}`}>
           {c}
         </button>
       ))}
@@ -74,7 +74,7 @@ function EntryDialog({ onClose }: { onClose: () => void }) {
         }}
       >
         <div className="flex flex-wrap gap-3">
-          <span className="flex overflow-hidden rounded-full ring-1 ring-line">
+          <span className="inline-flex shrink-0 overflow-hidden rounded-full ring-1 ring-line">
             {(['in', 'out'] as const).map((d) => (
               <button type="button" key={d} onClick={() => setDir(d)} className={`px-3 py-1 text-xs font-bold ${dir === d ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
                 {d === 'in' ? 'Money in' : 'Money out'}
@@ -533,11 +533,12 @@ function Ledger({ b }: { b: Books }) {
           {list.slice(0, 200).map((l) => (
             <li key={l.key} className="flex flex-wrap items-center gap-2 py-2">
               {l.dir === 'in' ? <ArrowDownLeft className="size-4 text-ok" /> : <ArrowUpRight className="size-4 text-red-300" />}
-              <span className="min-w-0 flex-1 truncate text-ash">
+              {/* On a phone the description gets its own line instead of being squeezed to a word. */}
+              <span className="min-w-0 flex-1 text-ash max-sm:basis-[calc(100%-2rem)] sm:truncate">
                 {l.what} <span className="text-xs text-smoke">· {l.category}</span>
               </span>
-              {l.who && <MemberName id={l.who} className="text-xs" />}
-              <span className="w-20 text-right text-xs text-smoke">{fmtDate(new Date(l.at))}</span>
+              {l.who && <MemberName id={l.who} className="text-xs max-sm:ml-6" />}
+              <span className="text-right text-xs text-smoke sm:w-20 max-sm:ml-auto">{fmtDate(new Date(l.at))}</span>
               <span className={`w-24 text-right font-mono ${l.dir === 'in' ? 'text-ok' : 'text-red-300'}`}>
                 {l.dir === 'in' ? '+' : '−'}
                 {money(l.amount)}
@@ -578,11 +579,11 @@ function BudgetView({ b }: { b: Books }) {
     const pct = plan ? Math.min(100, (used / plan) * 100) : used ? 100 : 0;
     const over = plan && used > plan;
     return (
-      <div className="min-w-[9rem] flex-1">
+      <div className="min-w-0 flex-1 sm:min-w-[9rem]">
         <div className="h-2 overflow-hidden rounded-full bg-raised">
           <div className={`h-full ${over ? 'bg-red-500' : c === 'dirty' ? 'bg-red-300/80' : 'bg-emerald-400/80'}`} style={{ width: `${pct}%` }} />
         </div>
-        <p className={`mt-0.5 font-mono text-[11px] ${over ? 'text-red-300' : 'text-smoke'}`}>
+        <p className={`mt-0.5 font-mono text-[10px] sm:text-[11px] ${over ? 'text-red-300' : 'text-smoke'}`}>
           {money(used)} / {plan ? money(plan) : '—'}
         </p>
       </div>
@@ -616,14 +617,14 @@ function BudgetView({ b }: { b: Books }) {
         </span>
       }
     >
-      <div className="mb-2 grid grid-cols-[8rem_1fr_1fr] gap-4 text-xs">
+      <div className="mb-2 grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:grid-cols-[8rem_1fr_1fr] sm:gap-4 text-xs">
         <span />
         <span className="label text-red-300">Dirty</span>
         <span className="label text-emerald-300">Clean</span>
       </div>
       <ul className="space-y-3">
         {cats.map((c) => (
-          <li key={c} className="grid grid-cols-[8rem_1fr_1fr] items-center gap-4 text-sm">
+          <li key={c} className="grid grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[8rem_1fr_1fr] sm:gap-4 text-sm">
             <span className="text-gold-100">{c}</span>
             {(['dirty', 'clean'] as Cash[]).map((k) =>
               edit ? (
