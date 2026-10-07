@@ -953,3 +953,25 @@ html[data-motion='off'] .streak-cons * { animation: none !important; stroke-dash
 @keyframes podium-glow { 0%, 100% { box-shadow: 0 0 12px rgb(var(--acc) / 0.45); } 50% { box-shadow: 0 0 26px rgb(var(--acc-hi) / 0.75); } }
 @keyframes podium-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes podium-breathe { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+/* ---------- Locker grid ---------- */
+.locker-tile { border-radius: 4px; }
+.locker-tile:hover { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px rgb(var(--acc) / 0.6) !important; }
+.locker-tile:active { cursor: grabbing; }
+.locker-drop { background: rgb(var(--acc) / 0.18) !important; color: rgb(var(--acc-hi)) !important; box-shadow: 0 0 16px rgb(var(--acc) / 0.5); border-color: rgb(var(--acc-hi)) !important; }
+.locker-pop { animation: locker-pop 0.35s ease-out both; }
+.locker-stamp { background: rgba(60, 0, 0, 0.6); }
+/* The doors swing open when you come in. */
+.locker-doors { position: relative; }
+.locker-door {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 50%; z-index: 5; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 9px), linear-gradient(90deg, #1b1913, #2a261c 50%, #1b1913);
+  border: 1px solid rgb(var(--acc) / 0.35);
+  animation-duration: 0.9s; animation-timing-function: cubic-bezier(.6, 0, .3, 1); animation-fill-mode: forwards; animation-delay: 0.15s;
+}
+.locker-door.l { left: 0; transform-origin: left center; animation-name: door-left; }
+.locker-door.r { right: 0; transform-origin: right center; animation-name: door-right; }
+@keyframes door-left { from { transform: perspective(1200px) rotateY(0); } to { transform: perspective(1200px) rotateY(-100deg); opacity: 0; } }
+@keyframes door-right { from { transform: perspective(1200px) rotateY(0); } to { transform: perspective(1200px) rotateY(100deg); opacity: 0; } }
+@keyframes locker-pop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+html[data-motion='off'] .locker-door { display: none; }
