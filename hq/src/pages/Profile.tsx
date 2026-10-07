@@ -6,7 +6,6 @@ import { LoadoutCard } from './Gear';
 import { useCollection } from '../hooks/useCollection';
 import { records, type Blacksite } from '../lib/blacksites';
 import { Cabinet } from '../components/Cabinet';
-import { Appearance } from '../components/Appearance';
 import { FamilyCard } from '../components/FamilyCard';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { ErrorText, Field } from '../components/Field';
@@ -327,12 +326,6 @@ export default function Profile() {
           ))}
         </div>
       </div>
-
-      {mine && (
-        <div className="mt-6" id="appearance">
-          <Appearance />
-        </div>
-      )}
 
       <div className="mt-6">
         <Cabinet member={m} />

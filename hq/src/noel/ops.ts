@@ -151,8 +151,9 @@ export function useOps(page: PageId = 'stash') {
         log('locations');
       },
 
+      /** A member-made item, until the full catalog is in. Marked custom so admins can tidy them up later. */
       async addItemType(name: string, category: string) {
-        const ref = await addDoc(collection(db, 'itemTypes'), { name: name.trim().slice(0, 40), category, ...sign });
+        const ref = await addDoc(collection(db, 'itemTypes'), { name: name.trim().slice(0, 40), category, custom: true, addedBy: me.name, ...sign });
         return ref.id;
       },
     };

@@ -130,7 +130,11 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
   const [tab, setTab] = useState<'item' | 'drug'>('item');
   const [itemId, setItemId] = useState<string | null>(null);
   const [drug, setDrug] = useState(`bud:${STRAINS[0].id}:bricks`);
-  const key = tab === 'item' ? (itemId ? `item:${itemId}` : '') : drug;
+  // Not in the catalog yet? Name it and it's added for everyone.
+  const [isNew, setIsNew] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newKind, setNewKind] = useState<string>('gear');
+  const key = tab === 'item' ? (isNew ? (newName.trim() ? 'new' : '') : itemId ? `item:${itemId}` : '') : drug;
   const [qty, setQty] = useState('1');
   return (
     <Modal title="Add to your locker" onClose={onClose}>
@@ -139,7 +143,14 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
         onSubmit={async (e) => {
           e.preventDefault();
           if (!key) return;
-          const t = thingFrom(key, toCount(qty), name);
+          let k = key;
+          let label = '';
+          if (k === 'new') {
+            const id = await ops.addItemType(newName, newKind);
+            k = `item:${id}`;
+            label = newName.trim();
+          }
+          const t = thingFrom(k, toCount(qty), (id) => label || name(id));
           if (!t.qty) return;
           await toast.run(ops.applyDeltas([{ loc: locker.path(storageId), strain: t.strain, field: t.field, item: t.item, delta: t.qty }]).then(() => ({ text: `Added ${t.qty} × ${t.label}.` })));
           onClose();
@@ -153,12 +164,38 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
             </button>
           ))}
         </div>
-        {tab === 'item' ? (
-          <ItemPicker types={types} value={itemId} onChange={setItemId} />
+        {tab === 'item' && isNew ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Name">
+                <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={40} autoFocus placeholder="e.g. Gold Lighter" />
+              </Field>
+              <Field label="Kind">
+                <select className="input" value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+                  {ITEM_KINDS.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.one}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <p className="text-xs text-smoke">It’s added to the item list so others can pick it too.</p>
+            <button type="button" className="text-xs text-gold-300 hover:underline" onClick={() => setIsNew(false)}>
+              ← Back to the list
+            </button>
+          </div>
+        ) : tab === 'item' ? (
+          <div>
+            <ItemPicker types={types} value={itemId} onChange={setItemId} />
+            <button type="button" className="mt-1.5 text-xs text-gold-300 hover:underline" onClick={() => setIsNew(true)}>
+              Not in the list? Add something new
+            </button>
+          </div>
         ) : (
           <DrugPicker value={drug} onChange={setDrug} />
         )}
-        <Field label={itemId && tab === 'item' ? `How many · ${name(itemId)}` : 'How many'}>
+        <Field label={itemId && tab === 'item' && !isNew ? `How many · ${name(itemId)}` : 'How many'}>
           <input className="input font-mono" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} />
         </Field>
         <div className="flex justify-end gap-2">

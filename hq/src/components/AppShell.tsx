@@ -5,7 +5,9 @@ import { useHub } from '../hooks/useHub';
 import { logout } from '../lib/auth';
 import { TZ } from '../lib/format';
 import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
+import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
+import { Modal } from './Modal';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
 import { AchievementWatcher } from '../lib/cabinet';
@@ -110,6 +112,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
 
 function MeCard() {
   const { me, myRank } = useHub();
+  const [look, setLook] = useState(false);
   return (
     <div className="flex items-center gap-3 border-t border-line-soft pt-4">
       <Link to={`/members/${me.id}`} className="flex min-w-0 flex-1 items-center gap-3">
@@ -119,9 +122,14 @@ function MeCard() {
           <RankBadge rank={myRank} className="mt-0.5" />
         </span>
       </Link>
-      <Link to={`/members/${me.id}#appearance`} className="p-1.5 text-smoke hover:text-gold-200" title="Appearance" aria-label="Appearance">
+      <button onClick={() => setLook(true)} className="p-1.5 text-smoke hover:text-gold-200" title="Customize your look" aria-label="Customize your look">
         <Palette className="size-4" />
-      </Link>
+      </button>
+      {look && (
+        <Modal title="Customize · only you see this" onClose={() => setLook(false)} wide>
+          <Appearance bare />
+        </Modal>
+      )}
       <button onClick={logout} className="p-1.5 text-smoke hover:text-gold-200" title="Sign out" aria-label="Sign out">
         <LogOut className="size-4" />
       </button>
