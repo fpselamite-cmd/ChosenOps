@@ -1,0 +1,145 @@
+import { addDoc, collection, doc, getDoc, increment, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { db } from './firebase';
+import { ownedId } from './honors';
+
+/**
+ * The casino runs on play chips only: a weekly allowance, a daily bonus, chips for activity and
+ * for unlocking honors, gifts between members and grants from High Table. Nothing real is at stake,
+ * so games are dealt in the player's own browser.
+ */
+
+export interface Chips {
+  id: string;
+  balance: number;
+  /** Week (YYYY-MM-DD of its Monday) and day the allowance and daily bonus were last paid. */
+  lastWeekly?: string;
+  lastDaily?: string;
+  /** Activity already paid out for, so only new runs/fights/dinners pay. */
+  paidFor?: Record<string, number>;
+  /** Honors already paid out for. */
+  honorsPaid?: string[];
+  hands?: number;
+  chipsWon?: number;
+  biggestWin?: number;
+  blackjacks?: number;
+  jackpots?: number;
+  /** Net result this week, for the weekly board. */
+  week?: string;
+  weekNet?: number;
+}
+export interface CasinoSettings {
+  weekly: number;
+  daily: number;
+  min: number;
+  max: number;
+  /** Max bet on event nights. */
+  eventMax: number;
+  perRun: number;
+  perFight: number;
+  perDinner: number;
+  /** An event night: bigger max bets, and a banner on the floor. */
+  eventUntil?: Timestamp | null;
+  eventName?: string;
+}
+export const DEFAULT_CASINO: CasinoSettings = { weekly: 1000, daily: 50, min: 10, max: 500, eventMax: 2000, perRun: 5, perFight: 25, perDinner: 50, eventUntil: null, eventName: '' };
+
+export const weekKey = (t = Date.now()) => {
+  const d = new Date(t);
+  const day = (d.getUTCDay() + 6) % 7;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day)).toISOString().slice(0, 10);
+};
+export const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+export const chipsFmt = (n: number) => Math.round(n).toLocaleString('en-US');
+
+/** A fair random integer in [0, n). */
+export function rand(n: number) {
+  const a = new Uint32Array(1);
+  const lim = Math.floor(0x100000000 / n) * n;
+  do crypto.getRandomValues(a);
+  while (a[0]! >= lim);
+  return a[0]! % n;
+}
+
+// ---------- cards ----------
+
+export const SUITS = ['♠', '♥', '♦', '♣'] as const;
+export const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'] as const;
+export interface Card {
+  r: (typeof RANKS)[number];
+  s: (typeof SUITS)[number];
+}
+export function deck(decks = 1): Card[] {
+  const d: Card[] = [];
+  for (let k = 0; k < decks; k++) for (const s of SUITS) for (const r of RANKS) d.push({ r, s });
+  for (let i = d.length - 1; i > 0; i--) {
+    const j = rand(i + 1);
+    [d[i], d[j]] = [d[j]!, d[i]!];
+  }
+  return d;
+}
+export const isRed = (c: Card) => c.s === '♥' || c.s === '♦';
+
+// ---------- the money side ----------
+
+const ref = (id: string) => doc(db, 'chips', id);
+
+/** Take the stake when a hand starts (so leaving mid-hand loses it, like a real table). */
+export const stake = (me: string, bet: number) => updateDoc(ref(me), { balance: increment(-bet) });
+
+/** Pay out a finished round and keep the stats. `paid` is what comes back (stake included); `bet` what went in. */
+export async function settle(me: string, bet: number, paid: number, extra: { blackjack?: boolean; jackpot?: boolean } = {}) {
+  const net = paid - bet;
+  const snap = await getDoc(ref(me));
+  const c = (snap.data() ?? {}) as Partial<Chips>;
+  const wk = weekKey();
+  await updateDoc(ref(me), {
+    balance: increment(paid),
+    hands: increment(1),
+    ...(net > 0 ? { chipsWon: increment(net) } : {}),
+    ...(net > (c.biggestWin ?? 0) ? { biggestWin: net } : {}),
+    ...(extra.blackjack ? { blackjacks: increment(1) } : {}),
+    ...(extra.jackpot ? { jackpots: increment(1) } : {}),
+    ...(c.week === wk ? { weekNet: increment(net) } : { week: wk, weekNet: net }),
+  });
+}
+
+/** Chips sent to someone: they land when the receiver next opens the HQ. */
+export interface ChipGift {
+  id: string;
+  to: string;
+  from: string;
+  fromName: string;
+  amount: number;
+  reason: string;
+  /** A High Table grant (doesn't come out of anyone's stack). */
+  grant: boolean;
+  claimed: boolean;
+  at?: Timestamp;
+}
+/** Send chips from my stack. */
+export function sendChips(me: { id: string; name: string }, to: string, amount: number, reason: string) {
+  const b = writeBatch(db);
+  b.update(ref(me.id), { balance: increment(-amount) });
+  b.set(doc(collection(db, 'chipGifts')), { to, from: me.id, fromName: me.name, amount, reason: reason.slice(0, 80), grant: false, claimed: false, at: serverTimestamp() });
+  return b.commit();
+}
+/** High Table hands out chips (prizes). */
+export const grantChips = (me: { id: string; name: string }, to: string, amount: number, reason: string) =>
+  addDoc(collection(db, 'chipGifts'), { to, from: me.id, fromName: me.name, amount, reason: reason.slice(0, 80), grant: true, claimed: false, at: serverTimestamp() });
+export function claimGift(me: string, g: ChipGift) {
+  const b = writeBatch(db);
+  b.update(doc(db, 'chipGifts', g.id), { claimed: true });
+  b.update(ref(me), { balance: increment(g.amount) });
+  return b.commit();
+}
+
+/** Buy an honor from the chip shop. */
+export function buyHonor(me: { id: string; name: string }, honorId: string, price: number) {
+  const b = writeBatch(db);
+  b.update(ref(me.id), { balance: increment(-price) });
+  b.set(doc(db, 'honorsOwned', ownedId(me.id, honorId)), { memberId: me.id, honorId, by: 'shop', byName: 'The chip shop', note: '', seen: false, at: serverTimestamp() });
+  return b.commit();
+}
+
+export const saveCasino = (s: CasinoSettings) => setDoc(doc(db, 'settings', 'casino'), s);
+export const openChips = (me: string, start: number) => setDoc(ref(me), { balance: start, lastWeekly: weekKey(), lastDaily: dayKey(), paidFor: {}, honorsPaid: [] }, { merge: true });

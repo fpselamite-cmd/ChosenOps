@@ -8,9 +8,11 @@ import type { DuesPay } from '../../lib/books';
 import { records, type Blacksite } from '../../lib/blacksites';
 import { useMyAchievementStats } from '../../lib/cabinet';
 import { db } from '../../lib/firebase';
-import { claim, earnable, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
+import { CHIPS_FOR, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
 import type { Bounty, Sighting } from '../../lib/rivals';
 import { useArchiveAccess } from '../archives/useArchives';
+import { claimGift, dayKey, DEFAULT_CASINO, openChips, weekKey, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
+import { doc, increment, updateDoc } from 'firebase/firestore';
 
 interface HonorsCtx {
   honors: Honor[];
@@ -89,7 +91,8 @@ export function useMyHonorStats(): HonorStats | null {
   const seen = useCollection<Sighting>(useMemo(() => query(collection(db, 'sightings'), where('by', '==', me.id)), [me.id])) ?? [];
   const bounties = useCollection<Bounty>(useMemo(() => query(collection(db, 'bounties'), where('claimBy', '==', me.id)), [me.id])) ?? [];
   const reacts = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'archiveReacts'), where('memberId', '==', me.id)), [me.id]), blooded) ?? [];
-  if (!base || !sites) return null;
+  const chips = useDoc<Chips>(`chips/${me.id}`);
+  if (!base || !sites || chips === undefined) return null;
   const r = records(sites).get(me.id);
   return {
     ...base,
@@ -103,6 +106,11 @@ export function useMyHonorStats(): HonorStats | null {
     sightings: seen.length,
     bounties: bounties.filter((b) => b.status === 'paid').length,
     reactions: reacts.length,
+    hands: chips?.hands ?? 0,
+    chipsWon: chips?.chipsWon ?? 0,
+    biggestWin: chips?.biggestWin ?? 0,
+    blackjacks: chips?.blackjacks ?? 0,
+    jackpots: chips?.jackpots ?? 0,
   };
 }
 
@@ -122,6 +130,49 @@ function HonorWatcher() {
       }
     }
   }, [stats, honors, has, me, preview]);
+
+  // The casino purse: weekly allowance, daily bonus, chips for new activity and for honors unlocked, gifts.
+  const chips = useDoc<Chips>(`chips/${me.id}`);
+  const casino = { ...DEFAULT_CASINO, ...(useDoc<CasinoSettings>('settings/casino') ?? {}) };
+  const { ownedBy, honorById } = useHonors();
+  const giftQ = useMemo(() => query(collection(db, 'chipGifts'), where('to', '==', me.id), where('claimed', '==', false)), [me.id]);
+  const gifts = useCollection<ChipGift>(giftQ) ?? [];
+  const busy = useRef(false);
+  useEffect(() => {
+    if (preview || !stats || chips === undefined || busy.current) return;
+    if (chips === null) {
+      busy.current = true;
+      void openChips(me.id, casino.weekly).finally(() => (busy.current = false));
+      return;
+    }
+    const paid = chips.paidFor ?? {};
+    const units: Record<string, [number, number]> = { runs: [stats.runs, casino.perRun], fights: [stats.fights, casino.perFight], dinners: [stats.dinners, casino.perDinner] };
+    let add = 0;
+    const patch: Record<string, unknown> = {};
+    if (chips.lastWeekly !== weekKey()) (add += casino.weekly), (patch.lastWeekly = weekKey());
+    if (chips.lastDaily !== dayKey()) (add += casino.daily), (patch.lastDaily = dayKey());
+    for (const [k, [n, per]] of Object.entries(units)) {
+      // The first time, count what's already done as paid (no back-pay flood).
+      const was = paid[k];
+      if (was === undefined) patch[`paidFor.${k}`] = n;
+      else if (n > was) (add += (n - was) * per), (patch[`paidFor.${k}`] = n);
+    }
+    const already = new Set(chips.honorsPaid ?? []);
+    const fresh = ownedBy(me.id).filter((o) => !already.has(o.honorId) && honorById.has(o.honorId) && o.by !== 'shop');
+    if (fresh.length) {
+      add += fresh.reduce((t, o) => t + (honorById.get(o.honorId)!.chips ?? CHIPS_FOR[honorById.get(o.honorId)!.rarity]), 0);
+      patch.honorsPaid = [...already, ...fresh.map((o) => o.honorId)];
+    }
+    if (!Object.keys(patch).length) return;
+    busy.current = true;
+    void updateDoc(doc(db, 'chips', me.id), { ...patch, ...(add ? { balance: increment(add) } : {}) })
+      .catch(() => {})
+      .finally(() => (busy.current = false));
+  }, [preview, stats, chips, casino.weekly, casino.daily, casino.perRun, casino.perFight, casino.perDinner, me.id, ownedBy, honorById]);
+  useEffect(() => {
+    if (preview || !chips) return;
+    gifts.forEach((g) => void claimGift(me.id, g).catch(() => {}));
+  }, [gifts, chips, me.id, preview]);
   return null;
 }
 
@@ -207,12 +258,13 @@ function EnsureCatalog() {
 /** High Table: put the starting catalog in place the first time one of them signs in. */
 export function useEnsureCatalog() {
   const { isLead, preview } = useHub();
-  const { setUp, honors } = useHonors();
-  const settings = useDoc<{ setUp?: boolean }>('settings/honors');
+  const { honors } = useHonors();
+  const settings = useDoc<{ setUp?: boolean; version?: number }>('settings/honors');
   const done = useRef(false);
   useEffect(() => {
-    if (!isLead || preview || done.current || settings === undefined || setUp || honors.length) return;
+    if (!isLead || preview || done.current || settings === undefined) return;
+    if (settings?.setUp && (settings.version ?? 1) >= HONORS_VERSION) return;
     done.current = true;
-    void setUpHonors().catch(() => {});
-  }, [isLead, preview, settings, setUp, honors.length]);
+    void setUpHonors(new Set(honors.map((h) => h.id))).catch(() => {});
+  }, [isLead, preview, settings, honors]);
 }

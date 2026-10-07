@@ -1,5 +1,10 @@
 import {
   Box,
+  Cherry,
+  Club,
+  Diamond,
+  Dices,
+  Spade,
   CalendarDays,
   Car,
   Coins,
@@ -38,7 +43,7 @@ import { rarityOf, type Honor, type Rarity } from '../lib/honors';
 import type { Member } from '../lib/types';
 import { Avatar } from './Avatar';
 
-export const ICONS: Record<string, LucideIcon> = { Skull, Crown, Swords, Crosshair, Flag, Star, Package, Car, Sprout, FlaskConical, Box, Gem, WashingMachine, HandCoins, Utensils, CalendarDays, Flame, Landmark, Coins, Feather, Eye, Target, MessageCircle, Shield, Heart, Moon, Rose, Zap, Trophy, Ghost };
+export const ICONS: Record<string, LucideIcon> = { Skull, Crown, Swords, Crosshair, Flag, Star, Package, Car, Sprout, FlaskConical, Box, Gem, WashingMachine, HandCoins, Utensils, CalendarDays, Flame, Landmark, Coins, Feather, Eye, Target, MessageCircle, Shield, Heart, Moon, Rose, Zap, Trophy, Ghost, Spade, Club, Diamond, Dices, Cherry };
 
 const vars = (r: Rarity, extra: CSSProperties = {}) => ({ '--rar': rarityOf(r).color, ...extra }) as CSSProperties;
 
@@ -62,6 +67,8 @@ const ORNAMENTS: Record<string, { icon: LucideIcon; n: number } | null> = {
   money: { icon: DollarSign, n: 8 },
   crown: { icon: Crown, n: 1 },
   flames: { icon: Flame, n: 8 },
+  chips: { icon: Coins, n: 8 },
+  cards: { icon: Spade, n: 4 },
 };
 
 /** A Diablo-style portrait frame around someone's avatar: a theme, in the rarity's metal. */

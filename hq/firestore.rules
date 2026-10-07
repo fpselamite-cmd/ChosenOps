@@ -1089,6 +1089,11 @@ service cloud.firestore {
       allow create: if request.resource.data.by != 'milestone' && active() && lead() && request.resource.data.by == myId()
         && id == request.resource.data.memberId + '_' + request.resource.data.honorId && honor(request.resource.data.honorId).status == 'active'
         && str(request.resource.data.note, 140);
+      // Buying one from the casino's chip shop: the price has to come out of your stack in the same write.
+      allow create: if request.resource.data.by == 'shop' && active() && request.resource.data.memberId == myId()
+        && id == myId() + '_' + request.resource.data.honorId
+        && honor(request.resource.data.honorId).get('price', 0) > 0 && honor(request.resource.data.honorId).status == 'active'
+        && getAfter(/databases/$(database)/documents/chips/$(myId())).data.balance == get(/databases/$(database)/documents/chips/$(myId())).data.balance - honor(request.resource.data.honorId).price;
       // Marking your unlock toast as seen.
       allow update: if onlyChanges(['seen']) && active() && resource.data.memberId == myId();
       // Given honors can be taken back; earned milestones stay forever.
@@ -1099,6 +1104,27 @@ service cloud.firestore {
       allow write: if active() && mid == myId()
         && request.resource.data.keys().hasOnly(['title', 'frame', 'effect', 'nameHue', 'accentHue', 'trimHue', 'backdropHue', 'showcase'])
         && request.resource.data.get('showcase', []).size() <= 3;
+    }
+
+    // ---------- The Casino (play chips only) ----------
+    match /chips/{mid} {
+      allow read: if active();
+      allow create, update: if active() && mid == myId() && request.resource.data.balance is number && request.resource.data.balance >= 0;
+    }
+    match /chipGifts/{id} {
+      allow read: if active() && (resource.data.to == myId() || resource.data.from == myId() || lead());
+      // A gift comes out of the sender's stack in the same write; a grant is High Table's, from the house.
+      allow create: if active() && request.resource.data.from == myId() && request.resource.data.claimed == false
+        && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.at == request.time
+        && str(request.resource.data.reason, 80)
+        && ((request.resource.data.grant == true && lead())
+          || (request.resource.data.grant == false
+            && getAfter(/databases/$(database)/documents/chips/$(myId())).data.balance == get(/databases/$(database)/documents/chips/$(myId())).data.balance - request.resource.data.amount));
+      allow update: if active() && resource.data.to == myId() && resource.data.claimed == false && onlyChanges(['claimed']) && request.resource.data.claimed == true;
+    }
+    match /settings/casino {
+      allow read: if active();
+      allow write: if active() && lead();
     }
 
     // ---------- Roles ----------

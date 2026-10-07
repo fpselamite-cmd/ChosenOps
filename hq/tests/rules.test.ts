@@ -1192,3 +1192,42 @@ describe('honors', () => {
     await assertFails(setDoc(doc(as('sol'), 'honorLoadouts/sol'), { title: 'm1', hacked: true }));
   });
 });
+
+describe('casino', () => {
+  const chips = (id: string, balance: number) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'chips', id), { balance }));
+  it('keeps your stack yours and never below zero', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'chips/sol'), { balance: 1000 }));
+    await assertFails(setDoc(doc(as('sol'), 'chips/sol2'), { balance: 1000000 }));
+    await assertFails(updateDoc(doc(as('sol'), 'chips/sol'), { balance: -5 }));
+  });
+  it('makes gifts come out of the sender; grants only from High Table', async () => {
+    await chips('sol', 500);
+    const gift = { to: 'sol2', from: 'sol', fromName: 'Sol', amount: 200, reason: '', grant: false, claimed: false, at: serverTimestamp() };
+    let db = as('sol');
+    let b = writeBatch(db);
+    b.update(doc(db, 'chips/sol'), { balance: 300 });
+    b.set(doc(db, 'chipGifts/g1'), gift);
+    await assertSucceeds(b.commit());
+    await assertFails(setDoc(doc(as('sol'), 'chipGifts/g2'), gift)); // not taken from the stack
+    await assertFails(setDoc(doc(as('sol'), 'chipGifts/g3'), { ...gift, grant: true }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'chipGifts/g4'), { ...gift, from: 'boss', grant: true }));
+    await assertFails(updateDoc(doc(as('sol'), 'chipGifts/g1'), { claimed: true }));
+    await chips('sol2', 0);
+    db = as('sol2');
+    b = writeBatch(db);
+    b.update(doc(db, 'chipGifts/g1'), { claimed: true });
+    b.update(doc(db, 'chips/sol2'), { balance: 200 });
+    await assertSucceeds(b.commit());
+  });
+  it('sells shop honors only for their price', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'honors/s1'), { kind: 'title', name: 'Shark', rarity: 'rare', status: 'active', source: 'honor', price: 300 }));
+    await chips('sol', 1000);
+    const own = { memberId: 'sol', honorId: 's1', by: 'shop', byName: 'The chip shop', note: '', seen: false, at: serverTimestamp() };
+    await assertFails(setDoc(doc(as('sol'), 'honorsOwned/sol_s1'), own));
+    const db = as('sol');
+    const b = writeBatch(db);
+    b.update(doc(db, 'chips/sol'), { balance: 700 });
+    b.set(doc(db, 'honorsOwned/sol_s1'), own);
+    await assertSucceeds(b.commit());
+  });
+});

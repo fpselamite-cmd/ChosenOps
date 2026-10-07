@@ -693,6 +693,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'honorLoadouts', ids['Rocco Vale']), { title: 't-righthand', frame: 'f-crown', effect: 'e-smolder', nameHue: 'h-blood', accentHue: null, trimHue: null, backdropHue: 'h-blood', showcase: ['body-count', 'mvp', 'first-blood'] });
   await setDoc(doc(db, 'honorLoadouts', kira), { title: 't-favorite', frame: 'f-roses', effect: 'e-shimmer', nameHue: 'h-royal', accentHue: 'h-royal', trimHue: null, backdropHue: 'h-royal', showcase: [] });
 
+  // The casino: stacks, a few records, a gift on the way.
+  const wkNow = (() => { const d = new Date(now); const day = (d.getUTCDay() + 6) % 7; return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day)).toISOString().slice(0, 10); })();
+  const ch = (who, c) => setDoc(doc(db, 'chips', ids[who]), { lastWeekly: wkNow, lastDaily: new Date(now).toISOString().slice(0, 10), paidFor: { runs: 0, fights: 0, dinners: 0 }, honorsPaid: [], hands: 0, chipsWon: 0, biggestWin: 0, blackjacks: 0, jackpots: 0, week: wkNow, weekNet: 0, ...c });
+  await ch('Don Vito', { balance: 24500, hands: 340, chipsWon: 41000, biggestWin: 8000, blackjacks: 12, jackpots: 1, weekNet: 3200 });
+  await ch('Rocco Vale', { balance: 9100, hands: 120, chipsWon: 12000, biggestWin: 2400, blackjacks: 4, weekNet: 1800 });
+  await ch('Kira Lane', { balance: 3400, hands: 60, chipsWon: 4100, biggestWin: 900, weekNet: -300 });
+  await ch('Nico Bruno', { balance: 15200, hands: 210, chipsWon: 22000, biggestWin: 5000, blackjacks: 7, weekNet: 600 });
+  await setDoc(doc(db, 'chipGifts', 'cg1'), { to: ids['Kira Lane'], from: vito, fromName: 'Don Vito', amount: 1000, reason: 'For the plates at the docks', grant: true, claimed: false, at: Timestamp.fromMillis(now - H) });
+
   // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
   const mug = (bg, fg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${bg}"/><circle cx="80" cy="62" r="30" fill="${fg}"/><path d="M24 160c4-38 28-56 56-56s52 18 56 56z" fill="${fg}"/></svg>`);
   const logo = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#111"/><text x="80" y="104" fill="${c}" font-family="serif" font-weight="bold" font-size="72" text-anchor="middle">${t}</text></svg>`);
