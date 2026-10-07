@@ -371,10 +371,40 @@ service cloud.firestore {
       allow read: if active() && (wasMine('from') || wasMine('to'));
       allow create: if active() && mine('from') && request.resource.data.to != myId()
         && request.resource.data.status == 'pending' && request.resource.data.at == request.time;
-      allow update: if active() && onlyChanges(['status', 'closedAt']) && (
-        (wasMine('to') && resource.data.status == 'pending' && request.resource.data.status in ['accepted', 'declined'])
-        || (wasMine('from') && resource.data.status == 'pending' && request.resource.data.status == 'cancelled')
-        || (wasMine('from') && resource.data.status == 'declined' && request.resource.data.status == 'returned'));
+      allow update: if active() && (
+        // One-item trades (the first version).
+        (onlyChanges(['status', 'closedAt']) && (
+          (wasMine('to') && resource.data.status == 'pending' && request.resource.data.status in ['accepted', 'declined'])
+          || (wasMine('from') && resource.data.status == 'pending' && request.resource.data.status == 'cancelled')
+          || (wasMine('from') && resource.data.status == 'declined' && request.resource.data.status == 'returned')))
+        // The other side answers an offer: accept as is, counter, or decline.
+        || (wasMine('to') && resource.data.status == 'pending'
+            && onlyChanges(['status', 'closedAt', 'reply', 'toCollected', 'back', 'backCash', 'backStorage'])
+            && request.resource.data.status in ['done', 'countered', 'declined'])
+        // The sender answers a counter.
+        || (wasMine('from') && resource.data.status == 'countered' && onlyChanges(['status', 'closedAt', 'fromCollected'])
+            && request.resource.data.status in ['done', 'declined'])
+        // Picking up what's yours, or getting your own things back.
+        || (wasMine('to') && resource.data.status in ['done', 'declined'] && onlyChanges(['toCollected', 'backReturned']))
+        || (wasMine('from') && resource.data.status in ['done', 'declined', 'cancelled'] && onlyChanges(['fromCollected', 'giveReturned'])));
+    }
+    // Money that changed hands in a finished trade (one per direction), checked against the trade.
+    match /cashMoves/{id} {
+      allow read: if active() && (wasMine('from') || wasMine('to') || can('money'));
+      allow create: if active() && request.resource.data.at == request.time
+        && (myId() == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.from
+            || myId() == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.to)
+        && get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.status == 'done'
+        && ((id == request.resource.data.tradeId + '_give'
+              && request.resource.data.from == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.from
+              && request.resource.data.to == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.to
+              && request.resource.data.dirty == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.cash.dirty
+              && request.resource.data.clean == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.cash.clean)
+          || (id == request.resource.data.tradeId + '_back'
+              && request.resource.data.from == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.to
+              && request.resource.data.to == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.from
+              && request.resource.data.dirty == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.backCash.dirty
+              && request.resource.data.clean == get(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.backCash.clean));
     }
 
     // ── Keepsake cabinet and trophies (on profiles) ─────────────

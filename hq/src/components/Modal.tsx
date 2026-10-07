@@ -39,5 +39,7 @@ export function Modal({
       </div>
     </div>
   );
-  return portal ? createPortal(box, document.body) : box;
+  // Pop-ups render at the page root (inside the page's theme), so no panel can trap or cover them.
+  const root = portal ? document.body : (document.getElementById('modal-root') ?? document.body);
+  return createPortal(box, root);
 }

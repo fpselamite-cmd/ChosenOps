@@ -9,6 +9,7 @@ import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
 import { StreakKeeper } from './Streak';
+import { TradeAlerts } from './TradeAlerts';
 import { Modal } from './Modal';
 import { RankBadge } from './Badges';
 import { WhoIsOnline } from './WhoIsOnline';
@@ -179,6 +180,7 @@ export function AppShell() {
     <div className="min-h-dvh lg:pl-64">
       <AchievementWatcher />
       <StreakKeeper />
+      <TradeAlerts />
       <ShootingStars enabled />
       <MonthlyAwarder />
       <NoelDirectorySync />
@@ -216,6 +218,7 @@ export function AppShell() {
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
           <Outlet />
         </main>
+        <div id="modal-root" />
       </div>
 
       {/* Phone bottom bar */}
