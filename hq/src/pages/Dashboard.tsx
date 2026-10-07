@@ -38,6 +38,8 @@ import { db } from '../lib/firebase';
 import { ago, fmtDate } from '../lib/format';
 import { KitStrip } from '../components/Kit';
 import type { Signout, Trade } from '../lib/locker';
+import type { Nudge } from '../lib/stash';
+import { LowStockLine } from './Stash';
 import { useMoney } from '../lib/money';
 import { BASICS, CITY, LOOKS, STORY, type Sheet } from '../lib/sheet';
 import { cashText, thingsText, type Trade2 } from '../lib/trades';
@@ -446,6 +448,8 @@ function Todos() {
   const repQ = useMemo(() => query(collection(db, 'repTransfers'), where('status', '==', 'pending')), []);
   const reps = useCollection<RepTransfer>(repQ, can('confirmRep')) ?? [];
   const allSites = useCollection<Blacksite>('blacksites', can('confirmRep')) ?? [];
+  const nudgeQ = useMemo(() => query(collection(db, 'nudges'), where('to', '==', me.id)), [me.id]);
+  const nudges = useCollection<Nudge>(nudgeQ) ?? [];
   const upcoming = useUpcoming(7);
   const recent = (s: Blacksite) => Date.now() - s.at.toMillis() < 7 * 86400e3;
   const items: { to: string; text: string; group: string }[] = [];
@@ -459,6 +463,7 @@ function Todos() {
     if (!s.votes?.[me.id] && s.participants.length > 1) items.push({ group: 'Mine', to: '/blacksites', text: `Vote the MVP for ${s.zone}` });
     if (s.lootStatus === 'open' && (!s.closesAt || s.closesAt.toMillis() > Date.now())) items.push({ group: 'Mine', to: '/blacksites', text: `Loot is up for grabs from ${s.zone}` });
   });
+  nudges.forEach((n) => items.push({ group: 'Mine', to: '/locker', text: `${n.fromName}: ${n.text}` }));
   if (out.length) items.push({ group: 'Mine', to: '/locker', text: `You still have ${out.length} signed-out ${out.length === 1 ? 'item' : 'items'} from the stash` });
   if (pendingMembers.length) items.push({ group: 'Leadership', to: '/admin', text: `${pendingMembers.length} ${pendingMembers.length === 1 ? 'person is' : 'people are'} waiting at the door` });
   if (reps.length) items.push({ group: 'Leadership', to: '/petty-crime', text: `${reps.length} petty rep ${reps.length === 1 ? 'transfer' : 'transfers'} to confirm` });
@@ -497,6 +502,7 @@ function Todos() {
           <CheckCircle2 className="size-4 text-ok" /> All caught up.
         </p>
       )}
+      {can('manageOps') && <LowStockLine />}
     </Panel>
   );
 }

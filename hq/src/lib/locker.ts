@@ -6,6 +6,7 @@ import { BUD_FIELDS, ROOT_FIELDS, STRAINS, budCell, toCount, type BudField, type
 import { lockerPath, useOps } from '../noel/ops';
 import { answer, createTrade, settleCash, type Cash, type Trade2 } from './trades';
 import { db } from './firebase';
+import { logMoves } from './stash';
 import type { ItemType } from './items';
 
 export interface Storage {
@@ -177,6 +178,7 @@ export function useLocker() {
     async addStorage(name: string) {
       const id = `s${Date.now().toString(36)}`;
       await this.saveStorages([...storages, { id, name: name.trim().slice(0, 30) }]);
+      return id;
     },
     async renameStorage(id: string, name: string) {
       await this.saveStorages(storages.map((s) => (s.id === id ? { ...s, name: name.trim().slice(0, 30) } : s)));
@@ -229,12 +231,14 @@ export function useLocker() {
         at: serverTimestamp(),
       });
       ops.log('items');
+      void logMoves(me, 'take', [{ ...t, qty }], { from: fromLoc, fromLabel, to: path(storageId), toLabel: `${me.name}'s locker` });
       return qty;
     },
     /** Puts signed-out property back where it came from (whatever of it is still in the storage). */
     async returnSignout(s: Signout) {
       await this.move([s.thing], path(s.storageId), s.fromLoc);
       await updateDoc(doc(db, 'signouts', s.id), { status: 'returned', closedAt: serverTimestamp(), closedBy: me.id });
+      void logMoves(me, 'return', [s.thing], { from: path(s.storageId), fromLabel: `${me.name}'s locker`, to: s.fromLoc, toLabel: s.fromLabel });
     },
     /** Lost or seized: it's gone, so it comes out of the storage too. */
     async closeSignout(s: Signout, status: 'lost' | 'seized') {

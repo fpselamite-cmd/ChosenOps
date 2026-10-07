@@ -233,15 +233,30 @@ service cloud.firestore {
       // Anyone working the ops runs timers, pot plans and the totals switch.
       allow update: if opsWrite()
         && onlyChanges(['startTime', 'alertSent', 'strainPots', 'pots', 'excludeTotals', '_by', '_via']);
-      // Adding, renaming and removing places needs the Manage ops power. The Main Stash stays.
-      allow create, update: if can('manageOps') && request.resource.data.kind in ['stash', 'grow']
+      // Leadership (or Manage ops) adds, renames and removes any place. The Main Stash stays.
+      allow create, update: if (can('manageOps') || lead()) && request.resource.data.kind in ['stash', 'grow']
         && str(request.resource.data.name, 40);
-      allow delete: if can('manageOps') && locId != 'main';
+      // Anyone can start a gang stash house; they own it, and leadership runs it from then on.
+      allow create: if active() && request.resource.data.kind == 'stash' && str(request.resource.data.name, 40)
+        && request.resource.data.createdBy == myId() && request.resource.data.owners == [myId()];
+      // Owners change their stash's settings, but never who owns it.
+      allow update: if active() && myId() in resource.data.get('owners', [])
+        && request.resource.data.get('owners', []) == resource.data.get('owners', [])
+        && request.resource.data.get('createdBy', null) == resource.data.get('createdBy', null)
+        && request.resource.data.kind == 'stash' && str(request.resource.data.get('name', 'x'), 40);
+      allow delete: if (can('manageOps') || lead()) && locId != 'main';
     }
 
+    // Taking from (or adding to) a stash house needs its take rank, unless you own it or lead.
+    function canTakeAt(locId) {
+      let l = /databases/$(database)/documents/locations/$(locId);
+      return !exists(l) || get(l).data.get('takeRank', null) == null
+        || myOrder() <= orderOf(get(l).data.takeRank)
+        || myId() in get(l).data.get('owners', []) || lead() || isAdmin();
+    }
     match /stock/{locId} {
       allow read: if active();
-      allow create, update: if opsWrite();
+      allow create, update: if opsWrite() && canTakeAt(locId);
       allow delete: if can('manageOps') && locId != 'main';
     }
 
@@ -397,11 +412,11 @@ service cloud.firestore {
     }
     // Gang property taken into a locker. The member and leadership see these.
     match /signouts/{id} {
-      allow read: if active() && (wasMine('memberId') || can('money') || can('manageOps'));
+      allow read: if active() && (wasMine('memberId') || can('money') || can('manageOps') || lead() || isAdmin());
       allow create: if active() && mine('memberId') && request.resource.data.status == 'out' && request.resource.data.at == request.time;
       allow update: if active() && onlyChanges(['status', 'closedAt', 'closedBy'])
         && request.resource.data.status in ['returned', 'lost', 'seized'] && resource.data.status == 'out'
-        && (wasMine('memberId') || can('manageOps'));
+        && (wasMine('memberId') || can('manageOps') || lead());
     }
     // Member-to-member trades. The giver's items are held until the other person accepts.
     match /trades/{id} {
@@ -721,6 +736,24 @@ service cloud.firestore {
           && request.resource.data.by == myId() && str(request.resource.data.image, 400000);
         allow delete: if active() && (resource.data.by == myId() || site(bid).loggedBy == myId());
       }
+    }
+
+    // Every move in and out of the stashes. Anyone writes their own; only admins read it.
+    match /stashLog/{id} {
+      allow read: if isAdmin();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.qty is int && str(request.resource.data.label, 60);
+    }
+    // What every stash held at the start of each day (the first visitor writes it). Admins read and prune.
+    match /stashSnaps/{day} {
+      allow read, delete: if isAdmin();
+      allow create: if active() && request.resource.data.day == day && request.resource.data.counts is map;
+    }
+    // "Please bring it back" reminders from leadership or a stash's owners.
+    match /nudges/{id} {
+      allow read: if active() && (wasMine('to') || wasMine('from'));
+      allow create: if active() && mine('from') && request.resource.data.at == request.time && str(request.resource.data.text, 120);
+      allow delete: if active() && (wasMine('to') || wasMine('from'));
     }
 
     // Blacksite locations. Anyone adds one by logging a fight there; leadership places, edits and merges them.

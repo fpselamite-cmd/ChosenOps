@@ -109,6 +109,19 @@ export interface OpsLocation {
   stashTo?: string;
   /** "Ready to harvest" was announced for this cycle. */
   alertSent?: boolean;
+  // Stash houses: who runs them and who may use them
+  /** Who made it. */
+  createdBy?: string;
+  /** Members who manage it (the creator, unless leadership takes them off). */
+  owners?: string[];
+  /** Lowest rank that can see it (null: everyone). */
+  seeRank?: string | null;
+  /** Lowest rank that can take from it (null: everyone who can see it). */
+  takeRank?: string | null;
+  /** Low-stock levels: thing key → minimum. */
+  mins?: Record<string, number>;
+  /** Owner-set values: thing key → $ each. */
+  values?: Record<string, number>;
 }
 
 /** Stock at one location. Missing fields read as 0. */

@@ -330,6 +330,42 @@ describe('ops: narcotics and stash', () => {
     await assertFails(deleteDoc(doc(as('ub'), 'locations/main')));
   });
 
+  it('lets anyone start a gang stash they own; owners run its settings, not its owners', async () => {
+    const mine = { kind: 'stash', name: 'Sol House', crewId: null, createdBy: 'sol', owners: ['sol'] };
+    await assertSucceeds(setDoc(doc(as('sol'), 'locations/sh'), mine));
+    await assertFails(setDoc(doc(as('sol'), 'locations/sh2'), { ...mine, owners: ['sol', 'sol2'] }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'locations/sh'), { mins: { ar_armor_plate: 20 }, seeRank: 'soldier', takeRank: 'capo', values: { ar_armor_plate: 500 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'locations/sh'), { owners: ['sol', 'sol2'] }));
+    await assertFails(updateDoc(doc(as('sol2'), 'locations/sh'), { mins: {} }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'locations/sh'), { owners: [] }));
+  });
+  it('checks the take rank on a stash', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'locations/locked'), { kind: 'stash', name: 'Vault', crewId: null, takeRank: 'capo', owners: ['sol2'] });
+      await updateDoc(doc(db, 'hqRanks/soldier'), { pages: { stash: true } });
+    });
+    await assertFails(setDoc(doc(as('sol'), 'stock/locked'), { items: { x: 1 }, ...sign('sol', 'rank') }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'stock/locked'), { items: { x: 1 }, ...sign('sol2', 'rank') }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'stock/locked'), { items: { x: 2 }, ...sign('capo', 'rank') }, { merge: true }));
+  });
+  it('keeps the stash log and snapshots to admins; anyone writes their own moves', async () => {
+    const move = { kind: 'take', by: 'sol', byName: 'Sol', from: 'main', to: null, fromLabel: 'Main', toLabel: '', key: 'x', label: 'Carbine', qty: 1, at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'stashLog/m1'), move));
+    await assertFails(setDoc(doc(as('sol'), 'stashLog/m2'), { ...move, by: 'sol2' }));
+    await assertFails(getDoc(doc(as('boss'), 'stashLog/m1')));
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/ub'), { admin: true }));
+    await assertSucceeds(getDoc(doc(as('ub'), 'stashLog/m1')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'stashSnaps/2026-10-07'), { day: '2026-10-07', counts: {}, at: serverTimestamp() }));
+    await assertFails(getDoc(doc(as('sol'), 'stashSnaps/2026-10-07')));
+  });
+  it('sends return reminders that only the two people involved see', async () => {
+    await assertSucceeds(setDoc(doc(as('capo'), 'nudges/n1'), { to: 'sol', from: 'capo', fromName: 'Capo', signoutId: 's1', text: 'Bring the rifle back', at: serverTimestamp() }));
+    await assertSucceeds(getDoc(doc(as('sol'), 'nudges/n1')));
+    await assertFails(getDoc(doc(as('sol2'), 'nudges/n1')));
+    await assertSucceeds(deleteDoc(doc(as('sol'), 'nudges/n1')));
+  });
+
   it('only lets narcotics workers put cooks down', async () => {
     const cook = { by: 'x', size: 5, mins: 1440, at: serverTimestamp(), done: false, told: false };
     await assertSucceeds(setDoc(doc(as('capo'), 'cooks/c1'), { ...cook, ...sign('capo', 'rank') }));
