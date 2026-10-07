@@ -688,3 +688,22 @@ describe('dashboard', () => {
     await assertFails(setDoc(doc(as('sol'), 'news/n2'), { kind: 'promoted', memberId: 'sol', rankId: 'boss', at: serverTimestamp() }));
   });
 });
+
+describe('trades with counters and cash', () => {
+  const offer = { v: 2, from: 'sol', fromName: 'Sol', fromStorage: 'onme', to: 'sol2', toName: 'Sol2', things: [], cash: { dirty: 500, clean: 0 }, status: 'pending' };
+  it('lets the other side counter and the sender close the deal, then records the cash', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'trades/t1'), { ...offer, at: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'trades/t1'), { status: 'countered', back: [], backCash: { dirty: 0, clean: 100 }, backStorage: 'home', reply: 'deal?', closedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'cashMoves/t1_give'), { tradeId: 't1', from: 'sol', to: 'sol2', dirty: 500, clean: 0, at: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'trades/t1'), { status: 'done', fromCollected: true, closedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'cashMoves/t1_give'), { tradeId: 't1', from: 'sol', to: 'sol2', dirty: 500, clean: 0, at: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'cashMoves/t1_back'), { tradeId: 't1', from: 'sol2', to: 'sol', dirty: 0, clean: 100, at: serverTimestamp() }));
+    await assertFails(setDoc(doc(as('sol'), 'cashMoves/t1_back'), { tradeId: 't1', from: 'sol2', to: 'sol', dirty: 0, clean: 99999, at: serverTimestamp() }));
+  });
+  it('stops outsiders and wrong-side moves', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'trades/t2'), { ...offer, at: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('capo'), 'trades/t2'), { status: 'done' }));
+    await assertFails(updateDoc(doc(as('sol'), 'trades/t2'), { status: 'done' }));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'trades/t2'), { status: 'done', toCollected: true, closedAt: serverTimestamp() }));
+  });
+});

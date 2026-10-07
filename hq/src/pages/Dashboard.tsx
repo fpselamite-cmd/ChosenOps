@@ -45,6 +45,7 @@ import type { CharLoadout } from '../lib/loadouts';
 import type { Signout, Trade } from '../lib/locker';
 import { useMoney } from '../lib/money';
 import { BASICS, CITY, LOOKS, STORY, type Sheet } from '../lib/sheet';
+import { cashText, thingsText, type Trade2 } from '../lib/trades';
 import type { TrophyDoc } from '../lib/trophies';
 import type { Member, RepTransfer } from '../lib/types';
 import { Podium } from './HallOfFame';
@@ -484,7 +485,11 @@ function Todos() {
   const upcoming = useUpcoming(7);
   const recent = (s: Blacksite) => Date.now() - s.at.toMillis() < 7 * 86400e3;
   const items: { to: string; text: string; group: string }[] = [];
-  trades.forEach((t) => items.push({ group: 'Mine', to: '/locker', text: `${t.fromName} is offering you ${t.thing.qty} × ${t.thing.label}` }));
+  trades.forEach((t) => {
+    const x = t as unknown as Trade2;
+    const what = x.v === 2 ? [thingsText(x.things), cashText(x.cash)].filter(Boolean).join(' + ') || 'a trade' : `${t.thing?.qty} × ${t.thing?.label}`;
+    items.push({ group: 'Mine', to: '/locker', text: `${t.fromName} is offering you ${what}` });
+  });
   mySites.filter(recent).forEach((s) => {
     if (!s.stats?.[me.id]) items.push({ group: 'Mine', to: '/blacksites', text: `Fill in your stats for ${s.zone}` });
     if (!s.votes?.[me.id] && s.participants.length > 1) items.push({ group: 'Mine', to: '/blacksites', text: `Vote the MVP for ${s.zone}` });

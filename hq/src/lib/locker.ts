@@ -1,9 +1,10 @@
 import { addDoc, collection, deleteDoc, doc, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { BUD_FIELDS, ROOT_FIELDS, STRAINS, budCell, toCount, type BudField, type RootField, type StockDoc, type StrainId } from '../noel/data';
 import { lockerPath, useOps } from '../noel/ops';
+import { answer, createTrade, settleCash, type Cash, type Trade2 } from './trades';
 import { db } from './firebase';
 import type { ItemType } from './items';
 
@@ -16,6 +17,14 @@ export interface LockerDoc {
   id: string;
   storages: Storage[];
   meta?: Record<string, ItemMeta>;
+  kits?: Kit[];
+}
+
+/** A saved packing list: 'Blacksite kit', 'Run kit'… */
+export interface Kit {
+  id: string;
+  name: string;
+  items: { item: string; qty: number }[];
 }
 
 /** One thing that can move: a strain field, a product, or a catalog item. */
@@ -114,6 +123,27 @@ export function useLocker() {
   const tradesOut = useCollection<Trade>(outQ);
   const tradesIn = useCollection<Trade>(inQ);
 
+  // Pick up what's mine from finished trades, and get my own things back from turned-down ones.
+  const busy = useRef(new Set<string>());
+  useEffect(() => {
+    const v2 = (rows: Trade[] | null) => (rows ?? []).filter((t) => (t as unknown as Trade2).v === 2) as unknown as Trade2[];
+    const once = async (key: string, fn: () => Promise<unknown>) => {
+      if (busy.current.has(key)) return;
+      busy.current.add(key);
+      await fn().catch(() => busy.current.delete(key));
+    };
+    const put = (storageId: string, things: Thing[]) =>
+      things.length ? ops.applyDeltas(things.map((t) => delta(lockerPath(me.id, storageId), t, t.qty))) : Promise.resolve([]);
+    v2(tradesOut).forEach((t) => {
+      if (t.status === 'done' && !t.fromCollected) once(`${t.id}c`, () => put(t.fromStorage, t.back ?? []).then(() => answer(t.id, { fromCollected: true })));
+      if ((t.status === 'declined' || t.status === 'cancelled') && !t.giveReturned) once(`${t.id}r`, () => put(t.fromStorage, t.things).then(() => answer(t.id, { giveReturned: true })));
+    });
+    v2(tradesIn).forEach((t) => {
+      if (t.status === 'done' && !t.toCollected) once(`${t.id}c`, () => put(t.backStorage ?? 'onme', t.things).then(() => answer(t.id, { toCollected: true })));
+      if (t.status === 'declined' && (t.back ?? []).length && !t.backReturned) once(`${t.id}r`, () => put(t.backStorage ?? 'onme', t.back ?? []).then(() => answer(t.id, { backReturned: true })));
+    });
+  }, [tradesOut, tradesIn, me.id, ops]);
+
   // Every locker starts with On Me and Home.
   useEffect(() => {
     if (locker === null) setDoc(doc(db, 'lockers', me.id), { storages: DEFAULT_STORAGES }).catch(() => {});
@@ -124,6 +154,9 @@ export function useLocker() {
   const path = (storageId: string) => lockerPath(me.id, storageId);
 
   return {
+    meId: me.id,
+    kits: (locker?.kits ?? []) as Kit[],
+    saveKits: (kits: Kit[]) => setDoc(doc(db, 'lockers', me.id), { kits: kits.slice(0, 20) }, { merge: true }),
     ready: locker !== undefined && !!stockRows && !!signouts && !!tradesOut && !!tradesIn,
     storages,
     stock,
@@ -208,6 +241,45 @@ export function useLocker() {
       await ops.applyDeltas([delta(path(s.storageId), s.thing, -s.thing.qty)]);
       await updateDoc(doc(db, 'signouts', s.id), { status, closedAt: serverTimestamp(), closedBy: me.id });
     },
+
+    /** Takes things out of one of my storages; returns exactly what came out (with real counts). */
+    async takeOut(storageId: string, things: Thing[]) {
+      const taken = await ops.applyDeltas(things.map((t) => delta(path(storageId), t, -t.qty)));
+      return taken.map((d) => {
+        const t = things.find((x) => x.item === d.item && x.strain === d.strain && x.field === d.field)!;
+        return { ...t, qty: -d.delta };
+      });
+    },
+    /** Puts things into one of my storages. */
+    putIn: (storageId: string, things: Thing[]) => (things.length ? ops.applyDeltas(things.map((t) => delta(path(storageId), t, t.qty))) : Promise.resolve([])),
+
+    /** A trade offer: several things and/or cash. The things leave my storage now. */
+    async offerMany(storageId: string, things: Thing[], cash: Cash, to: { id: string; name: string }, note: string) {
+      const held = things.length ? await this.takeOut(storageId, things) : [];
+      if (things.length && !held.length) return false;
+      await createTrade({ from: me.id, fromName: me.name, fromStorage: storageId, to: to.id, toName: to.name, things: held, cash, note: note.trim().slice(0, 80) });
+      return true;
+    },
+    /** Accept an offer as it is: what they sent comes into my storage now. */
+    async acceptAsIs(t: Trade2, storageId: string, reply: string) {
+      await answer(t.id, { status: 'done', toCollected: true, reply: reply.trim().slice(0, 80), backStorage: storageId });
+      await this.putIn(storageId, t.things);
+      await settleCash(t.id);
+    },
+    /** Answer with things and/or cash of my own; the sender then confirms. */
+    async counter(t: Trade2, storageId: string, back: Thing[], backCash: Cash, reply: string) {
+      const held = back.length ? await this.takeOut(storageId, back) : [];
+      await answer(t.id, { status: 'countered', back: held, backCash, backStorage: storageId, reply: reply.trim().slice(0, 80) });
+    },
+    declineTrade: (t: Trade2, reply: string) => answer(t.id, { status: 'declined', reply: reply.trim().slice(0, 80) }),
+    /** Sender: take the counter. Their things come to me now. */
+    async confirmCounter(t: Trade2, storageId: string) {
+      await answer(t.id, { status: 'done', fromCollected: true });
+      await this.putIn(storageId, t.back ?? []);
+      await settleCash(t.id);
+    },
+    declineCounter: (t: Trade2) => answer(t.id, { status: 'declined' }),
+    cancelOffer: (t: Trade2) => answer(t.id, { status: 'cancelled' }),
 
     /** Offers something to another member. It leaves my storage now and waits for them. */
     async offer(storageId: string, t: Thing, to: { id: string; name: string }, note: string) {

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Backpack, Bomb, Box, Camera, Check, Search, Star, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
+import { ArrowLeftRight, Backpack, Bomb, Box, Camera, Check, Handshake, PackageCheck, Search, Star, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
 import { useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { squareImage } from '../lib/image';
 import { Avatar } from '../components/Avatar';
@@ -9,8 +9,12 @@ import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { ItemPicker } from '../components/ItemPicker';
+import { NewTrade, TradesPanel } from '../components/Trades';
+import { NO_CASH } from '../lib/trades';
+import { useDoc } from '../hooks/useCollection';
+import type { CharLoadout } from '../lib/loadouts';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
-import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Locker as LockerApi, type Thing } from '../lib/locker';
+import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Kit, type Locker as LockerApi, type Thing } from '../lib/locker';
 import { money, useMoney } from '../lib/money';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
 import { useOps } from '../noel/ops';
@@ -338,7 +342,7 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
       } else {
         const r = roster.find((x) => x.id === who);
         if (!r) return setError('Pick who it’s for.');
-        await locker.offer(storageId, t, { id: r.id, name: r.name }, note);
+        await locker.offerMany(storageId, [t], NO_CASH, { id: r.id, name: r.name }, note);
         toast.done({ text: `Offered ${q} × ${thing.label} to ${r.name}. It’s held until they accept.` });
       }
       onClose();
@@ -422,6 +426,163 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
             Cancel
           </button>
           <button className="btn-gold">{mode === 'give' ? 'Offer' : mode === 'name' ? 'Save name' : 'Move'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** What a loadout needs on you: each item and how many. */
+function loadoutNeeds(l: CharLoadout | null | undefined) {
+  const need = new Map<string, number>();
+  const add = (id?: string | null, n = 1) => id && n > 0 && need.set(id, (need.get(id) ?? 0) + n);
+  add(l?.vest);
+  add('ar_armor_plate', l?.plates ?? 0);
+  [l?.primary, l?.sidearm].forEach((c) => {
+    add(c?.item);
+    Object.values(c?.parts ?? {}).forEach((p) => add(p));
+  });
+  add(l?.melee);
+  add(l?.bag);
+  (l?.utility ?? []).forEach((u) => add(u.item, u.qty));
+  return [...need.entries()].map(([item, qty]) => ({ item, qty }));
+}
+
+/** Moves everything a loadout or kit needs into On Me, from your other storages. */
+function PackDialog({ locker, onClose }: { locker: LockerApi; onClose: () => void }) {
+  const { me } = useHub();
+  const { types, name } = useItemTypes();
+  const toast = useToast();
+  const loadout = useDoc<CharLoadout>(`loadouts/${me.id}`);
+  const [pick, setPick] = useState<string>('loadout');
+  const [editing, setEditing] = useState<Kit | null>(null);
+  const onme = locker.storages.find((s) => s.id === 'onme') ?? locker.storages[0]!;
+  const kit = locker.kits.find((k) => k.id === pick);
+  const needs = pick === 'loadout' ? loadoutNeeds(loadout) : (kit?.items ?? []);
+  const have = (item: string) => countOf(locker.stock.get(onme.id), { field: 'meth', item });
+  const elsewhere = (item: string) => locker.storages.filter((s) => s.id !== onme.id).reduce((t, s) => t + countOf(locker.stock.get(s.id), { field: 'meth', item }), 0);
+  const rows = needs.map((n) => ({ ...n, have: have(n.item), more: Math.max(0, n.qty - have(n.item)), spare: elsewhere(n.item) }));
+  async function pack() {
+    let moved = 0;
+    for (const r of rows) {
+      let left = r.more;
+      for (const s of locker.storages.filter((x) => x.id !== onme.id)) {
+        if (left <= 0) break;
+        const c = countOf(locker.stock.get(s.id), { field: 'meth', item: r.item });
+        if (!c) continue;
+        const n = Math.min(c, left);
+        const got = await locker.move([{ field: 'meth', item: r.item, qty: n, label: name(r.item) }], locker.path(s.id), locker.path(onme.id));
+        const g = got.length ? -got[0]!.delta : 0;
+        left -= g;
+        moved += g;
+      }
+    }
+    toast.done({ text: moved ? `Packed ${moved} ${moved === 1 ? 'thing' : 'things'} into ${onme.name}.` : `${onme.name} already has everything it can get.` });
+    onClose();
+  }
+  if (editing)
+    return <KitEditor locker={locker} kit={editing} types={types} name={name} onClose={() => setEditing(null)} />;
+  return (
+    <Modal title="Pack for a run" onClose={onClose} wide>
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-1">
+          {[{ id: 'loadout', name: 'My loadout' }, ...locker.kits].map((k) => (
+            <button key={k.id} onClick={() => setPick(k.id)} className={`chip px-3 py-1.5 text-xs ${pick === k.id ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+              {k.name}
+            </button>
+          ))}
+          <button className="chip bg-raised px-3 py-1.5 text-xs text-gold-300" onClick={() => setEditing({ id: `k${Date.now().toString(36)}`, name: '', items: [] })}>
+            <Plus className="mr-1 inline size-3" />
+            New kit
+          </button>
+          {kit && (
+            <button className="chip bg-raised px-3 py-1.5 text-xs text-ash" onClick={() => setEditing(kit)}>
+              <Pencil className="mr-1 inline size-3" />
+              Edit kit
+            </button>
+          )}
+        </div>
+        {rows.length ? (
+          <ul className="divide-y divide-line-soft border border-line-soft">
+            {rows.map((r) => (
+              <li key={r.item} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 truncate text-gold-100">{name(r.item)}</span>
+                <span className="font-mono text-xs text-smoke">
+                  {r.have}/{r.qty} on you
+                </span>
+                {r.more === 0 ? (
+                  <Check className="size-4 text-ok" />
+                ) : r.spare ? (
+                  <span className="text-xs text-gold-300">+{Math.min(r.more, r.spare)} from storage</span>
+                ) : (
+                  <span className="text-xs text-red-300">missing {r.more}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-smoke">{pick === 'loadout' ? 'Your loadout is empty. Set it up in Gear & Loadouts.' : 'This kit is empty.'}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold" disabled={!rows.some((r) => r.more && r.spare)} onClick={pack}>
+            <PackageCheck className="size-4" /> Pack into {onme.name}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function KitEditor({ locker, kit, types, name, onClose }: { locker: LockerApi; kit: Kit; types: ItemType[]; name: (id: string) => string; onClose: () => void }) {
+  const [k, setK] = useState<Kit>(kit);
+  const [adding, setAdding] = useState<string | null>(null);
+  const exists = locker.kits.some((x) => x.id === kit.id);
+  return (
+    <Modal title={exists ? `Edit ${kit.name}` : 'New kit'} onClose={onClose} wide>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!k.name.trim()) return;
+          const clean = { ...k, name: k.name.trim().slice(0, 30), items: k.items.filter((i) => i.qty > 0).slice(0, 30) };
+          await locker.saveKits(exists ? locker.kits.map((x) => (x.id === k.id ? clean : x)) : [...locker.kits, clean]);
+          onClose();
+        }}
+      >
+        <Field label="Kit name">
+          <input className="input" value={k.name} onChange={(e) => setK({ ...k, name: e.target.value })} maxLength={30} placeholder="e.g. Blacksite kit" autoFocus />
+        </Field>
+        <ul className="space-y-1">
+          {k.items.map((i, n) => (
+            <li key={i.item} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate text-gold-100">{name(i.item)}</span>
+              <input className="input w-20 py-1 font-mono" inputMode="numeric" value={i.qty} onChange={(e) => setK({ ...k, items: k.items.map((x, j) => (j === n ? { ...x, qty: Math.max(0, +e.target.value.replace(/\D/g, '') || 0) } : x)) })} />
+              <button type="button" onClick={() => setK({ ...k, items: k.items.filter((_, j) => j !== n) })} aria-label="Remove">
+                <X className="size-4 text-smoke" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <ItemPicker types={types} value={adding} onChange={setAdding} />
+          </div>
+          <button type="button" className="btn-ghost" disabled={!adding} onClick={() => adding && (setK({ ...k, items: [...k.items.filter((x) => x.item !== adding), { item: adding, qty: 1 }] }), setAdding(null))}>
+            <Plus className="size-4" /> Add
+          </button>
+        </div>
+        <div className="flex justify-between gap-2">
+          {exists ? (
+            <button type="button" className="btn-danger" onClick={() => locker.saveKits(locker.kits.filter((x) => x.id !== kit.id)).then(onClose)}>
+              <Trash2 className="size-4" /> Delete kit
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="btn-gold">Save kit</button>
         </div>
       </form>
     </Modal>
@@ -779,12 +940,17 @@ function Body() {
   const { canSee, memberById } = useHub();
   const toast = useToast();
   const [taking, setTaking] = useState(false);
+  const [trading, setTrading] = useState(false);
+  const [packing, setPacking] = useState(false);
+  const { name: itemName } = useItemTypes();
   const [open, setOpen] = useState<{ storageId: string; thing: Thing } | null>(null);
   const [acceptInto, setAcceptInto] = useState<Record<string, string>>({});
   if (!locker.ready) return null;
   const out = locker.signouts.filter((s) => s.status === 'out');
-  const incoming = locker.tradesIn.filter((t) => t.status === 'pending');
-  const mine = locker.tradesOut.filter((t) => t.status === 'pending' || t.status === 'declined');
+  // First-version (one item) trades still in flight; new ones show in the Trades panel.
+  const v1 = (t: { thing?: unknown }) => !!t.thing;
+  const incoming = locker.tradesIn.filter((t) => v1(t) && t.status === 'pending');
+  const mine = locker.tradesOut.filter((t) => v1(t) && (t.status === 'pending' || t.status === 'declined'));
   const stashOk = canSee('stash') || canSee('narcotics');
 
   return (
@@ -795,11 +961,19 @@ function Body() {
         title="My Locker"
         sub="Your own things, in storages you name. On Me is what you’re carrying, and your loadout will pull from it."
         actions={
-          stashOk && (
-            <button className="btn-gold" onClick={() => setTaking(true)}>
-              <PackageOpen className="size-4" /> Take from a stash
+          <>
+            <button className="btn-ghost" onClick={() => setPacking(true)}>
+              <Backpack className="size-4" /> Pack for a run
             </button>
-          )
+            <button className="btn-ghost" onClick={() => setTrading(true)}>
+              <Handshake className="size-4" /> New trade
+            </button>
+            {stashOk && (
+              <button className="btn-gold" onClick={() => setTaking(true)}>
+                <PackageOpen className="size-4" /> Take from a stash
+              </button>
+            )}
+          </>
         }
       />
 
@@ -811,7 +985,7 @@ function Body() {
       </div>
 
       {(incoming.length > 0 || mine.length > 0) && (
-        <Panel title="Trades" className="mb-6">
+        <Panel title="Older trades" className="mb-6">
           <ul className="space-y-2">
             {incoming.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center gap-3 border border-gold-700/50 bg-gold-400/5 px-3 py-2">
@@ -880,10 +1054,14 @@ function Body() {
         </Panel>
       )}
 
+      <TradesPanel locker={locker} itemName={itemName} />
+
       <LockerGrid locker={locker} onOpen={(storageId, thing) => setOpen({ storageId, thing })} />
 
       {!locker.storages.length && <Empty title="No storages">Add one above.</Empty>}
       {taking && <TakeDialog locker={locker} onClose={() => setTaking(false)} />}
+      {trading && <NewTrade locker={locker} itemName={itemName} onClose={() => setTrading(false)} />}
+      {packing && <PackDialog locker={locker} onClose={() => setPacking(false)} />}
       {open && <ThingDialog locker={locker} storageId={open.storageId} thing={{ ...open.thing, qty: countOf(locker.stock.get(open.storageId), open.thing) || open.thing.qty }} onClose={() => setOpen(null)} />}
     </>
   );
