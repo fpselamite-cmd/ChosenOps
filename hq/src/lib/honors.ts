@@ -379,7 +379,8 @@ export const give = (me: Me, memberId: string, honorId: string, note: string) =>
 export const revoke = (memberId: string, honorId: string) => deleteDoc(doc(db, 'honorsOwned', ownedId(memberId, honorId)));
 export const markSeen = (memberId: string, honorId: string) => updateDoc(doc(db, 'honorsOwned', ownedId(memberId, honorId)), { seen: true });
 
-export const saveLoadout = (memberId: string, l: Omit<Loadout, 'id'>) => setDoc(doc(db, 'honorLoadouts', memberId), { title: null, frame: null, effect: null, nameHue: null, accentHue: null, trimHue: null, backdropHue: null, showcase: [], ...l }, { merge: true });
+/** Changes only the slots given; everything else stays on. */
+export const saveLoadout = (memberId: string, l: Omit<Loadout, 'id'>) => setDoc(doc(db, 'honorLoadouts', memberId), l, { merge: true });
 
 /** Can this honor be earned right now (active, and inside its season if it has one)? */
 export function earnable(x: Honor, now = Date.now()) {
