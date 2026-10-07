@@ -15,6 +15,7 @@ import {
   Lock,
   Music,
   NotebookPen,
+  Feather,
   Pencil,
   Plane,
   Plus,
@@ -72,6 +73,7 @@ import {
 } from '../lib/sheet';
 import { keyOf } from '../lib/calendar';
 import { setLoa, useStreak } from '../lib/streak';
+import { markPast, PAST_KINDS, restoreMember, type Past, type PastKind } from '../lib/hall';
 import { PRESENCE_STATUSES, type Member } from '../lib/types';
 import { LoadoutCard } from './Gear';
 
@@ -779,18 +781,65 @@ function LoaDialog({ m, onClose }: { m: Member; onClose: () => void }) {
   );
 }
 
+/** Leadership: mark someone as a past member (deceased, retired, moved on, exiled). */
+function PastDialog({ m, past, onClose }: { m: Member; past?: Past | null; onClose: () => void }) {
+  const [kind, setKind] = useState<PastKind>(past?.kind ?? 'retired');
+  const [day, setDay] = useState(past?.day ?? keyOf(Date.now()));
+  const [epitaph, setEpitaph] = useState(past?.epitaph ?? '');
+  return (
+    <Modal title={`${m.name} · past member`} onClose={onClose} portal>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await markPast(m, { kind, day, epitaph: epitaph.trim() });
+          onClose();
+        }}
+      >
+        <p className="text-sm text-ash">They leave the roster and can’t sign in, but their sheet and records stay. They show in the Hall of Fame’s In Memoriam & Retired (exiled only to leadership).</p>
+        <div className="grid grid-cols-2 gap-2">
+          {PAST_KINDS.map((k) => (
+            <button key={k.id} type="button" onClick={() => setKind(k.id)} className={`border p-2 text-left text-sm ${kind === k.id ? 'border-gold-400 bg-gold-400/10 text-gold-100' : 'border-line text-ash'}`}>
+              {k.label}
+              <span className="block text-[11px] text-smoke">{k.hint}</span>
+            </button>
+          ))}
+        </div>
+        <Field label="Date">
+          <input type="date" className="input" value={day} onChange={(e) => setDay(e.target.value)} />
+        </Field>
+        <Field label="Epitaph" hint="A line for their plaque. Optional.">
+          <input className="input" value={epitaph} onChange={(e) => setEpitaph(e.target.value)} maxLength={200} placeholder="e.g. Never left a man behind." />
+        </Field>
+        <div className="flex justify-between gap-2">
+          {past ? (
+            <button type="button" className="btn-ghost" onClick={() => restoreMember(m).then(onClose)}>
+              Bring them back
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="btn-gold">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 type Draft = Omit<Sheet, 'id'> & { alias: string; phone: string; bMonth: number; bDay: number };
 
 export default function Profile() {
   const { id = '' } = useParams();
-  const { memberById, rankById, crewsOf, me, isOnline, presence, roster, isAdmin } = useHub();
+  const { memberById, rankById, crewsOf, me, isOnline, presence, roster, isAdmin, can } = useHub();
   const m = memberById.get(id);
   const sheet = useDoc<Sheet>(`sheets/${id}`);
+  const past = useDoc<Past>(`pastMembers/${id}`);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
   const [loaOpen, setLoaOpen] = useState(false);
+  const [pastOpen, setPastOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
@@ -874,6 +923,11 @@ export default function Profile() {
             )}
             <div className="min-w-0 flex-1">
               <p className="label text-gold-500">Character sheet</p>
+              {past && (
+                <p className="mb-1 text-xs tracking-widest text-smoke uppercase">
+                  {past.kind === 'deceased' ? 'In memoriam' : past.kind === 'retired' ? 'Retired' : past.kind === 'moved' ? 'Moved on' : 'Exiled'} · {past.day}
+                </p>
+              )}
               <h1 className="foil font-display text-3xl font-bold sm:text-4xl">{m.name}</h1>
               {edit ? (
                 <input className="input mt-1 max-w-xs" placeholder="Alias / street name" value={draft!.alias} maxLength={30} onChange={(e) => set({ alias: e.target.value })} />
@@ -948,6 +1002,11 @@ export default function Profile() {
               {mine && !edit && (
                 <button className="btn-ghost btn-sm" onClick={() => setPinOpen(true)}>
                   <KeyRound className="size-3.5" /> PIN
+                </button>
+              )}
+              {can('manageMembers') && !mine && (
+                <button className="btn-ghost btn-sm" onClick={() => setPastOpen(true)} title="Deceased, retired, moved on or exiled">
+                  <Feather className="size-3.5" /> {past ? 'Past member' : 'Mark as past'}
                 </button>
               )}
               {isAdmin && !mine && (
@@ -1175,6 +1234,7 @@ export default function Profile() {
 
       {pinOpen && <ChangePin onClose={() => setPinOpen(false)} />}
       {loaOpen && <LoaDialog m={m} onClose={() => setLoaOpen(false)} />}
+      {pastOpen && <PastDialog m={m} past={past} onClose={() => setPastOpen(false)} />}
     </>
   );
 }

@@ -465,6 +465,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'news', 'nw1'), { kind: 'joined', memberId: ids['Ghost'], rankId: 'associate', at: Timestamp.fromMillis(now - 2 * 86400_000) });
   await setDoc(doc(db, 'news', 'nw2'), { kind: 'promoted', memberId: ids['Rocco Vale'], rankId: 'lieutenant', at: Timestamp.fromMillis(now - 5 * 3600_000) });
 
+  // Hall of Fame: a legend, an MVP of last month, and a member who passed.
+  const lastYm = (() => { const d = new Date(now); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+  await setDoc(doc(db, 'monthMvp', lastYm), { memberId: ids['Rocco Vale'], why: 'Held Mirror Park alone for twenty minutes.', by: ids['Don Vito'] });
+  await setDoc(doc(db, 'legends', 'lg1'), { memberId: ids['Don Vito'], name: 'Don Vito', title: 'The Night the Docks Burned', text: 'Three crews walked in. One walked out. The Chosen began here.', by: ids['Don Vito'], at: Timestamp.fromMillis(now - 30 * 86400_000) });
+  await setDoc(doc(db, 'members', ids['Tommy Reyes']), { status: 'suspended' }, { merge: true });
+  await setDoc(doc(db, 'pastMembers', ids['Tommy Reyes']), { kind: 'deceased', day: dk(12), epitaph: 'Took the first bullet so we could take the hill.' });
+  await setDoc(doc(db, 'tributes', ids['Tommy Reyes']), { candles: { [ids['Lena Russo']]: true, [ids['Rocco Vale']]: true, [ids['Kira Lane']]: true } });
+  await setDoc(doc(db, 'tributes', ids['Tommy Reyes'], 'memories', 'mm1'), { by: ids['Rocco Vale'], byName: 'Rocco Vale', text: 'Best tank I ever ran with.', at: Timestamp.fromMillis(now - 5 * 86400_000) });
+
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',
