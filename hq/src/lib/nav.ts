@@ -5,6 +5,7 @@ import {
   Crosshair,
   FolderSearch,
   HandCoins,
+  HandHeart,
   Lock,
   LayoutDashboard,
   Map,
@@ -27,6 +28,8 @@ export interface NavItem {
   page?: PageId;
   /** Opens another site in a new tab instead of a page here. */
   href?: string;
+  /** Only associates and the Welcome Committee see it. */
+  welcome?: boolean;
 }
 
 export const NAV: { group: string; items: NavItem[] }[] = [
@@ -35,6 +38,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/family', label: 'Family', icon: Network, page: 'family' },
+      { to: '/welcome', label: 'Welcome', icon: HandHeart, welcome: true },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },

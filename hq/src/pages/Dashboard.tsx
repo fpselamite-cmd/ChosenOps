@@ -51,6 +51,8 @@ import type { TrophyDoc } from '../lib/trophies';
 import type { Member, RepTransfer } from '../lib/types';
 import { Podium } from './HallOfFame';
 import { MoodPicker } from './Profile';
+import { MyProgress, NewlyPatched, PatchMoment } from './welcome/DashboardBits';
+import { useWelcomeAttention } from './welcome/useWelcome';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 /** Same pick for everyone on the same day. */
@@ -477,7 +479,10 @@ function Todos() {
   const cashWaiting = can('money') ? duesPays.filter((p) => p.status === 'pending').length : 0;
   if (cashWaiting) items.push({ group: 'Leadership', to: '/money?tab=dues', text: `${cashWaiting} dues ${cashWaiting === 1 ? 'payment' : 'payments'} to confirm` });
   if (out.length) items.push({ group: 'Mine', to: '/locker', text: `You still have ${out.length} signed-out ${out.length === 1 ? 'item' : 'items'} from the stash` });
-  if (pendingMembers.length) items.push({ group: 'Leadership', to: '/admin', text: `${pendingMembers.length} ${pendingMembers.length === 1 ? 'person is' : 'people are'} waiting at the door` });
+  const wl = useWelcomeAttention();
+  if (wl.stamps) items.push({ group: 'Welcome', to: '/welcome?tab=associates', text: `${wl.stamps} associate ${wl.stamps === 1 ? 'operation' : 'operations'} to sign off` });
+  if (wl.recs) items.push({ group: 'Leadership', to: '/welcome?tab=associates', text: `${wl.recs} ${wl.recs === 1 ? 'associate is' : 'associates are'} recommended for their patch` });
+  if (pendingMembers.length) items.push({ group: 'Leadership', to: '/welcome?tab=door', text: `${pendingMembers.length} ${pendingMembers.length === 1 ? 'person is' : 'people are'} waiting at the door` });
   if (reps.length) items.push({ group: 'Leadership', to: '/petty-crime', text: `${reps.length} petty rep ${reps.length === 1 ? 'transfer' : 'transfers'} to confirm` });
   const siteRep = allSites.filter((s) => s.repStatus === 'pending' && s.rep > 0).length;
   if (siteRep) items.push({ group: 'Leadership', to: '/blacksites', text: `${siteRep} blacksite rep ${siteRep === 1 ? 'claim' : 'claims'} to confirm` });
@@ -488,7 +493,7 @@ function Todos() {
       items.push({ group: 'Events', to: '/calendar', text: `RSVP to ${o.title} (${o.at.toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short' })})` });
     }
   });
-  const groups = ['Mine', 'Leadership', 'Events'].map((g) => [g, items.filter((i) => i.group === g)] as const).filter(([, l]) => l.length);
+  const groups = ['Mine', 'Welcome', 'Leadership', 'Events'].map((g) => [g, items.filter((i) => i.group === g)] as const).filter(([, l]) => l.length);
   return (
     <Panel title={`Waiting on you${items.length ? ` · ${items.length}` : ''}`}>
       {groups.length ? (
@@ -626,6 +631,8 @@ export default function Dashboard() {
           </div>
         } />
 
+      <PatchMoment />
+      <NewlyPatched />
       <WelcomeNote />
       <div className="mb-6 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Hero />
@@ -648,6 +655,7 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-6">
+          <MyProgress />
           <Todos />
           <UpNext />
           <Birthdays />

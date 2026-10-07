@@ -8,7 +8,7 @@ export type ProfilePatch = Partial<Pick<Member, 'avatar' | 'alias' | 'phone' | '
 export const updateProfile = (id: string, patch: ProfilePatch) => updateDoc(doc(db, 'members', id), patch);
 
 /** Family news for the Dashboard briefing. */
-const news = (kind: 'joined' | 'promoted', memberId: string, rankId: string) => addDoc(collection(db, 'news'), { kind, memberId, rankId, at: serverTimestamp() }).catch(() => {});
+export const news = (kind: 'joined' | 'promoted', memberId: string, rankId: string) => addDoc(collection(db, 'news'), { kind, memberId, rankId, at: serverTimestamp() }).catch(() => {});
 
 export const approveMember = (id: string, rankId: string) => updateDoc(doc(db, 'members', id), { status: 'active', rankId }).then(() => news('joined', id, rankId));
 export const setRank = (id: string, rankId: string, promoted = false) => updateDoc(doc(db, 'members', id), { rankId }).then(() => { if (promoted) void news('promoted', id, rankId); });

@@ -982,6 +982,52 @@ service cloud.firestore {
       allow write: if active() && lead();
     }
 
+    // ---------- Welcome center ----------
+    // Handlers are the Welcome Committee role, plus leadership. Associates see their own file.
+    function handler() { return lead() || (hasRoles() && 'welcome' in roles().get('roles', [])); }
+    match /settings/welcome {
+      allow read: if active();
+      allow write: if active() && handler() && request.resource.data.steps is list && request.resource.data.steps.size() <= 40
+        && request.resource.data.sections is list && request.resource.data.sections.size() <= 20 && request.resource.data.rulesVersion is int;
+    }
+    match /onboarding/{mid} {
+      allow read: if active() && (mid == myId() || handler());
+      // Their own: accept the rules, and mark that they've seen their patch moment.
+      allow create, update: if active() && mid == myId()
+        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasOnly(['rulesAccepted', 'rulesAt', 'patchSeen'])
+        && request.resource.data.get('rulesAt', request.time) == request.time;
+      allow create, update: if active() && handler() && mid != myId();
+    }
+    match /welcomeStamps/{id} {
+      allow read: if active() && (resource.data.memberId == myId() || handler());
+      // They mark a step done; a handler confirms it.
+      allow create: if active() && request.resource.data.status == 'pending' && request.resource.data.memberId == myId()
+        && id == myId() + '_' + request.resource.data.stepId && request.resource.data.by == myId() && request.resource.data.at == request.time;
+      allow create, update: if active() && handler() && request.resource.data.memberId != myId()
+        && id == request.resource.data.memberId + '_' + request.resource.data.stepId;
+      allow delete: if active() && ((resource.data.memberId == myId() && resource.data.status == 'pending') || handler());
+    }
+    match /handlerNotes/{id} {
+      allow read, delete: if active() && handler();
+      allow create: if active() && handler() && request.resource.data.by == myId() && request.resource.data.at == request.time && str(request.resource.data.text, 500);
+    }
+    // Anyone can vouch for or flag an associate; only handlers read them.
+    match /vouches/{id} {
+      allow read: if active() && (resource.data.by == myId() || handler());
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.memberId != myId() && request.resource.data.kind in ['vouch', 'flag'] && str(request.resource.data.text, 200);
+      allow delete: if active() && (resource.data.by == myId() || handler());
+    }
+    match /welcomeNotes/{id} {
+      allow read: if active() && (resource.data.to == myId() || handler());
+      allow create: if active() && handler() && request.resource.data.by == myId() && request.resource.data.at == request.time && str(request.resource.data.text, 300);
+      allow delete: if active() && (resource.data.to == myId() || handler());
+    }
+    match /graduations/{mid} {
+      allow read: if active();
+      allow write: if active() && lead();
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();

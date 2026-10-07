@@ -606,6 +606,39 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'washRequests', 'gw3'), { memberId: ids['Rocco Vale'], memberName: 'Rocco Vale', dirty: 12000, pct: 50, clean: 6000, status: 'claimed', claimerId: vito, claimerName: 'Don Vito', note: '', at: Timestamp.fromMillis(now - 1 * H) });
   await setDoc(doc(db, 'washRequests', 'gw1'), { memberId: 'gang', memberName: 'The gang', dirty: 40000, pct: 50, clean: 20000, status: 'done', claimerId: ids['Marco Gallo'], claimerName: 'Marco Gallo', note: 'Gang money', at: Timestamp.fromMillis(now - 30 * H), doneAt: Timestamp.fromMillis(now - 26 * H) });
 
+  // Welcome center: the checklist, two associates on their road, notes, vouches, and a fresh patch.
+  await setDoc(doc(db, 'settings', 'welcome'), {
+    steps: [
+      { id: 'w1', title: 'Ride along on a weed run', detail: 'With a handler, start to finish' },
+      { id: 'w2', title: 'Hold a blacksite' },
+      { id: 'w3', title: 'Cook with the lab crew' },
+      { id: 'w4', title: 'Wash $10k with a washer' },
+      { id: 'w5', title: 'Sit at a family dinner' },
+      { id: 'w6', title: 'Run a delivery solo' },
+    ],
+    repTarget: 300,
+    rulesVersion: 1,
+    sections: [
+      { title: 'The rules', body: '1. Family first. What happens in the family stays in the family.\n2. No beef with another gang without High Table saying so.\n3. Show up to dinner, pay your dues.\n4. Never touch product that isn\'t yours.\n\n(Placeholder rules until the real ones are pasted in.)' },
+      { title: 'Who to ask', body: 'Your handlers are the Welcome Committee. Kira looks after new people. Anything about money goes to Lena.' },
+    ],
+  });
+  const jax = ids['Jax Holt'], mia = ids['Mia Santos'], kira = ids['Kira Lane'];
+  await setDoc(doc(db, 'onboarding', jax), { rulesAccepted: 1, rulesAt: Timestamp.fromMillis(now - 90 * H) });
+  await setDoc(doc(db, 'sheets', jax), { basics: { origin: 'Sandy Shores', age: '24' }, story: { backstory: 'Grew up fixing bikes for the Lost MC, wanted something bigger.' } }, { merge: true });
+  await setDoc(doc(db, 'petty', jax), { rep: 180 }, { merge: true });
+  const ws = (who, step, status, back, by = kira, byName = 'Kira Lane') => setDoc(doc(db, 'welcomeStamps', `${who}_${step}`), { memberId: who, stepId: step, status, by, byName, confirmedBy: status === 'done' ? by : null, at: Timestamp.fromMillis(now - back * H) });
+  await ws(jax, 'w1', 'done', 70);
+  await ws(jax, 'w2', 'done', 40, ids['Rocco Vale'], 'Rocco Vale');
+  await ws(jax, 'w5', 'done', 30);
+  await ws(jax, 'w3', 'pending', 3, jax, 'Jax Holt');
+  await ws(mia, 'w1', 'pending', 5, mia, 'Mia Santos');
+  await setDoc(doc(db, 'handlerNotes', 'hn1'), { memberId: jax, text: 'Solid on the run, a little loud on comms. Keep an eye on it.', by: kira, byName: 'Kira Lane', at: Timestamp.fromMillis(now - 60 * H) });
+  await setDoc(doc(db, 'vouches', 'vc1'), { memberId: jax, kind: 'vouch', text: 'Held the left side at the docks all night.', by: ids['Rocco Vale'], byName: 'Rocco Vale', at: Timestamp.fromMillis(now - 38 * H) });
+  await setDoc(doc(db, 'vouches', 'vc2'), { memberId: mia, kind: 'flag', text: 'Seen talking to Vagos at the taco truck.', by: ids['Tommy Reyes'], byName: 'Tommy Reyes', at: Timestamp.fromMillis(now - 4 * H) });
+  await setDoc(doc(db, 'welcomeNotes', 'wn1'), { to: jax, text: 'Good work at the docks. Get that lab cook done and you\'re close.', by: kira, byName: 'Kira Lane', at: Timestamp.fromMillis(now - 20 * H) });
+  await setDoc(doc(db, 'graduations', ids['Ghost']), { name: 'Ghost', rankName: 'Soldier', at: Timestamp.fromMillis(now - 30 * H) });
+
   // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
   const mug = (bg, fg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="${bg}"/><circle cx="80" cy="62" r="30" fill="${fg}"/><path d="M24 160c4-38 28-56 56-56s52 18 56 56z" fill="${fg}"/></svg>`);
   const logo = (c, t) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" fill="#111"/><text x="80" y="104" fill="${c}" font-family="serif" font-weight="bold" font-size="72" text-anchor="middle">${t}</text></svg>`);

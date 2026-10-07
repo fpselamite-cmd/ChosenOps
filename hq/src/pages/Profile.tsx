@@ -36,6 +36,7 @@ import { ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { Panel, Tabs } from '../components/Page';
 import { useCollection, useDoc } from '../hooks/useCollection';
+import { VouchBar } from './welcome/VouchBar';
 import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
 import { records, type Blacksite } from '../lib/blacksites';
@@ -893,6 +894,7 @@ export default function Profile() {
           <ArrowLeft className="size-3.5" /> Family
         </Link>
       </div>
+      <VouchBar m={m} />
 
       <div ref={sheetRef} className="space-y-6">
         {/* ---------- sheet header ---------- */}

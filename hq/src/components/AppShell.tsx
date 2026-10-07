@@ -5,6 +5,7 @@ import { useHub } from '../hooks/useHub';
 import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
 import { TZ, TZ_LABEL } from '../lib/format';
+import { useWelcomeAccess, useWelcomeAttention } from '../pages/welcome/useWelcome';
 import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
@@ -110,7 +111,8 @@ function NavLinkItem({ item, onClick, badge }: { item: NavItem; onClick?: () => 
 /** Menu groups with only the pages this person can open. */
 function useNav() {
   const { canSee } = useHub();
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.page || canSee(i.page)) })).filter((g) => g.items.length);
+  const welcome = useWelcomeAccess().open;
+  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.page || canSee(i.page)) && (!i.welcome || welcome)) })).filter((g) => g.items.length);
 }
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -118,6 +120,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const nav = useNav();
   const admin = can('approveMembers') || can('manageMembers') || can('manageCrews') || can('manageRanks') || can('manageSettings');
   const waiting = useAttention().reduce((t, a) => t + a.n, 0);
+  const wl = useWelcomeAttention();
   return (
     <nav className="flex flex-col gap-5">
       {nav.map((g) => (
@@ -125,7 +128,7 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           <p className="label mb-1 px-3 text-[10px] text-gold-700">{g.group}</p>
           <div className="flex flex-col">
             {g.items.map((i) => (
-              <NavLinkItem key={i.to} item={i} onClick={onNavigate} />
+              <NavLinkItem key={i.to} item={i} onClick={onNavigate} badge={i.welcome ? wl.total + wl.door : undefined} />
             ))}
           </div>
         </div>
