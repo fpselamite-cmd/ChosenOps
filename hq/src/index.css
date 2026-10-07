@@ -1203,3 +1203,32 @@ button.gun-dot:hover { transform: scale(1.35); border-color: var(--color-gold-20
   pointer-events: none;
 }
 .gun-dot:hover .gun-dot-label, .gun-dot-active .gun-dot-label { opacity: 1; }
+
+/* ── Profile: the mini family card in the header ─────────────── */
+.fc-mini {
+  position: relative;
+  width: 74px;
+  aspect-ratio: 400 / 660;
+  overflow: hidden;
+  border-radius: 7px;
+  border: 1px solid rgba(212, 175, 55, 0.7);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(212, 175, 55, 0.25);
+  transform: perspective(500px) rotateY(-8deg) rotateZ(-3deg);
+  transition: transform 0.35s cubic-bezier(.2, .8, .2, 1.2), box-shadow 0.35s;
+}
+.fc-mini img { width: 100%; height: 100%; object-fit: cover; }
+.fc-mini:hover, .fc-mini:focus-visible {
+  transform: perspective(500px) translateY(-6px) rotateY(10deg) rotateZ(2deg) scale(1.08);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.7), 0 0 26px rgba(212, 175, 55, 0.55);
+}
+.fc-mini-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 240, 190, 0.45) 45%, rgba(212, 175, 55, 0.25) 50%, transparent 62%);
+  background-size: 250% 100%;
+  background-position: 120% 0;
+  transition: background-position 0.7s ease;
+  pointer-events: none;
+}
+.fc-mini:hover .fc-mini-shine { background-position: -40% 0; }
+@media (prefers-reduced-motion: reduce) { .fc-mini, .fc-mini-shine { transition: none; } }

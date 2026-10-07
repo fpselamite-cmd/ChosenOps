@@ -112,3 +112,15 @@ export function FamilyCard({ member }: { member: Member }) {
     </div>
   );
 }
+
+/** A small copy of the card for the profile header. Lifts and catches the light on hover. */
+export function MiniFamilyCard({ member, onOpen }: { member: Member; onOpen?: () => void }) {
+  const card = useDoc<FamilyCardDoc>(`familyCards/${member.id}`);
+  if (!card) return null;
+  return (
+    <button className="fc-mini" onClick={onOpen} title={card.title ? `${card.title} · tap to see it big` : 'Family card · tap to see it big'}>
+      <img src={card.image} alt={`${member.name}'s family card`} draggable={false} />
+      <span className="fc-mini-shine" />
+    </button>
+  );
+}
