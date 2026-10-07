@@ -49,7 +49,7 @@ export const beats = (a: number[], b: number[]) => {
 /** Jacks or Better: deal five, hold what you like, draw once. */
 export default function VideoPoker() {
   const { me } = useHub();
-  const { balance, min, max } = useChips();
+  const { balance, min, max, bonus } = useChips();
   const [bet, setBet] = useState(min);
   const [hand, setHand] = useState<Card[]>([]);
   const [rest, setRest] = useState<Card[]>([]);
@@ -84,7 +84,7 @@ export default function VideoPoker() {
     setMsg(row ? { text: `${row.label} · ${row.pays}× · +${chipsFmt(paid - wager)}`, tone: row.pays > 1 ? 'win' : 'push' } : { text: j.label, tone: 'lose' });
     if (row && row.pays > 1) sfx.win();
     else if (!row) sfx.lose();
-    await settle(me.id, wager, paid);
+    await settle(me.id, wager, paid, { bonus });
   }
   const now = hand.length ? judge(hand) : null;
   return (

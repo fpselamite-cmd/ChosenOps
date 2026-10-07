@@ -10,7 +10,7 @@ export function useChips() {
   const c = useDoc<Chips>(`chips/${me.id}`);
   const s = { ...DEFAULT_CASINO, ...(useDoc<CasinoSettings>('settings/casino') ?? {}) };
   const event = !!s.eventUntil && s.eventUntil.toMillis() > Date.now();
-  return { chips: c, balance: c?.balance ?? 0, settings: s, event, max: event ? s.eventMax : s.max, min: s.min };
+  return { chips: c, balance: c?.balance ?? 0, settings: s, event, max: event ? s.eventMax : s.max, min: s.min, bonus: event ? s.eventBonus : 0 };
 }
 
 /** A playing card that flips in. */

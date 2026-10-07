@@ -54,9 +54,9 @@ function Reel({ stop, animate, delay }: { stop: number; animate: boolean; delay:
 }
 
 /** A three-reel Chosen slot machine. Three crowns is the jackpot. */
-export default function Slots() {
+export default function Slots({ onSpin }: { onSpin?: (line: number[], mult: number, bet: number) => void } = {}) {
   const { me } = useHub();
-  const { balance, min, max } = useChips();
+  const { balance, min, max, bonus } = useChips();
   const [bet, setBet] = useState(Math.max(min, 25));
   const [line, setLine] = useState([0, 1, 2]);
   const [spin, setSpin] = useState(0);
@@ -82,7 +82,8 @@ export default function Slots() {
       setMsg(mult ? { text: `${jp ? 'JACKPOT! ' : ''}${mult}× · +${chipsFmt(paid - bet)}`, tone: 'win' } : { text: 'No luck.', tone: 'lose' });
       if (jp) sfx.jackpot();
       else if (mult) sfx.win();
-      await settle(me.id, bet, paid, { jackpot: jp });
+      await settle(me.id, bet, paid, { jackpot: jp, bonus });
+      onSpin?.(l, mult, bet);
     }, 2200);
   }
   return (

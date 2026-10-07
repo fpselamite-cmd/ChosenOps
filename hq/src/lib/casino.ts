@@ -40,8 +40,10 @@ export interface CasinoSettings {
   /** An event night: bigger max bets, and a banner on the floor. */
   eventUntil?: Timestamp | null;
   eventName?: string;
+  /** Extra % on winnings during an event night. */
+  eventBonus: number;
 }
-export const DEFAULT_CASINO: CasinoSettings = { weekly: 1000, daily: 50, min: 10, max: 500, eventMax: 2000, perRun: 5, perFight: 25, perDinner: 50, eventUntil: null, eventName: '' };
+export const DEFAULT_CASINO: CasinoSettings = { weekly: 1000, daily: 50, min: 10, max: 500, eventMax: 2000, eventBonus: 10, perRun: 5, perFight: 25, perDinner: 50, eventUntil: null, eventName: '' };
 
 export const weekKey = (t = Date.now()) => {
   const d = new Date(t);
@@ -87,7 +89,9 @@ const ref = (id: string) => doc(db, 'chips', id);
 export const stake = (me: string, bet: number) => updateDoc(ref(me), { balance: increment(-bet) });
 
 /** Pay out a finished round and keep the stats. `paid` is what comes back (stake included); `bet` what went in. */
-export async function settle(me: string, bet: number, paid: number, extra: { blackjack?: boolean; jackpot?: boolean } = {}) {
+export async function settle(me: string, bet: number, paid0: number, extra: { blackjack?: boolean; jackpot?: boolean; bonus?: number } = {}) {
+  // Event nights pay a bonus on winnings.
+  const paid = paid0 > bet && extra.bonus ? paid0 + Math.floor(((paid0 - bet) * extra.bonus) / 100) : paid0;
   const net = paid - bet;
   const snap = await getDoc(ref(me));
   const c = (snap.data() ?? {}) as Partial<Chips>;

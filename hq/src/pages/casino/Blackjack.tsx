@@ -23,7 +23,7 @@ type Phase = 'bet' | 'play' | 'done';
 /** Blackjack against the house: dealer stands on soft 17, blackjack pays 3:2, double on any two. */
 export default function Blackjack() {
   const { me } = useHub();
-  const { balance, min, max } = useChips();
+  const { balance, min, max, bonus } = useChips();
   const [bet, setBet] = useState(min);
   const [shoe, setShoe] = useState<Card[]>(() => deck(6));
   const [player, setPlayer] = useState<Card[]>([]);
@@ -66,7 +66,7 @@ export default function Blackjack() {
     setMsg({ text, tone });
     if (tone === 'win') sfx.win();
     else if (tone === 'lose') sfx.lose();
-    await settle(me.id, wager, paid, { blackjack: natural(p) });
+    await settle(me.id, wager, paid, { blackjack: natural(p), bonus });
   }
 
   async function deal() {
