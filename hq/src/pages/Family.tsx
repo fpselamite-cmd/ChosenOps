@@ -5,7 +5,7 @@ import { Avatar } from '../components/Avatar';
 import { RankBadge } from '../components/Badges';
 import { FamilyCard, type FamilyCardDoc } from '../components/FamilyCard';
 import { Modal } from '../components/Modal';
-import { PageHeader, Stat, Tabs } from '../components/Page';
+import { PageHeader, Panel, Stat, Tabs } from '../components/Page';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { et } from '../lib/calendar';
@@ -13,6 +13,7 @@ import { ago, fmtDate } from '../lib/format';
 import type { Sheet } from '../lib/sheet';
 import { starStyle } from '../lib/stars';
 import type { Member, Rank } from '../lib/types';
+import { RoleChips } from '../components/RoleChips';
 
 type View = 'sky' | 'roster' | 'tiers' | 'cards';
 
@@ -300,6 +301,7 @@ function PersonCard({ m, big }: { m: Member; big?: boolean }) {
       <span className="w-full truncate font-hud text-base font-bold text-gold-100 group-hover:text-gold-200">{m.name}</span>
       {m.alias && <span className="-mt-1 w-full truncate text-xs text-ash italic">“{m.alias}”</span>}
       <RankBadge rank={rank} />
+      <RoleChips memberId={m.id} className="justify-center" />
       <span className="text-[11px] text-smoke">
         {tenure(days(m))}
         {presence.get(m.id)?.status && isOnline(m.id) && <span className="text-ok"> · {presence.get(m.id)?.status}</span>}
@@ -389,6 +391,32 @@ function Cards() {
 
 // ---------- page ----------
 
+/** Who holds each job, so people know who to ask. */
+function WhoToAsk() {
+  const { roles, holders, roster } = useHub();
+  const jobs = roles.filter((r) => !r.honor).map((r) => ({ r, who: holders.filter((h) => h.roles.includes(r.id)).map((h) => roster.find((m) => m.id === h.id)).filter((m): m is Member => !!m) })).filter((x) => x.who.length);
+  if (!jobs.length) return null;
+  return (
+    <Panel title="Who to ask" className="mb-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {jobs.map(({ r, who }) => (
+          <div key={r.id} className="border border-line-soft p-3">
+            <p className="label text-gold-300">{r.name}</p>
+            {r.note && <p className="mt-0.5 text-xs text-smoke">{r.note}</p>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {who.map((m) => (
+                <Link key={m.id} to={`/members/${m.id}`} className="flex items-center gap-1.5 text-sm text-gold-100 hover:text-gold-200">
+                  <Avatar member={m} size="xs" /> {m.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
 export default function Family() {
   const { roster, settings } = useHub();
   const [view, setView] = useState<View>('sky');
@@ -435,6 +463,8 @@ export default function Family() {
           })}
         </div>
       )}
+
+      <WhoToAsk />
 
       <div className="mb-5">
         <Tabs

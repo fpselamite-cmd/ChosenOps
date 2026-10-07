@@ -6,6 +6,7 @@ import { db } from '../lib/firebase';
 import { setCallInCost } from '../lib/blacksites';
 import { setCityClock } from '../lib/format';
 import { setReadOnly } from '../lib/guard/state';
+import type { Role, RoleHolder } from '../lib/roles';
 import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
 import type { Announcement, Crew, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
 import { useAuth } from './useAuth';
@@ -51,6 +52,11 @@ interface Hub {
   isLead: boolean;
   /** An owner of the HQ (set from GitHub): hands out admin. */
   isOwner: boolean;
+  /** Roles (jobs and honors held on top of rank). */
+  roles: Role[];
+  roleById: Map<string, Role>;
+  holders: RoleHolder[];
+  rolesOf: (memberId: string) => Role[];
   /** An admin previewing the app as a rank or a member: read-only until they stop. */
   preview: Preview | null;
   setPreview: (p: Preview | null) => void;
@@ -78,6 +84,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const announcement = useDoc<Announcement>('settings/announcement');
   const familyRep = useDoc<FamilyRep>('stats/familyRep');
   const defaults = useDoc<Defaults>('settings/defaults');
+  const roleRows = useCollection<Role>('hqRoles');
+  const holderRows = useCollection<RoleHolder>('roleHolders');
   const [preview, setPreviewState] = useState<Preview | null>(null);
   const setPreview = (p: Preview | null) => {
     // Writes stop the moment a preview starts, before anything renders as them.
@@ -122,7 +130,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;
     const ready =
-      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined && defaults !== undefined;
+      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined && defaults !== undefined && !!roleRows && !!holderRows;
     // The city clock, before anything shows a time.
     if (defaults) setCallInCost(defaults.callInCost);
     if (defaults) setCityClock(defaults.zone, defaults.zoneLabel, defaults.nightFrom != null && defaults.nightTo != null ? { from: defaults.nightFrom, to: defaults.nightTo } : undefined);
@@ -142,6 +150,14 @@ export function HubProvider({ children }: { children: ReactNode }) {
           : { ...realMe, rankId: preview.rankId ?? realMe.rankId, admin: false }
         : realMe;
     const myRank = liveMe.rankId ? rankById.get(liveMe.rankId) : undefined;
+    const sortedRoles = [...(roleRows ?? [])].sort((a, b) => a.order - b.order);
+    const roleById = new Map(sortedRoles.map((r) => [r.id, r]));
+    const holders = holderRows ?? [];
+    const holderOf = new Map(holders.map((h) => [h.id, h]));
+    // A rank preview has no roles; a member preview has theirs.
+    const myRoles = preview && realAdmin && !preview.memberId ? undefined : holderOf.get(liveMe.id);
+    const roleCan = (p: Permission) => myRoles?.perms?.[p] === true;
+    const rolePage = (page: PageId) => myRoles?.pages?.[page] === true;
     const crewsOf = (id: string) => sortedCrews.filter((c) => c.memberIds?.includes(id));
     const myCrews = crewsOf(me.id);
     return {
@@ -171,19 +187,27 @@ export function HubProvider({ children }: { children: ReactNode }) {
       settings: settings ?? { name: 'The Chosen', motto: '' },
       announcement: announcement ?? null,
       familyRep: familyRep?.total ?? 0,
-      can: (p) => liveMe.admin === true || rankCan(myRank, p),
-      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank, myCrews),
+      can: (p) => liveMe.admin === true || rankCan(myRank, p) || roleCan(p),
+      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank, myCrews) || rolePage(page),
       viaFor: (page) =>
-        liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page])) ? 'rank' : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
+        liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page]))
+          ? 'rank'
+          : rolePage(page)
+            ? 'role'
+            : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
       isAdmin: liveMe.admin === true,
-      isLead: liveMe.admin === true || !!myRank && (myRank.order === 0 || !!myRank.leadership),
+      isLead: liveMe.admin === true || (!!myRank && (myRank.order === 0 || !!myRank.leadership)) || myRoles?.lead === true,
+      roles: sortedRoles,
+      roleById,
+      holders,
+      rolesOf: (id) => (holderOf.get(id)?.roles ?? []).map((r) => roleById.get(r)).filter((r): r is Role => !!r),
       isOwner: owner && !preview,
       preview: realAdmin ? preview : null,
       setPreview,
       realMe,
       actsOn: (rank) => (liveMe.admin === true ? rankOrder(rank) > 0 : outranks(myRank, rank)),
     };
-  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner, defaults, preview]);
+  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner, defaults, preview, roleRows, holderRows]);
 
   if (!value) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

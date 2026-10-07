@@ -39,9 +39,13 @@ service cloud.firestore {
         && myId() in get(/databases/$(database)/documents/meta/owners).data.get('ids', []);
     }
     function isAdmin() { return me().get('admin', false) == true; }
+    // Roles held on top of rank: their powers are worked out ahead of time on roleHolders/{member}.
+    function hasRoles() { return exists(/databases/$(database)/documents/roleHolders/$(myId())); }
+    function roles() { return get(/databases/$(database)/documents/roleHolders/$(myId())).data; }
+    function roleCan(p) { return hasRoles() && roles().get('perms', {}).get(p, false) == true; }
     function can(p) {
       let r = rankOf(me().rankId);
-      return active() && (isAdmin() || r.order == 0 || r.permissions.get(p, false) == true);
+      return active() && (isAdmin() || r.order == 0 || r.permissions.get(p, false) == true || roleCan(p));
     }
     function below(rankId) { return orderOf(rankId) > (isAdmin() ? 0 : myOrder()); }
 
@@ -238,6 +242,7 @@ service cloud.firestore {
       let v = request.resource.data.get('_via', null);
       return active() && request.resource.data.get('_by', null) == myId()
         && ((v == 'rank' && rankPage(page))
+          || (v == 'role' && hasRoles() && roles().get('pages', {}).get(page, false) == true)
           || (v is string && v != 'rank' && exists(/databases/$(database)/documents/crews/$(v)) && crewPage(page, v)));
     }
     function opsWrite() { return opens('narcotics') || opens('stash') || opens('blackmarket'); }
@@ -386,23 +391,23 @@ service cloud.firestore {
     // Hall of Fame: leadership's MVP of the month and legend plaques.
     match /monthMvp/{ym} {
       allow read: if active();
-      allow write: if can('manageMembers') && ym.matches('[0-9]{4}-[0-9]{2}')
+      allow write: if (can('manageMembers') || can('hallOfFame')) && ym.matches('[0-9]{4}-[0-9]{2}')
         && request.resource.data.keys().hasOnly(['memberId', 'why', 'by']) && str(request.resource.data.why, 140);
     }
     // Past members: deceased, retired, moved on or exiled. Exiled ones only leadership can read.
     // (Leaving the roster is the member's status going to 'suspended', set alongside.)
     match /pastMembers/{memberId} {
-      allow read: if active() && (resource.data.kind != 'exiled' || can('manageMembers'));
-      allow write: if can('manageMembers') && memberId != myId()
+      allow read: if active() && (resource.data.kind != 'exiled' || (can('manageMembers') || can('hallOfFame')));
+      allow write: if (can('manageMembers') || can('hallOfFame')) && memberId != myId()
         && below(get(/databases/$(database)/documents/members/$(memberId)).data.rankId)
         && (request.resource == null || (request.resource.data.kind in ['deceased', 'retired', 'moved', 'exiled']
             && str(request.resource.data.epitaph, 200) && request.resource.data.day is string));
     }
     match /legends/{id} {
       allow read: if active();
-      allow create: if can('manageMembers') && request.resource.data.at == request.time
+      allow create: if (can('manageMembers') || can('hallOfFame')) && request.resource.data.at == request.time
         && str(request.resource.data.title, 60) && str(request.resource.data.text, 400);
-      allow delete: if can('manageMembers');
+      allow delete: if (can('manageMembers') || can('hallOfFame'));
     }
     // Paying respects to past members: one candle per member, and short memories.
     match /tributes/{memberId} {
@@ -824,7 +829,8 @@ service cloud.firestore {
               && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))))));
     }
     // Admins count as leadership whatever their rank: admin is out-of-character, rank is in-character.
-    function lead() { return isAdmin() || rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0; }
+    function lead() { return isAdmin() || rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0
+      || (hasRoles() && roles().get('lead', false) == true); }
     function validAudience(d) {
       return d.scope in ['personal', 'gang', 'limited'] && d.owner == myId()
         && d.ranks is list && d.ranks.size() <= 20 && d.crewIds is list && d.crewIds.size() <= 10;
@@ -845,7 +851,7 @@ service cloud.firestore {
       }
       allow create: if active() && validPin();
       allow update: if active() && validPin() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
-      allow delete: if active() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+      allow delete: if active() && (resource.data.owner == myId() || ((lead() || can('manageEvents')) && resource.data.scope != 'personal'));
     }
 
     match /events/{id} {
@@ -862,7 +868,7 @@ service cloud.firestore {
       allow create: if active() && validEvent() && request.resource.data.rsvp.keys().hasOnly([myId()]);
       allow update: if active() && (
         // The poster (or leadership, for shared events) edits it.
-        ((resource.data.owner == myId() || (lead() && resource.data.scope != 'personal')) && validEvent())
+        ((resource.data.owner == myId() || ((lead() || can('manageEvents')) && resource.data.scope != 'personal')) && validEvent())
         // Anyone who can see it answers for themselves.
         || (canSeeIt(resource.data) && onlyChanges(['rsvp'])
             && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([myId()])
@@ -872,6 +878,19 @@ service cloud.firestore {
 
     // ── Gear & Loadouts ─────────────────────────────────────────
     // Shared weapon builds: anyone makes one; anyone likes (their own like only).
+    // ---------- Roles ----------
+    match /hqRoles/{id} {
+      allow read: if active();
+      allow write: if active() && (lead() || can('manageRanks'))
+        && (request.resource == null || (str(request.resource.data.name, 30) && request.resource.data.perms is map && request.resource.data.pages is map));
+    }
+    match /roleHolders/{memberId} {
+      allow read: if active();
+      allow write: if active() && lead()
+        && (request.resource == null || (request.resource.data.keys().hasOnly(['roles', 'perms', 'pages', 'lead'])
+          && request.resource.data.roles is list && request.resource.data.roles.size() <= 20));
+    }
+
     // ---------- Admin ----------
     // App-wide defaults (call-in cost, weekly goal, snapshot days, city clock) and editable lists (crime types, cars, products).
     match /settings/defaults {

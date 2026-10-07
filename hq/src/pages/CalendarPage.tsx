@@ -177,9 +177,9 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
 }
 
 function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void }) {
-  const { me, isLead, memberById, rankById, crewById } = useHub();
+  const { me, isLead, can, memberById, rankById, crewById } = useHub();
   const e = o.event;
-  const lead = isLead;
+  const lead = isLead || can('manageEvents');
   const canEdit = e && (e.owner === me.id || (lead && e.scope !== 'personal'));
   const going = e ? Object.entries(e.rsvp ?? {}) : [];
   const mine = e?.rsvp?.[me.id];

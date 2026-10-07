@@ -962,3 +962,28 @@ describe('admin', () => {
     await assertSucceeds(deleteDoc(doc(as('boss'), 'members/sol2')));
   });
 });
+
+describe('roles', () => {
+  const grant = (memberId: string, h: Record<string, unknown>) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', memberId), { roles: ['x'], perms: {}, pages: {}, lead: false, ...h }));
+  it('adds role powers on top of rank', async () => {
+    const req = { name: 'Sol2', nameLower: 'sol2', status: 'pending', rankId: null, reportsTo: null, avatar: null };
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'members/fresh2'), req));
+    await assertFails(updateDoc(doc(as('sol'), 'members/fresh2'), { status: 'suspended' }));
+    await grant('sol', { perms: { approveMembers: true } });
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/fresh2'), { status: 'suspended' }));
+  });
+  it('makes High Table count as leadership', async () => {
+    const goal = { title: 'Q', target: 100, by: '2026-12-01' };
+    await assertFails(setDoc(doc(as('sol'), 'settings/pettyGoal'), goal));
+    await grant('sol', { lead: true });
+    await assertSucceeds(setDoc(doc(as('sol'), 'settings/pettyGoal'), goal));
+  });
+  it('lets only leadership hand out roles', async () => {
+    const h = { roles: ['washer'], perms: { washMoney: true }, pages: { blackmarket: true }, lead: false };
+    await assertFails(setDoc(doc(as('sol'), 'roleHolders/sol'), h));
+    await assertSucceeds(setDoc(doc(as('boss'), 'roleHolders/sol'), h));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'roleHolders/sol')));
+    await assertFails(setDoc(doc(as('sol'), 'hqRoles/r1'), { name: 'Mine', perms: {}, pages: {} }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'hqRoles/r1'), { name: 'Washer', perms: { washMoney: true }, pages: {}, order: 1 }));
+  });
+});
