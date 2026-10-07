@@ -9,7 +9,6 @@ import { useAuth } from './hooks/useAuth';
 import { HubProvider, useHub } from './hooks/useHub';
 import Admin from './pages/admin/Admin';
 import BlackMarket from './pages/BlackMarket';
-import Crews from './pages/Crews';
 import Dashboard from './pages/Dashboard';
 import Family from './pages/Family';
 import Stash from './pages/Stash';
@@ -139,7 +138,7 @@ function MemberRoutes() {
           }
         />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
-        <Route path="crews" element={<Gate page="crews"><Crews /></Gate>} />
+        <Route path="crews" element={<Navigate to="/family" replace />} />
         <Route path="locker" element={<Locker />} />
         <Route path="members/:id" element={<Profile />} />
         <Route path="family" element={<Gate page="family"><Family /></Gate>} />

@@ -32,7 +32,7 @@ export default function Admin() {
 
   return (
     <>
-      <PageHeader icon={ShieldCheck} kicker="Command" title="Admin" sub="You can only act on people and ranks below your own rank. Crew roles can open extra pages on top of rank (Crews → Edit)." />
+      <PageHeader icon={ShieldCheck} kicker="Command" title="Admin" sub="You can only act on people and ranks below your own rank." />
       <div className="mb-6">
         <Tabs value={tab} onChange={(t) => setParams({ tab: t })} tabs={visible} />
       </div>

@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from '../lib/firebase';
 import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
@@ -53,7 +53,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const members = useCollection<Member>('members');
   const ranks = useCollection<Rank>('hqRanks');
-  const crews = useCollection<Crew>('crews');
+  // Crews were retired: nothing in HQ is grouped by crew any more (old crew data is left alone).
+  const crews: Crew[] = useMemo(() => [], []);
   const presenceRows = useCollection<Presence>('presence');
   const settings = useDoc<GangSettings>('settings/gang');
   const announcement = useDoc<Announcement>('settings/announcement');
@@ -84,20 +85,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
       .catch(() => setOwner(false));
   }, [me?.id]);
 
-  // Keep each member's crewIds in step with the crews, so pins and events shared with a crew
-  // reach them. Everyone fixes their own; crew leaders and crew admins fix everyone.
-  useEffect(() => {
-    if (!me || !members || !crews || !ranks) return;
-    const truth = (id: string) => crews.filter((c) => c.memberIds?.includes(id)).map((c) => c.id).sort().slice(0, 5);
-    const myRank = ranks.find((r) => r.id === me.rankId);
-    const fixAll = rankCan(myRank, 'manageCrews') || crews.some((c) => c.leaderId === me.id);
-    for (const m of members) {
-      if (m.status !== 'active' || (!fixAll && m.id !== me.id)) continue;
-      const want = truth(m.id);
-      const have = [...(m.crewIds ?? [])].sort();
-      if (want.join() !== have.join()) updateDoc(doc(db, 'members', m.id), { crewIds: want }).catch(() => {});
-    }
-  }, [me, members, crews, ranks]);
 
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;

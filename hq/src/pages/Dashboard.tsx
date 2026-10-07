@@ -24,8 +24,7 @@ import { Link } from 'react-router-dom';
 import { AdminLock } from '../components/AdminLock';
 import { Avatar } from '../components/Avatar';
 import { RankBadge } from '../components/Badges';
-import { CrewEmblem } from '../components/CrewEmblem';
-import { Empty, Field } from '../components/Field';
+import { Field } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
@@ -609,7 +608,7 @@ function WordFromTheTop() {
 }
 
 export default function Dashboard() {
-  const { me, myCrews, roster, isOnline, rankById, ranks, settings, memberById, familyRep } = useHub();
+  const { me, roster, isOnline, rankById, ranks, settings, familyRep } = useHub();
   const online = roster.filter((m) => isOnline(m.id));
   const leadership = roster.filter((m) => rankById.get(m.rankId ?? '')?.leadership);
   const hour = Number(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
@@ -637,42 +636,6 @@ export default function Dashboard() {
           <Briefing />
           <ThisMonth />
 
-          <Panel title="Your crews" right={<Link to="/crews" className="label hover:text-gold-300">All crews →</Link>}>
-            {myCrews.length ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {myCrews.map((c) => {
-                  const on = c.memberIds.filter((id) => isOnline(id)).length;
-                  return (
-                    <Link
-                      key={c.id}
-                      to={`/crews?crew=${c.id}`}
-                      className="flex items-center gap-3 border border-line-soft bg-coal/60 p-3 transition hover:border-gold-700"
-                      style={{ boxShadow: `inset 3px 0 0 ${c.color}` }}
-                    >
-                      <CrewEmblem crew={c} size="sm" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-hud font-bold text-gold-100">{c.name}</span>
-                        <span className="text-xs text-smoke">
-                          {c.leaderId === me.id ? (
-                            <span className="text-gold-300">
-                              <Crown className="inline size-3" /> You lead
-                            </span>
-                          ) : (
-                            <>Led by {memberById.get(c.leaderId ?? '')?.name ?? 'nobody'}</>
-                          )}{' '}
-                          · {c.memberIds.length} · <span className="text-ok">{on} on</span>
-                        </span>
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : (
-              <Empty icon={<Users className="size-7" />} title="Not in a crew yet">
-                Crew leaders add people to their crews. Once you’re in one, its ops, timers and gear show up here.
-              </Empty>
-            )}
-          </Panel>
         </div>
 
         <div className="space-y-6">

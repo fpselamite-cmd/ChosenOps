@@ -1,4 +1,4 @@
-import { Camera, Check, Clock, Crosshair, Crown, Flag, ImagePlus, Lock, Package, Pencil, Plus, Shield, Swords, Trash2, Users, X } from 'lucide-react';
+import { Camera, Check, Clock, Crosshair, Crown, Flag, ImagePlus, Lock, Package, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
@@ -687,9 +687,9 @@ function FightCard({ s, onOpen }: { s: Blacksite; onOpen: () => void }) {
 }
 
 function Body() {
-  const { me, crews } = useHub();
+  const { me } = useHub();
   const sites = useCollection<Blacksite>('blacksites');
-  const [tab, setTab] = useState<'fights' | 'people' | 'crews'>('fights');
+  const [tab, setTab] = useState<'fights' | 'people'>('fights');
   const [logging, setLogging] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Blacksite | null>(null);
@@ -734,7 +734,6 @@ function Body() {
           tabs={[
             { id: 'fights', label: 'Fights' },
             { id: 'people', label: 'Fighters' },
-            { id: 'crews', label: 'Crews' },
           ]}
         />
       </div>
@@ -803,47 +802,6 @@ function Body() {
         </Panel>
       )}
 
-      {tab === 'crews' && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {crews.map((c) => {
-            const fights = list.filter((s) => s.participants.some((p) => c.memberIds.includes(p)));
-            const sum = (k: 'kills' | 'downs' | 'logistics') => fights.reduce((t, s) => t + c.memberIds.reduce((u, id) => u + (s.stats?.[id]?.[k] ?? 0), 0), 0);
-            const top = c.memberIds.map((id) => recs.get(id)).filter(Boolean).sort((a, b) => b!.kills - a!.kills)[0];
-            return (
-              <div key={c.id} className="hud p-4" style={{ borderColor: `${c.color}55` }}>
-                <p className="font-hud text-lg font-bold" style={{ color: c.color }}>
-                  {c.name}
-                </p>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  {[
-                    ['Fights', fights.length, Swords],
-                    ['Held', fights.filter((s) => s.result === 'win').length, Shield],
-                    ['Kills', sum('kills'), Crosshair],
-                    ['Downs', sum('downs'), Users],
-                    ['Supply', sum('logistics'), Package],
-                    ['MVPs', c.memberIds.reduce((t, id) => t + (recs.get(id)?.mvps ?? 0), 0), Crown],
-                  ].map(([l, v, I]) => {
-                    const Icon = I as typeof Crown;
-                    return (
-                      <div key={l as string} className="bg-raised/40 py-1.5">
-                        <Icon className="mx-auto size-3.5 text-smoke" />
-                        <p className="font-mono text-lg text-gold-100">{v as number}</p>
-                        <p className="label">{l as string}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                {top && (
-                  <p className="mt-2 text-xs text-smoke">
-                    Top gun: <MemberName id={top.id} className="text-xs" /> · {top.kills} kills
-                  </p>
-                )}
-              </div>
-            );
-          })}
-          {!crews.length && <Empty title="No crews yet" />}
-        </div>
-      )}
 
       {logging && <LogDialog onClose={() => setLogging(false)} />}
       {editing && <LogDialog site={editing} onClose={() => setEditing(null)} />}

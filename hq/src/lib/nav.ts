@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Trophy,
   Swords,
-  Users,
   VenetianMask,
   Warehouse,
   type LucideIcon,
@@ -34,7 +33,6 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/family', label: 'Family', icon: Network, page: 'family' },
-      { to: '/crews', label: 'Crews', icon: Users, page: 'crews' },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },
@@ -54,7 +52,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
     ],
   },
-  { group: 'War', items: [{ to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' }] },
+  { group: 'Operations', items: [{ to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' }] },
 ];
 
 /** Shown as buttons in the header rather than in the menu. */
