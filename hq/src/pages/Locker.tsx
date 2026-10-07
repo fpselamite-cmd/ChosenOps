@@ -1097,7 +1097,7 @@ export function WashList() {
             <span
               className={`chip ml-auto px-2 py-0.5 text-[11px] font-bold ${w.status === 'done' ? 'bg-ok/15 text-green-300' : w.status === 'claimed' ? 'bg-sky-500/20 text-sky-300' : w.status === 'cancelled' ? 'bg-raised text-smoke' : 'bg-gold-400/15 text-gold-200'}`}
             >
-              {w.status === 'done' ? 'Clean · in your locker' : w.status === 'claimed' ? `${w.claimerName} is washing it` : w.status === 'cancelled' ? 'Cancelled' : 'Waiting for a washer'}
+              {w.status === 'done' ? 'Clean · in your locker' : w.status === 'claimed' ? `${w.claimerName} is washing it${w.timerEnd && w.timerEnd.toMillis() > Date.now() ? ` · ~${Math.ceil((w.timerEnd.toMillis() - Date.now()) / 60000)}m left` : ''}` : w.status === 'cancelled' ? 'Cancelled' : 'Waiting for a washer'}
             </span>
             {w.status === 'open' && (
               <button className="text-xs text-smoke hover:text-red-300" onClick={() => mops.washStep(w, 'cancel')}>
