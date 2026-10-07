@@ -32,11 +32,10 @@ function placeIcon(l: OpsLocation) {
 // ---------- Add / edit a place ----------
 
 function PlaceForm({ place, onClose }: { place?: OpsLocation; onClose: () => void }) {
-  const { crews } = useHub();
   const ops = useOps('stash');
   const [name, setName] = useState(place?.name ?? '');
   const [postal, setPostal] = useState(place?.postal ?? '');
-  const [crewId, setCrewId] = useState(place?.crewId ?? '');
+  const crewId = place?.crewId ?? '';
   const [note, setNote] = useState(place?.note ?? '');
   const [error, setError] = useState<string | null>(null);
 
@@ -69,18 +68,6 @@ function PlaceForm({ place, onClose }: { place?: OpsLocation; onClose: () => voi
             <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="Optional" />
           </Field>
         </div>
-        {place?.id !== MAIN_STASH && (
-          <Field label="Run by" hint="A crew's places show first for its members. Gang-wide places are for everyone.">
-            <select className="input" value={crewId} onChange={(e) => setCrewId(e.target.value)}>
-              <option value="">The whole gang</option>
-              {crews.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
         {place?.id !== MAIN_STASH && (
           <Field label="Note">
             <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Optional" />

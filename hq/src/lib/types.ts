@@ -29,7 +29,6 @@ export const PAGES = {
   blacksites: 'Blacksites',
   gear: 'Gear & Loadouts',
   pettycrime: 'Petty Crime',
-  crews: 'Crews',
   family: 'Family',
   map: 'Map',
   calendar: 'Calendar',
@@ -38,7 +37,7 @@ export type PageId = keyof typeof PAGES;
 export type PageMap = Partial<Record<PageId, boolean>>;
 
 /** What everyone below Lieutenant sees unless a crew role unlocks more. */
-export const BASIC_PAGES: PageId[] = ['blacksites', 'gear', 'pettycrime', 'crews', 'family'];
+export const BASIC_PAGES: PageId[] = ['blacksites', 'gear', 'pettycrime', 'family'];
 const pages = (ids: PageId[]): PageMap => Object.fromEntries(ids.map((p) => [p, true]));
 const ALL_PAGES = pages(Object.keys(PAGES) as PageId[]);
 

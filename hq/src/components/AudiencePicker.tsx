@@ -14,7 +14,7 @@ export function AudiencePicker({ value, onChange, limited = true }: { value: Aud
   const opts: { id: Scope; label: string; icon: typeof Lock }[] = [
     { id: 'personal', label: 'Just me', icon: Lock },
     { id: 'gang', label: 'The family', icon: Users },
-    ...(limited ? [{ id: 'limited' as Scope, label: 'Ranks / crews', icon: ShieldHalf }] : []),
+    ...(limited ? [{ id: 'limited' as Scope, label: 'Ranks only', icon: ShieldHalf }] : []),
   ];
   return (
     <div className="space-y-2">

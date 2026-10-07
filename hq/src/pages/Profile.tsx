@@ -844,7 +844,7 @@ export default function Profile() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
 
-  if (!m) return <Navigate to="/crews?tab=roster" replace />;
+  if (!m) return <Navigate to="/family" replace />;
   const mine = m.id === me.id;
   const crews = crewsOf(m.id);
   const boss = m.reportsTo ? memberById.get(m.reportsTo) : undefined;
@@ -897,8 +897,8 @@ export default function Profile() {
   return (
     <>
       <div className="no-print mb-4">
-        <Link to="/crews?tab=roster" className="label inline-flex items-center gap-1.5 hover:text-gold-300">
-          <ArrowLeft className="size-3.5" /> Roster
+        <Link to="/family" className="label inline-flex items-center gap-1.5 hover:text-gold-300">
+          <ArrowLeft className="size-3.5" /> Family
         </Link>
       </div>
 
