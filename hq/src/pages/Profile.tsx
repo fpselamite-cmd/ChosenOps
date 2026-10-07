@@ -75,7 +75,7 @@ import { keyOf } from '../lib/calendar';
 import { setLoa, useStreak } from '../lib/streak';
 import { markPast, PAST_KINDS, restoreMember, type Past, type PastKind } from '../lib/hall';
 import { PRESENCE_STATUSES, type Member } from '../lib/types';
-import { LoadoutCard } from './Gear';
+import { KitCard } from '../components/Kit';
 
 const BMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -1109,7 +1109,7 @@ export default function Profile() {
             <FamilyCard member={m} />
             <BlacksiteRecord id={m.id} />
             <NoelOpsRecord name={m.name} />
-            <LoadoutCard memberId={m.id} />
+            <KitCard memberId={m.id} />
           </div>
 
           <div className="space-y-6">

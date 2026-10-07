@@ -1,17 +1,19 @@
-import { ArrowLeftRight, Backpack, Bomb, Box, Camera, Check, Handshake, PackageCheck, Search, Star, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
+import { ShoppingCart, ArrowLeftRight, Backpack, Box, Zap, Camera, Check, Handshake, PackageCheck, Search, Star, Tag, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
 import { useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { squareImage } from '../lib/image';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
-import { useCollection, useDoc } from '../hooks/useCollection';
+import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { ItemPicker } from '../components/ItemPicker';
 import { NewTrade, TradesPanel } from '../components/Trades';
 import { NO_CASH } from '../lib/trades';
-import type { CharLoadout } from '../lib/loadouts';
+import { kitNeeds, useMyKits } from '../lib/kits';
+import { saveShopping, useShopping } from '../lib/shopping';
+import { KIND_COLOR, KIND_ICON } from '../lib/kindStyle';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Kit, type Locker as LockerApi, type Thing } from '../lib/locker';
 import { addMyCash, money, useMoney, type MyCash } from '../lib/money';
@@ -28,19 +30,6 @@ function useItemTypes() {
   return { types, name: (id: string) => itemTitle(byId.get(id), byId), byId };
 }
 
-const KIND_ICON = {
-  gun: Crosshair,
-  attachment: Wrench,
-  ammo: Zap,
-  melee: Sword,
-  armor: Shield,
-  safety: FireExtinguisher,
-  throwable: Bomb,
-  gear: Backpack,
-  tool: Hammer,
-  consumable: Pill,
-  other: Box,
-} as const;
 
 /** Boxes and loose rounds per caliber, as little counters at the top of a storage. */
 function AmmoPills({ things, byId, bump, onOpen }: { things: Thing[]; byId: Map<string, ItemType>; bump: (t: Thing, d: number) => void; onOpen: (t: Thing) => void }) {
@@ -433,33 +422,20 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
   );
 }
 
-/** What a loadout needs on you: each item and how many. */
-function loadoutNeeds(l: CharLoadout | null | undefined) {
-  const need = new Map<string, number>();
-  const add = (id?: string | null, n = 1) => id && n > 0 && need.set(id, (need.get(id) ?? 0) + n);
-  add(l?.vest);
-  add('ar_armor_plate', l?.plates ?? 0);
-  [l?.primary, l?.sidearm].forEach((c) => {
-    add(c?.item);
-    Object.values(c?.parts ?? {}).forEach((p) => add(p));
-  });
-  add(l?.melee);
-  add(l?.bag);
-  (l?.utility ?? []).forEach((u) => add(u.item, u.qty));
-  return [...need.entries()].map(([item, qty]) => ({ item, qty }));
-}
-
 /** Moves everything a loadout or kit needs into On Me, from your other storages. */
 function PackDialog({ locker, onClose }: { locker: LockerApi; onClose: () => void }) {
   const { me } = useHub();
   const { types, name } = useItemTypes();
   const toast = useToast();
-  const loadout = useDoc<CharLoadout>(`loadouts/${me.id}`);
-  const [pick, setPick] = useState<string>('loadout');
+  const gear = useMyKits(me.id);
+  const gearKits = [...(gear.kits ?? [])].sort((a, b) => Number(b.id === gear.equipped) - Number(a.id === gear.equipped));
+  const [pick, setPick] = useState<string>('');
+  const chosen = pick || (gearKits[0] ? `g:${gearKits[0].id}` : (locker.kits[0]?.id ?? ''));
   const [editing, setEditing] = useState<Kit | null>(null);
   const onme = locker.storages.find((s) => s.id === 'onme') ?? locker.storages[0]!;
-  const kit = locker.kits.find((k) => k.id === pick);
-  const needs = pick === 'loadout' ? loadoutNeeds(loadout) : (kit?.items ?? []);
+  const kit = locker.kits.find((k) => k.id === chosen);
+  const gearKit = gearKits.find((k) => `g:${k.id}` === chosen);
+  const needs = gearKit ? [...kitNeeds(gearKit).entries()].map(([item, qty]) => ({ item, qty })) : (kit?.items ?? []);
   const have = (item: string) => countOf(locker.stock.get(onme.id), { field: 'meth', item });
   const elsewhere = (item: string) => locker.storages.filter((s) => s.id !== onme.id).reduce((t, s) => t + countOf(locker.stock.get(s.id), { field: 'meth', item }), 0);
   const rows = needs.map((n) => ({ ...n, have: have(n.item), more: Math.max(0, n.qty - have(n.item)), spare: elsewhere(n.item) }));
@@ -487,19 +463,25 @@ function PackDialog({ locker, onClose }: { locker: LockerApi; onClose: () => voi
     <Modal title="Pack for a run" onClose={onClose} wide>
       <div className="space-y-4">
         <div className="flex flex-wrap gap-1">
-          {[{ id: 'loadout', name: 'My loadout' }, ...locker.kits].map((k) => (
-            <button key={k.id} onClick={() => setPick(k.id)} className={`chip px-3 py-1.5 text-xs ${pick === k.id ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+          {gearKits.map((k) => (
+            <button key={k.id} onClick={() => setPick(`g:${k.id}`)} className={`chip px-3 py-1.5 text-xs ${chosen === `g:${k.id}` ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+              {k.id === gear.equipped && <Star className="mr-1 inline size-3 fill-current" />}
+              {k.name}
+            </button>
+          ))}
+          {locker.kits.map((k) => (
+            <button key={k.id} onClick={() => setPick(k.id)} className={`chip px-3 py-1.5 text-xs ${chosen === k.id ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
               {k.name}
             </button>
           ))}
           <button className="chip bg-raised px-3 py-1.5 text-xs text-gold-300" onClick={() => setEditing({ id: `k${Date.now().toString(36)}`, name: '', items: [] })}>
             <Plus className="mr-1 inline size-3" />
-            New kit
+            Packing list
           </button>
           {kit && (
             <button className="chip bg-raised px-3 py-1.5 text-xs text-ash" onClick={() => setEditing(kit)}>
               <Pencil className="mr-1 inline size-3" />
-              Edit kit
+              Edit list
             </button>
           )}
         </div>
@@ -675,21 +657,6 @@ function CashDialog({ kind: start, onClose }: { kind: 'dirty' | 'clean'; onClose
 
 // ---------- page ----------
 
-/** Tile border color by kind, like loot rarity. */
-const KIND_COLOR: Record<string, string> = {
-  gun: '#d4af37',
-  attachment: '#a487f0',
-  ammo: '#9ca3af',
-  melee: '#e25560',
-  armor: '#5f91ef',
-  safety: '#2dd4bf',
-  throwable: '#f59e0b',
-  gear: '#c08a3e',
-  tool: '#94a3b8',
-  consumable: '#f472b6',
-  other: '#e5e7eb',
-  drug: '#43c585',
-};
 const SORTS = [
   ['kind', 'Kind'],
   ['name', 'Name'],
@@ -829,6 +796,9 @@ function Inspect({ locker, storageId, t, kind, onAction, onClose }: { locker: Lo
 }
 
 function LockerGrid({ locker, onOpen }: { locker: LockerApi; onOpen: (storageId: string, t: Thing) => void }) {
+  // The doors stay shut until you open them.
+  const [opened, setOpened] = useState(false);
+  const [gone, setGone] = useState(false);
   const { name: itemName, byId } = useItemTypes();
   const ops = useOps('stash');
   const toast = useToast();
@@ -875,9 +845,19 @@ function LockerGrid({ locker, onOpen }: { locker: LockerApi; onOpen: (storageId:
   }
 
   return (
-    <section className="hud locker-doors mb-6">
-      <span className="locker-door l" aria-hidden />
-      <span className="locker-door r" aria-hidden />
+    <section className={`hud locker-doors mb-6 ${opened ? 'open' : ''}`}>
+      {!gone && (
+        <button className="locker-shut" onClick={() => setOpened(true)} aria-label="Open your locker" disabled={opened}>
+          <span className="locker-door l" onAnimationEnd={() => setGone(true)} />
+          <span className="locker-door r" />
+          {!opened && (
+            <span className="locker-open-hint">
+              <Lock className="size-5" />
+              Tap to open
+            </span>
+          )}
+        </button>
+      )}
       <div className="flex flex-wrap items-end gap-1 border-b border-line px-3 pt-3">
         {locker.storages.map((s) => {
           const n = thingsIn(locker.stock.get(s.id), itemName).reduce((t, x) => t + x.qty, 0);
@@ -1018,6 +998,32 @@ function LockerGrid({ locker, onOpen }: { locker: LockerApi; onOpen: (storageId:
   );
 }
 
+/** My own shopping list, filled from my kits. Tick things off as I get them. */
+function ShoppingPanel({ name }: { name: (id: string) => string }) {
+  const { me } = useHub();
+  const list = useShopping(me.id);
+  if (!list?.length) return null;
+  return (
+    <Panel title={`Shopping list · ${list.length}`} className="mb-6" right={<ShoppingCart className="size-4 text-gold-500" />}>
+      <ul className="divide-y divide-line-soft">
+        {list.map((s) => (
+          <li key={s.item} className="flex items-center gap-2 py-1.5 text-sm">
+            <button className="text-smoke hover:text-ok" onClick={() => saveShopping(me.id, list.filter((x) => x.item !== s.item))} aria-label="Got it" title="Got it">
+              <Check className="size-4" />
+            </button>
+            <span className="min-w-0 flex-1 truncate text-gold-100">{name(s.item)}</span>
+            {s.from && <span className="text-[11px] text-smoke">for {s.from}</span>}
+            <span className="font-mono text-xs text-gold-300">×{s.qty}</span>
+          </li>
+        ))}
+      </ul>
+      <button className="mt-2 text-xs text-smoke hover:text-gold-200" onClick={() => confirm('Clear the whole shopping list?') && saveShopping(me.id, [])}>
+        Clear the list
+      </button>
+    </Panel>
+  );
+}
+
 function Body() {
   const locker = useLocker();
   const m = useMoney();
@@ -1144,6 +1150,8 @@ function Body() {
       )}
 
       <TradesPanel locker={locker} itemName={itemName} />
+
+      <ShoppingPanel name={itemName} />
 
       <LockerGrid locker={locker} onOpen={(storageId, thing) => setOpen({ storageId, thing })} />
 
