@@ -28,14 +28,14 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { Cabinet } from '../components/Cabinet';
 import { FamilyCard } from '../components/FamilyCard';
 import { ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
-import { Panel } from '../components/Page';
+import { Panel, Tabs } from '../components/Page';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
@@ -209,6 +209,32 @@ function StatBlock({ m }: { m: Member }) {
         ))}
       </div>
     </Box>
+  );
+}
+
+/** The headline numbers, for the strip under the name. */
+function Glance({ m }: { m: Member }) {
+  const st = useStats(m);
+  const v = (g: string, l: string) => st[g]?.find(([x]) => x === l)?.[1] ?? 0;
+  const tiles: [string, string | number][] = [
+    ['This month', v('Money', 'This month')],
+    ['Lifetime sales', v('Money', 'Lifetime sales')],
+    ['Bricks', v('Money', 'Bricks pressed')],
+    ['Blacksites', `${v('War', 'Wins')}W · ${v('War', 'Blacksites')}`],
+    ['Kills', v('War', 'Kills')],
+    ['Petty rep', v('Street', 'Petty rep')],
+    ['Days in', v('Standing', 'Days in the family')],
+    ['Trophies', v('Standing', 'Trophies')],
+  ];
+  return (
+    <div className="grid grid-cols-4 gap-px border-t border-line-soft bg-line-soft sm:grid-cols-8">
+      {tiles.map(([l, x]) => (
+        <div key={l} className="bg-panel px-2 py-2.5 text-center">
+          <p className="truncate font-mono text-sm text-gold-100 sm:text-base">{x}</p>
+          <p className="label truncate text-[9px]">{l}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -843,6 +869,7 @@ export default function Profile() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
+  const [params, setParams] = useSearchParams();
 
   if (!m) return <Navigate to="/family" replace />;
   const mine = m.id === me.id;
@@ -852,6 +879,8 @@ export default function Profile() {
   const on = isOnline(m.id);
   const status = presence.get(m.id)?.status;
   const edit = !!draft;
+  const asked = params.get('view');
+  const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' ? asked : 'sheet';
   const s: Omit<Sheet, 'id'> = draft ?? sheet ?? {};
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const setIn = (k: 'basics' | 'looks' | 'city' | 'story', key: string, v: string) => setDraft((d) => (d ? { ...d, [k]: { ...(d[k] ?? {}), [key]: v } } : d));
@@ -1016,18 +1045,35 @@ export default function Profile() {
               )}
             </div>
           </div>
+          {!edit && <Glance m={m} />}
         </section>
 
-        {/* ---------- trophy wall, near the top ---------- */}
+        {/* ---------- tabs: the sheet, the trophy wall, the journal ---------- */}
         {!edit && (
+          <div className="no-print">
+            <Tabs
+              value={view}
+              onChange={(v) => setParams(v === 'sheet' ? {} : { view: v }, { replace: true })}
+              tabs={[
+                { id: 'sheet', label: 'Sheet' },
+                { id: 'trophies', label: 'Trophy Wall' },
+                { id: 'journal', label: 'Journal' },
+              ]}
+            />
+          </div>
+        )}
+        {view === 'trophies' && (
           <div className="no-print">
             <Cabinet member={m} />
           </div>
         )}
+        {view === 'journal' && <Journal m={m} mine={mine} />}
 
-        {/* ---------- the sheet ---------- */}
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-          <div className="space-y-6">
+        {/* ---------- the sheet: who they are · their story · their numbers ---------- */}
+        {view === 'sheet' && (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,330px)]">
+          <div className="space-y-6 xl:contents">
+          <div className="space-y-6 xl:order-1">
             <Box title="Vitals">
               <dl className="grid gap-3 sm:grid-cols-2">
                 {BASICS.map(([k, label]) => (
@@ -1105,14 +1151,18 @@ export default function Profile() {
                 )}
               </dl>
             </Box>
+          </div>
+          <div className="space-y-6 xl:order-3">
+            <KitCard memberId={m.id} />
             <StatBlock m={m} />
-            <FamilyCard member={m} />
             <BlacksiteRecord id={m.id} />
             <NoelOpsRecord name={m.name} />
-            <KitCard memberId={m.id} />
+            <FamilyCard member={m} />
+            <LeaderNotes m={m} mine={mine} />
+          </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 xl:order-2">
             <Box title="Story">
               <dl className="grid gap-4 sm:grid-cols-2">
                 {STORY.filter(([k]) => edit || k !== 'quote').map(([k, label]) => (
@@ -1226,10 +1276,9 @@ export default function Profile() {
             )}
 
             <Relations relations={s.relations ?? []} edit={edit} onChange={(relations) => set({ relations })} />
-            <Journal m={m} mine={mine} />
-            <LeaderNotes m={m} mine={mine} />
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       {pinOpen && <ChangePin onClose={() => setPinOpen(false)} />}
