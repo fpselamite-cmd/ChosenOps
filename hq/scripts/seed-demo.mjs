@@ -570,7 +570,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const byRank = { boss: { rep: 500, clean: 10000, dirty: 15000 }, consigliere: { rep: 400, clean: 8000, dirty: 12000 }, underboss: { rep: 400, clean: 8000, dirty: 12000 }, treasurer: { rep: 300, clean: 6000, dirty: 10000 }, caporegime: { rep: 300, clean: 6000, dirty: 10000 }, lieutenant: { rep: 200, clean: 4000, dirty: 6000 }, enforcer: { rep: 100, clean: 2000, dirty: 3000 }, soldier: { rep: 100, clean: 2000, dirty: 3000 } };
   await setDoc(doc(db, 'settings', 'dues'), { day: 0, byRank });
   const owe = Object.fromEntries(PEOPLE.filter(([n, r]) => n !== 'Tommy Reyes' && r !== 'associate').map(([n, r]) => [ids[n], byRank[r]]));
-  for (const k of [0, 1, 2]) await setDoc(doc(db, 'duesWeeks', sun(k)), { owe, excused: k === 0 ? { [ids['Ghost']]: true } : {}, at: Timestamp.fromMillis(now - (wdNow + 7 * k) * 86400_000) });
+  for (const k of [0, 1, 2]) await setDoc(doc(db, 'duesWeeks', sun(k)), { owe, excused: k === 0 ? { [ids['Ghost']]: 'Leadership excused' } : {}, at: Timestamp.fromMillis(now - (wdNow + 7 * k) * 86400_000) });
+  // Dani is on leave this week: the dinner page excuses her as LOA.
+  await setDoc(doc(db, 'streaks', ids['Dani Cruz']), { loaFrom: etDay(wdNow + 2), loaUntil: etDay(-5) }, { merge: true });
   let dp = 0;
   const pay = async (who, week, cash, amount, status) => setDoc(doc(db, 'duesPay', `dp${dp++}`), { memberId: ids[who], week, cash, amount, status, cashId: 'seed', at: Timestamp.fromMillis(now - 3 * H) });
   const tr = async (who, week, amount, status) => setDoc(doc(db, 'repTransfers', `dues${dp++}`), { memberId: ids[who], amount, status, dues: week, at: Timestamp.fromMillis(now - 2 * H), ...(status === 'confirmed' ? { decidedBy: vito } : {}) });
