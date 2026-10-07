@@ -35,6 +35,7 @@ import {
 import type { Member, RepTransfer } from '../lib/types';
 import type { DuesPay } from '../lib/books';
 import { lifetime } from './money/duesCalc';
+import { HonorBoard } from './honors/HonorBoard';
 
 /** Gold, silver and bronze steps for the top 3. Shared with the Dashboard. */
 export function Podium({ rows, board, compact = false, flames }: { rows: Ranked[]; board: { unit: (v: number) => string }; compact?: boolean; flames?: Map<string, number> }) {
@@ -579,6 +580,7 @@ export default function HallOfFame() {
       })()}
 
       <BiggestGivers />
+      <HonorBoard />
 
       <div className="mb-10">
         <div className="mb-3 flex items-center justify-between">

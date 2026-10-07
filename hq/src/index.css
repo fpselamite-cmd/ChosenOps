@@ -1937,3 +1937,90 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 @media (prefers-reduced-motion: reduce) { .tome-spread { animation: none; } }
 .tome-spread.single { background: linear-gradient(90deg, #e3d5b5, #f3ead2 6%, #f3ead2 94%, #e3d5b5); }
 .tome-spread.single .tome-pages { column-count: 1; max-width: 760px; margin: 0 auto; }
+
+/* ---------- Honors: rarity, badges, Diablo-style frames, titles, name effects ---------- */
+.rar-chip { display: inline-block; padding: 1px 7px; font: 700 9px var(--font-hud); letter-spacing: 0.18em; text-transform: uppercase; color: var(--rar); border: 1px solid color-mix(in oklab, var(--rar) 60%, transparent); background: color-mix(in oklab, var(--rar) 12%, transparent); border-radius: 3px; }
+.rar-count { padding: 3px 9px; font: 600 11px var(--font-hud); letter-spacing: 0.1em; text-transform: uppercase; color: var(--rar); border: 1px solid color-mix(in oklab, var(--rar) 45%, transparent); }
+.rar-count b { font-size: 14px; }
+
+/* Badges */
+.hb-badge { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; isolation: isolate; }
+.hb-badge::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(150deg, color-mix(in oklab, var(--rar), white 35%), var(--rar) 45%, color-mix(in oklab, var(--rar), black 55%)); }
+.hb-badge-face { position: absolute; inset: 9%; display: grid; place-items: center; color: color-mix(in oklab, var(--rar), white 75%); background: radial-gradient(circle at 50% 35%, color-mix(in oklab, var(--rar), black 35%), color-mix(in oklab, var(--rar), black 75%)); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.hb-gem::before, .hb-gem .hb-badge-face { clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%); }
+.hb-shield::before, .hb-shield .hb-badge-face { clip-path: polygon(50% 0, 100% 14%, 100% 52%, 50% 100%, 0 52%, 0 14%); }
+.hb-hex::before, .hb-hex .hb-badge-face { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
+.hb-badge.locked { filter: grayscale(1) brightness(0.45); }
+
+/* Rarity motion, escalating: glow → shimmer → aura → rays + flames → embers + heartbeat */
+.hb-badge.rar-uncommon { filter: drop-shadow(0 0 4px color-mix(in oklab, var(--rar) 70%, transparent)); }
+.hb-badge.rar-rare { filter: drop-shadow(0 0 6px var(--rar)); }
+.hb-badge.rar-rare .hb-badge-face::after, .ht.rar-legendary::after, .ht.rar-mythic::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: honor-shine 3.2s ease-in-out infinite; }
+.hb-badge.rar-epic { animation: honor-aura 2.4s ease-in-out infinite; }
+.hb-badge.rar-epic::after { content: '✦'; position: absolute; top: -4px; right: -2px; font-size: 11px; color: color-mix(in oklab, var(--rar), white 50%); animation: twinkle-star 1.6s ease-in-out infinite; }
+.hb-badge.rar-legendary, .hb-badge.rar-mythic { animation: honor-aura 2s ease-in-out infinite; }
+.hb-badge.rar-legendary .hb-badge-face, .hb-badge.rar-mythic .hb-badge-face { animation: honor-flicker 1.4s ease-in-out infinite alternate; }
+.hb-badge.rar-mythic { animation: honor-heart 1.3s ease-in-out infinite; }
+@keyframes honor-shine { 0%, 40% { background-position: -150% 0; } 80%, 100% { background-position: 150% 0; } }
+@keyframes honor-aura { 50% { filter: drop-shadow(0 0 12px var(--rar)) drop-shadow(0 0 3px var(--rar)); } }
+@keyframes honor-flicker { from { filter: drop-shadow(0 -2px 2px #f97316); } to { filter: drop-shadow(0 -4px 6px #fbbf24); } }
+@keyframes honor-heart { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px var(--rar)); } 15% { transform: scale(1.08); filter: drop-shadow(0 0 16px var(--rar)); } 30% { transform: scale(1); } 45% { transform: scale(1.05); } }
+
+/* Frames */
+.hf { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; }
+.hf-face { position: relative; z-index: 2; border-radius: 50%; }
+.hf-ring { position: absolute; inset: 4px; z-index: 1; border-radius: 50%; background: conic-gradient(from 210deg, color-mix(in oklab, var(--rar), white 45%), var(--rar), color-mix(in oklab, var(--rar), black 50%), var(--rar), color-mix(in oklab, var(--rar), white 45%)); -webkit-mask: radial-gradient(circle, transparent 62%, #000 63%); mask: radial-gradient(circle, transparent 62%, #000 63%); box-shadow: 0 0 10px color-mix(in oklab, var(--rar) 50%, transparent); }
+.hf-iron .hf-ring { background: conic-gradient(#71717a, #d4d4d8, #52525b, #a1a1aa, #71717a); }
+.hf-barbed .hf-ring { background: repeating-conic-gradient(var(--rar) 0 6deg, color-mix(in oklab, var(--rar), black 60%) 6deg 12deg); -webkit-mask: radial-gradient(circle, transparent 58%, #000 59%, #000 70%, transparent 71%, transparent 78%, #000 79%); mask: radial-gradient(circle, transparent 58%, #000 59%, #000 70%, transparent 71%, transparent 78%, #000 79%); }
+.hf-orn { position: absolute; z-index: 3; transform: translate(-50%, -50%); color: color-mix(in oklab, var(--rar), white 25%); filter: drop-shadow(0 1px 2px #000); }
+.hf-crown .hf-orn { top: 2% !important; color: color-mix(in oklab, var(--rar), white 30%); filter: drop-shadow(0 0 6px var(--rar)); }
+.hf-flames .hf-orn { color: #f97316; animation: honor-flicker 0.9s ease-in-out infinite alternate; }
+.hf-rays { position: absolute; inset: -14%; z-index: 0; border-radius: 50%; opacity: 0; }
+.hf.rar-epic .hf-ring { animation: honor-aura 2.4s ease-in-out infinite; }
+.hf.rar-legendary .hf-rays, .hf.rar-mythic .hf-rays { opacity: 0.75; background: repeating-conic-gradient(color-mix(in oklab, var(--rar) 55%, transparent) 0 8deg, transparent 8deg 24deg); -webkit-mask: radial-gradient(circle, #000 30%, transparent 70%); mask: radial-gradient(circle, #000 30%, transparent 70%); animation: sc-spin 14s linear infinite; }
+.hf.rar-mythic .hf-ring { animation: honor-heart 1.3s ease-in-out infinite; }
+.hf-embers { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.hf-embers i { position: absolute; bottom: 10%; width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle, #fecaca, #dc2626); box-shadow: 0 0 6px #ef4444; animation: honor-ember 2.8s ease-in infinite; }
+@keyframes honor-ember { 0% { transform: translateY(0) scale(1); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-90px) translateX(10px) scale(0.3); opacity: 0; } }
+
+/* Titles */
+.ht { position: relative; display: inline-block; overflow: hidden; padding: 1px 10px; font: 700 12px var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rar); border-top: 1px solid color-mix(in oklab, var(--rar) 55%, transparent); border-bottom: 1px solid color-mix(in oklab, var(--rar) 55%, transparent); background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--rar) 14%, transparent), transparent); }
+.ht.rar-epic, .ht.rar-legendary, .ht.rar-mythic { text-shadow: 0 0 8px color-mix(in oklab, var(--rar) 70%, transparent); }
+
+/* Name effects */
+.hn { position: relative; display: inline-block; }
+.hn-shimmer { background: linear-gradient(100deg, var(--hue, #d4af37) 30%, #fff 50%, var(--hue, #d4af37) 70%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: honor-name-shine 3s linear infinite; }
+@keyframes honor-name-shine { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+.hn-flames { color: var(--hue, #fbbf24); animation: honor-name-fire 1.2s ease-in-out infinite alternate; }
+@keyframes honor-name-fire { from { text-shadow: 0 -0.06em 0.12em #f97316, 0 -0.14em 0.3em rgba(220, 38, 38, 0.8); } to { text-shadow: 0 -0.1em 0.2em #fbbf24, 0 -0.22em 0.45em rgba(249, 115, 22, 0.8); } }
+.hn-glitch { color: var(--hue, #e5e7eb); animation: honor-glitch 2.6s steps(1) infinite; }
+@keyframes honor-glitch { 0%, 88%, 100% { text-shadow: none; transform: none; } 90% { text-shadow: 2px 0 #ef4444, -2px 0 #22d3ee; transform: translateX(1px); } 93% { text-shadow: -2px 0 #ef4444, 2px 0 #22d3ee; transform: translateX(-1px); } 96% { text-shadow: 1px 0 #ef4444, -1px 0 #22d3ee; } }
+.hn-starlight { color: var(--hue, #f8e7a8); text-shadow: 0 0 10px color-mix(in oklab, var(--hue, #f8e7a8) 70%, transparent); }
+.hn-starlight::before, .hn-starlight::after { content: '✦'; position: absolute; font-size: 0.45em; color: #fff; animation: twinkle-star 1.8s ease-in-out infinite; }
+.hn-starlight::before { left: -0.6em; top: 0; }
+.hn-starlight::after { right: -0.6em; bottom: 0.1em; animation-delay: 0.9s; }
+.hn-blood { background: linear-gradient(180deg, var(--hue, #fca5a5) 0%, #dc2626 55%, #7f1d1d 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 2px 3px rgba(127, 29, 29, 0.8)); animation: honor-heart 1.6s ease-in-out infinite; }
+
+/* Hues */
+.hh { display: inline-block; flex-shrink: 0; border-radius: 50%; border: 2px solid color-mix(in oklab, var(--rar) 70%, transparent); box-shadow: 0 0 10px color-mix(in oklab, var(--rar) 40%, transparent); }
+.hh.rar-legendary, .hh.rar-mythic { animation: honor-aura 2s ease-in-out infinite; }
+
+/* Vault tiles */
+.honor-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 10px; text-align: center; border: 1px solid color-mix(in oklab, var(--rar) 30%, var(--color-line)); background: radial-gradient(circle at 50% 0%, color-mix(in oklab, var(--rar) 14%, transparent), transparent 60%), linear-gradient(180deg, #121009, #0a0906); }
+.honor-tile.owned { border-color: color-mix(in oklab, var(--rar) 70%, transparent); box-shadow: inset 0 0 18px color-mix(in oklab, var(--rar) 14%, transparent); }
+.honor-tile.locked { background: linear-gradient(180deg, #0e0d0a, #080706); }
+.honor-tile.locked .honor-tile-pic { filter: grayscale(0.85) brightness(0.5); }
+.honor-tile-pic { position: relative; display: grid; place-items: center; min-height: 72px; }
+.honor-lock { position: absolute; right: -6px; bottom: 0; width: 16px; height: 16px; color: var(--color-smoke); }
+.honor-tile-name { font: 700 14px var(--font-display); color: var(--color-gold-100); }
+.honor-tile.locked .honor-tile-name { color: var(--color-ash); }
+.honor-tile-how { font-size: 11px; line-height: 1.35; color: var(--color-smoke); }
+
+/* Unlock toast */
+.honor-toast { display: flex; align-items: center; gap: 12px; width: 320px; max-width: calc(100vw - 32px); padding: 12px 14px; border: 1px solid var(--rar); background: linear-gradient(120deg, color-mix(in oklab, var(--rar) 22%, #0b0a07), #0b0a07 70%); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 22px color-mix(in oklab, var(--rar) 45%, transparent); animation: honor-toast-in 0.6s cubic-bezier(.2, 1.4, .4, 1) both; }
+.honor-toast.rar-legendary, .honor-toast.rar-mythic { animation: honor-toast-in 0.6s cubic-bezier(.2, 1.4, .4, 1) both, honor-aura 2s ease-in-out 0.6s infinite; }
+.honor-toast-pic { display: grid; place-items: center; width: 64px; flex-shrink: 0; }
+@keyframes honor-toast-in { from { opacity: 0; transform: translateX(60px) scale(0.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hb-badge, .hb-badge *, .hb-badge::after, .hf *, .ht::after, .hn, .hh, .honor-toast { animation: none !important; }
+}

@@ -1065,6 +1065,42 @@ service cloud.firestore {
       allow delete: if blooded() && resource.data.memberId == myId();
     }
 
+    // ---------- Honors: badges, titles, frames, hues, name effects ----------
+    // High Table keeps the catalog; the Archivist can propose new ones.
+    function honor(hid) { return get(/databases/$(database)/documents/honors/$(hid)).data; }
+    match /honors/{id} {
+      allow read: if active();
+      allow write: if active() && lead();
+      allow create: if active() && request.resource.data.status == 'proposed' && request.resource.data.rarity != 'mythic' && archivist();
+    }
+    match /settings/honors {
+      allow read: if active();
+      allow write: if active() && lead();
+    }
+    match /honorsOwned/{id} {
+      allow read: if active();
+      // Unlocking a milestone for yourself (the watcher does it), while it can be earned.
+      allow create: if request.resource.data.by == 'milestone' && request.resource.data.seen == false && request.resource.data.at == request.time
+        && active() && request.resource.data.memberId == myId() && id == myId() + '_' + request.resource.data.honorId
+        && honor(request.resource.data.honorId).source == 'milestone' && honor(request.resource.data.honorId).status == 'active'
+        && (honor(request.resource.data.honorId).get('startsAt', null) == null || honor(request.resource.data.honorId).startsAt <= request.time)
+        && (honor(request.resource.data.honorId).get('endsAt', null) == null || honor(request.resource.data.honorId).endsAt >= request.time);
+      // High Table hands one out.
+      allow create: if request.resource.data.by != 'milestone' && active() && lead() && request.resource.data.by == myId()
+        && id == request.resource.data.memberId + '_' + request.resource.data.honorId && honor(request.resource.data.honorId).status == 'active'
+        && str(request.resource.data.note, 140);
+      // Marking your unlock toast as seen.
+      allow update: if onlyChanges(['seen']) && active() && resource.data.memberId == myId();
+      // Given honors can be taken back; earned milestones stay forever.
+      allow delete: if resource.data.by != 'milestone' && active() && lead();
+    }
+    match /honorLoadouts/{mid} {
+      allow read: if active();
+      allow write: if active() && mid == myId()
+        && request.resource.data.keys().hasOnly(['title', 'frame', 'effect', 'nameHue', 'accentHue', 'trimHue', 'backdropHue', 'showcase'])
+        && request.resource.data.get('showcase', []).size() <= 3;
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();

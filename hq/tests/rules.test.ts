@@ -1160,3 +1160,35 @@ describe('archives', () => {
     await assertFails(setDoc(doc(as('sol'), 'timeline/t1'), { date: '2026-01-01', title: 'x', note: '', by: 'sol' }));
   });
 });
+
+describe('honors', () => {
+  const put = (id: string, h: Record<string, unknown>) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'honors', id), { kind: 'badge', name: id, rarity: 'rare', status: 'active', ...h }));
+  it('lets you unlock a milestone for yourself, never a given honor or an expired season', async () => {
+    await put('m1', { source: 'milestone', stat: 'runs', goal: 1 });
+    await put('g1', { source: 'honor' });
+    await put('old', { source: 'milestone', stat: 'runs', goal: 1, endsAt: Timestamp.fromMillis(Date.now() - 86400e3) });
+    const mine = (h: string) => ({ memberId: 'sol', honorId: h, by: 'milestone', byName: '', note: '', seen: false, at: serverTimestamp() });
+    await assertSucceeds(setDoc(doc(as('sol'), 'honorsOwned/sol_m1'), mine('m1')));
+    await assertFails(setDoc(doc(as('sol'), 'honorsOwned/sol_g1'), mine('g1')));
+    await assertFails(setDoc(doc(as('sol'), 'honorsOwned/sol_old'), mine('old')));
+    await assertFails(setDoc(doc(as('sol'), 'honorsOwned/sol2_m1'), { ...mine('m1'), memberId: 'sol2' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'honorsOwned/sol_m1'), { seen: true }));
+    await assertFails(deleteDoc(doc(as('boss'), 'honorsOwned/sol_m1')));
+  });
+  it('lets High Table give and take back honors; the Archivist only proposes', async () => {
+    await put('g1', { source: 'honor' });
+    const gift = (by: string) => ({ memberId: 'sol', honorId: 'g1', by, byName: 'X', note: 'Well done', seen: false, at: serverTimestamp() });
+    await assertFails(setDoc(doc(as('sol2'), 'honorsOwned/sol_g1'), gift('sol2')));
+    await assertSucceeds(setDoc(doc(as('boss'), 'honorsOwned/sol_g1'), gift('boss')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'honorsOwned/sol_g1')));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders', 'sol2'), { roles: ['archivist'], perms: {}, pages: {}, lead: false }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'honors/p1'), { kind: 'title', name: 'X', rarity: 'epic', status: 'proposed', source: 'honor' }));
+    await assertFails(setDoc(doc(as('sol2'), 'honors/p2'), { kind: 'title', name: 'X', rarity: 'epic', status: 'active', source: 'honor' }));
+    await assertFails(setDoc(doc(as('sol2'), 'honors/p3'), { kind: 'title', name: 'X', rarity: 'mythic', status: 'proposed', source: 'honor' }));
+  });
+  it('keeps your loadout yours', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'honorLoadouts/sol'), { title: 'm1', showcase: ['a', 'b'] }));
+    await assertFails(setDoc(doc(as('sol'), 'honorLoadouts/sol2'), { title: 'm1' }));
+    await assertFails(setDoc(doc(as('sol'), 'honorLoadouts/sol'), { title: 'm1', hacked: true }));
+  });
+});

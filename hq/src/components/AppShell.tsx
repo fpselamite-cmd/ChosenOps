@@ -110,9 +110,9 @@ function NavLinkItem({ item, onClick, badge }: { item: NavItem; onClick?: () => 
 
 /** Menu groups with only the pages this person can open. */
 function useNav() {
-  const { canSee } = useHub();
+  const { canSee, me } = useHub();
   const { open: welcome, isAssoc } = useWelcomeAccess();
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.page || canSee(i.page)) && (!i.welcome || welcome) && (!i.archives || !isAssoc)) })).filter((g) => g.items.length);
+  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.page || canSee(i.page)) && (!i.welcome || welcome) && (!i.archives || !isAssoc)).map((i) => (i.me ? { ...i, to: `/members/${me.id}` } : i)) })).filter((g) => g.items.length);
 }
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
