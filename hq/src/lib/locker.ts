@@ -15,6 +15,7 @@ export interface Storage {
 export interface LockerDoc {
   id: string;
   storages: Storage[];
+  meta?: Record<string, ItemMeta>;
 }
 
 /** One thing that can move: a strain field, a product, or a catalog item. */
@@ -55,6 +56,16 @@ export interface Trade {
   status: TradeStatus;
   at?: import('firebase/firestore').Timestamp;
 }
+
+/** What a member adds to any item in their locker: a picture, a note, a value, a favorite star. */
+export interface ItemMeta {
+  pic?: string | null;
+  note?: string;
+  value?: number;
+  fav?: boolean;
+}
+/** One key per kind of thing (an item, or a strain's bricks…). */
+export const thingKey = (t: Pick<Thing, 'item' | 'strain' | 'field'>) => t.item ?? `${t.strain ?? 'x'}-${t.field}`;
 
 export const DEFAULT_STORAGES: Storage[] = [
   { id: 'onme', name: 'On Me' },
@@ -121,8 +132,14 @@ export function useLocker() {
     tradesIn: tradesIn ?? [],
     path,
 
+    meta: (locker?.meta ?? {}) as Record<string, ItemMeta>,
+    /** Saves my picture / note / value / favorite for a kind of thing. */
+    async setMeta(key: string, m: ItemMeta) {
+      await setDoc(doc(db, 'lockers', me.id), { meta: { [key]: m } }, { merge: true });
+    },
+
     async saveStorages(next: Storage[]) {
-      await setDoc(doc(db, 'lockers', me.id), { storages: next.slice(0, 20) });
+      await setDoc(doc(db, 'lockers', me.id), { storages: next.slice(0, 20) }, { merge: true });
     },
     async addStorage(name: string) {
       const id = `s${Date.now().toString(36)}`;

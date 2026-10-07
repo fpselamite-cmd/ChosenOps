@@ -1,5 +1,6 @@
-import { ArrowLeftRight, Backpack, Bomb, Box, Check, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { ArrowLeftRight, Backpack, Bomb, Box, Camera, Check, Search, Star, Crosshair, FireExtinguisher, Hammer, Pill, Shield, Sword, Tag, Wrench, Zap, Gift, Lock, Minus, PackageOpen, Pencil, Plus, Send, ShieldAlert, Trash2, Undo2, Warehouse, X } from 'lucide-react';
+import { useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { squareImage } from '../lib/image';
 import { Avatar } from '../components/Avatar';
 import { Empty, ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
@@ -9,7 +10,7 @@ import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { ItemPicker } from '../components/ItemPicker';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
-import { countOf, thingsIn, useLocker, type Locker as LockerApi, type Thing } from '../lib/locker';
+import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Locker as LockerApi, type Thing } from '../lib/locker';
 import { money, useMoney } from '../lib/money';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
 import { useOps } from '../noel/ops';
@@ -35,15 +36,6 @@ const KIND_ICON = {
   consumable: Pill,
   other: Box,
 } as const;
-
-/** Groups a storage's contents the way people think about them. Ammo shows as pills instead. */
-function groupThings(things: Thing[], byId: Map<string, ItemType>) {
-  const groups: { label: string; icon?: (typeof KIND_ICON)[keyof typeof KIND_ICON]; things: Thing[] }[] = [{ label: 'Drugs', things: things.filter((t) => !t.item) }];
-  ITEM_KINDS.filter((k) => k.id !== 'ammo').forEach((k) =>
-    groups.push({ label: k.label, icon: KIND_ICON[k.id], things: things.filter((t) => t.item && kindOf(byId.get(t.item), byId) === k.id) }),
-  );
-  return groups.filter((g) => g.things.length);
-}
 
 /** Boxes and loose rounds per caliber, as little counters at the top of a storage. */
 function AmmoPills({ things, byId, bump, onOpen }: { things: Thing[]; byId: Map<string, ItemType>; bump: (t: Thing, d: number) => void; onOpen: (t: Thing) => void }) {
@@ -438,96 +430,346 @@ function ThingDialog({ locker, storageId, thing, onClose }: { locker: LockerApi;
 
 // ---------- page ----------
 
-function StoragePanel({ locker, id, name, onOpen }: { locker: LockerApi; id: string; name: string; onOpen: (t: Thing) => void }) {
+/** Tile border color by kind, like loot rarity. */
+const KIND_COLOR: Record<string, string> = {
+  gun: '#d4af37',
+  attachment: '#a487f0',
+  ammo: '#9ca3af',
+  melee: '#e25560',
+  armor: '#5f91ef',
+  safety: '#2dd4bf',
+  throwable: '#f59e0b',
+  gear: '#c08a3e',
+  tool: '#94a3b8',
+  consumable: '#f472b6',
+  other: '#e5e7eb',
+  drug: '#43c585',
+};
+const SORTS = [
+  ['kind', 'Kind'],
+  ['name', 'Name'],
+  ['count', 'Count'],
+  ['value', 'Value'],
+] as const;
+type SortId = (typeof SORTS)[number][0];
+const DRAG = 'application/x-chosenops-thing';
+
+function Tile({ t, kind, meta, signed, onOpen, onDragStart }: { t: Thing; kind: string; meta?: ItemMeta; signed: boolean; onOpen: () => void; onDragStart: (e: DragEvent<HTMLButtonElement>) => void }) {
+  const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Box;
+  const color = KIND_COLOR[kind] ?? KIND_COLOR.other!;
+  const logo = !t.item ? `/noel/logos/${t.strain ?? (t.field === 'coca' ? 'cokeSmall' : t.field)}.png` : null;
+  return (
+    <button
+      draggable
+      onDragStart={onDragStart}
+      onClick={onOpen}
+      title={`${t.label} × ${t.qty.toLocaleString()}`}
+      className="locker-tile group relative flex aspect-square w-full flex-col items-center justify-center gap-1 overflow-hidden border bg-coal/80 p-1.5 transition hover:-translate-y-0.5"
+      style={{ borderColor: `${color}88`, boxShadow: `inset 0 0 18px ${color}22` }}
+    >
+      <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: color }} />
+      {meta?.pic ? (
+        <img src={meta.pic} alt="" className="size-[58%] rounded-sm object-cover" />
+      ) : logo ? (
+        <img src={logo} alt="" className="size-[58%] object-contain" />
+      ) : (
+        <Icon className="size-[42%] transition group-hover:scale-110" style={{ color }} />
+      )}
+      <span className="w-full truncate text-center text-[10px] leading-tight text-gold-100 sm:text-[11px]">{t.label}</span>
+      <span className="absolute right-1 bottom-1 rounded-sm bg-black/70 px-1 font-mono text-[10px] text-gold-200">×{t.qty.toLocaleString()}</span>
+      {meta?.fav && <Star className="absolute top-1 left-1 size-3 fill-gold-300 text-gold-300" />}
+      {signed && <span className="locker-stamp absolute top-1.5 right-0.5 rotate-12 border border-red-400/70 px-0.5 text-[7px] font-black tracking-wider text-red-300">GANG</span>}
+    </button>
+  );
+}
+
+/** Tap a tile: the item up close, with your own picture, note, value and favorite star. */
+function Inspect({ locker, storageId, t, kind, onAction, onClose }: { locker: LockerApi; storageId: string; t: Thing; kind: string; onAction: () => void; onClose: () => void }) {
+  const { byId } = useItemTypes();
+  const ops = useOps('stash');
+  const toast = useToast();
+  const key = thingKey(t);
+  const m = locker.meta[key] ?? {};
+  const [note, setNote] = useState(m.note ?? '');
+  const [value, setValue] = useState(m.value ? String(m.value) : '');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const item = t.item ? byId.get(t.item) : undefined;
+  const color = KIND_COLOR[kind] ?? KIND_COLOR.other!;
+  const Icon = KIND_ICON[kind as keyof typeof KIND_ICON] ?? Box;
+  const save = (patch: ItemMeta) => locker.setMeta(key, { ...m, ...patch });
+  const bump = (d: number) => toast.run(ops.applyDeltas([{ loc: locker.path(storageId), strain: t.strain, field: t.field, item: t.item, delta: d }]).then(() => null));
+  const count = countOf(locker.stock.get(storageId), t);
+  return (
+    <Modal title={t.label} onClose={onClose}>
+      <div className="flex gap-4">
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="relative grid size-28 shrink-0 place-items-center overflow-hidden border-2 bg-coal"
+          style={{ borderColor: color, boxShadow: `0 0 24px ${color}44` }}
+          title="Set a picture"
+        >
+          {m.pic ? (
+            <img src={m.pic} alt="" className="size-full object-cover" />
+          ) : !t.item ? (
+            <img src={`/noel/logos/${t.strain ?? (t.field === 'coca' ? 'cokeSmall' : t.field)}.png`} alt="" className="size-20 object-contain" />
+          ) : (
+            <Icon className="size-12" style={{ color }} />
+          )}
+          <span className="absolute inset-x-0 bottom-0 bg-black/70 py-0.5 text-[10px] text-smoke">
+            <Camera className="mr-1 inline size-3" />
+            picture
+          </span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f) await save({ pic: await squareImage(f, 128, 0.8) });
+          }}
+        />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="label" style={{ color }}>
+            {item ? (ITEM_KINDS.find((k) => k.id === kind)?.one ?? 'Item') : 'Drugs'}
+            {item?.custom && ' · added by a member'}
+          </p>
+          {item?.baseId && <p className="text-xs text-smoke">A {byId.get(item.baseId)?.name ?? 'custom'} underneath</p>}
+          <div className="flex items-center gap-2">
+            <button className="btn-ghost btn-sm px-2" onClick={() => bump(-1)} disabled={!count} aria-label="One less">
+              <Minus className="size-3.5" />
+            </button>
+            <span className="min-w-12 text-center font-mono text-2xl text-gold-100">{count.toLocaleString()}</span>
+            <button className="btn-ghost btn-sm px-2" onClick={() => bump(1)} aria-label="One more">
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+          <button onClick={() => save({ fav: !m.fav })} className={`chip px-2.5 py-1 text-xs ${m.fav ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+            <Star className={`mr-1 inline size-3 ${m.fav ? 'fill-void' : ''}`} />
+            {m.fav ? 'Favorite' : 'Mark favorite'}
+          </button>
+          {m.pic && (
+            <button className="ml-2 text-xs text-smoke hover:text-red-300" onClick={() => save({ pic: null })}>
+              Remove picture
+            </button>
+          )}
+        </div>
+      </div>
+      <form
+        className="mt-4 space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await save({ note: note.trim().slice(0, 200), value: Math.max(0, Math.round(+value.replace(/\D/g, '') || 0)) });
+          onClose();
+        }}
+      >
+        <div className="grid grid-cols-[1fr_120px] gap-3">
+          <Field label="Note">
+            <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Serial, where you got it…" />
+          </Field>
+          <Field label="Value each">
+            <input className="input font-mono" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value)} placeholder="$" />
+          </Field>
+        </div>
+        <div className="flex flex-wrap justify-between gap-2">
+          <button type="button" className="btn-ghost" onClick={onAction} disabled={!count}>
+            <Send className="size-4" /> Move · give · stash · name
+          </button>
+          <button className="btn-gold">Save</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function LockerGrid({ locker, onOpen }: { locker: LockerApi; onOpen: (storageId: string, t: Thing) => void }) {
   const { name: itemName, byId } = useItemTypes();
   const ops = useOps('stash');
   const toast = useToast();
+  const [tab, setTab] = useState(locker.storages[0]?.id ?? 'onme');
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState<string>('all');
+  const [sort, setSort] = useState<SortId>('kind');
   const [adding, setAdding] = useState(false);
+  const [inspect, setInspect] = useState<Thing | null>(null);
   const [renaming, setRenaming] = useState(false);
-  const [newName, setNewName] = useState(name);
+  const [newName, setNewName] = useState('');
+  const [newStorage, setNewStorage] = useState('');
+  const [over, setOver] = useState<string | null>(null);
+  const storage = locker.storages.find((s) => s.id === tab) ?? locker.storages[0];
+  const id = storage?.id ?? 'onme';
   const things = thingsIn(locker.stock.get(id), itemName);
-  const groups = groupThings(things, byId);
+  const kindOfThing = (t: Thing) => (t.item ? (kindOf(byId.get(t.item), byId) ?? 'other') : 'drug');
+  const signed = new Set(locker.signouts.filter((s) => s.status === 'out' && s.storageId === id).map((s) => thingKey(s.thing)));
   const bump = (t: Thing, d: number) => toast.run(ops.applyDeltas([{ loc: locker.path(id), strain: t.strain, field: t.field, item: t.item, delta: d }]).then(() => null));
+  const order = ['drug', ...ITEM_KINDS.map((k) => k.id)];
+  const shown = things
+    .filter((t) => kindOfThing(t) !== 'ammo')
+    .filter((t) => kind === 'all' || (kind === 'fav' ? locker.meta[thingKey(t)]?.fav : kindOfThing(t) === kind))
+    .filter((t) => !q.trim() || t.label.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => {
+      const fa = Number(!!locker.meta[thingKey(b)]?.fav) - Number(!!locker.meta[thingKey(a)]?.fav);
+      if (fa) return fa;
+      if (sort === 'name') return a.label.localeCompare(b.label);
+      if (sort === 'count') return b.qty - a.qty;
+      if (sort === 'value') return (locker.meta[thingKey(b)]?.value ?? 0) * b.qty - (locker.meta[thingKey(a)]?.value ?? 0) * a.qty;
+      return order.indexOf(kindOfThing(a)) - order.indexOf(kindOfThing(b)) || a.label.localeCompare(b.label);
+    });
+  const kinds = order.filter((k) => k !== 'ammo' && things.some((t) => kindOfThing(t) === k));
   const others = locker.storages.filter((s) => s.id !== id);
+
+  async function drop(e: DragEvent, to: string) {
+    e.preventDefault();
+    setOver(null);
+    const raw = e.dataTransfer.getData(DRAG);
+    if (!raw || to === id) return;
+    const t = JSON.parse(raw) as Thing;
+    const target = locker.storages.find((s) => s.id === to);
+    await toast.run(locker.move([t], locker.path(id), locker.path(to)).then((m) => (m.length ? { text: `Moved ${t.qty} × ${t.label} to ${target?.name}.` } : null)));
+  }
+
   return (
-    <Panel
-      title={
-        renaming ? (
-          <form
-            className="inline-flex gap-1"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (newName.trim()) await locker.renameStorage(id, newName);
-              setRenaming(false);
-            }}
-          >
-            <input className="input py-0.5 text-sm normal-case" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus maxLength={30} />
-            <button className="btn-gold btn-sm">Save</button>
-          </form>
-        ) : (
-          name
-        )
-      }
-      right={
-        <span className="flex gap-1">
-          <button className="btn-ghost btn-sm px-2" onClick={() => setRenaming(true)} title="Rename">
+    <section className="hud locker-doors mb-6">
+      <span className="locker-door l" aria-hidden />
+      <span className="locker-door r" aria-hidden />
+      <div className="flex flex-wrap items-end gap-1 border-b border-line px-3 pt-3">
+        {locker.storages.map((s) => {
+          const n = thingsIn(locker.stock.get(s.id), itemName).reduce((t, x) => t + x.qty, 0);
+          return (
+            <button
+              key={s.id}
+              onClick={() => (setTab(s.id), setRenaming(false))}
+              onDragOver={(e) => (e.preventDefault(), setOver(s.id))}
+              onDragLeave={() => setOver(null)}
+              onDrop={(e) => drop(e, s.id)}
+              className={`-mb-px flex items-center gap-2 border border-b-0 px-3 py-2 font-hud text-sm font-bold transition ${s.id === id ? 'border-line bg-coal text-gold-100' : 'border-transparent text-smoke hover:text-gold-200'} ${over === s.id ? 'locker-drop' : ''}`}
+            >
+              {s.id === 'onme' ? <Backpack className="size-3.5" /> : <Box className="size-3.5" />}
+              {s.name}
+              <span className="font-mono text-[10px] text-smoke">{n.toLocaleString()}</span>
+            </button>
+          );
+        })}
+        <form
+          className="mb-1 ml-auto flex gap-1"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newStorage.trim()) return;
+            await locker.addStorage(newStorage);
+            setNewStorage('');
+          }}
+        >
+          <input className="input w-36 py-1 text-xs" placeholder="New storage…" value={newStorage} onChange={(e) => setNewStorage(e.target.value)} maxLength={30} />
+          <button className="btn-ghost btn-sm px-2" aria-label="Add storage">
+            <Plus className="size-3.5" />
+          </button>
+        </form>
+      </div>
+
+      <div className="p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {renaming ? (
+            <form
+              className="flex gap-1"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (newName.trim()) await locker.renameStorage(id, newName);
+                setRenaming(false);
+              }}
+            >
+              <input className="input py-1 text-sm" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus maxLength={30} />
+              <button className="btn-gold btn-sm">Save</button>
+            </form>
+          ) : (
+            <h2 className="font-display text-xl font-bold text-gold-100">{storage?.name}</h2>
+          )}
+          <button className="btn-ghost btn-sm px-2" onClick={() => (setNewName(storage?.name ?? ''), setRenaming(true))} title="Rename">
             <Pencil className="size-3.5" />
           </button>
           {others.length > 0 && (
             <button
               className="btn-ghost btn-sm px-2"
               title="Remove this storage"
-              onClick={() => confirm(`Remove ${name}? ${things.length ? `Everything in it moves to ${others[0]!.name}.` : ''}`) && locker.removeStorage(id, others[0]!.id, itemName)}
+              onClick={() => confirm(`Remove ${storage?.name}? ${things.length ? `Everything in it moves to ${others[0]!.name}.` : ''}`) && locker.removeStorage(id, others[0]!.id, itemName).then(() => setTab(others[0]!.id))}
             >
               <Trash2 className="size-3.5" />
             </button>
           )}
-          <button className="btn-gold btn-sm" onClick={() => setAdding(true)}>
+          <button className="btn-gold btn-sm ml-auto" onClick={() => setAdding(true)}>
             <Plus className="size-3.5" /> Add
           </button>
-        </span>
-      }
-    >
-      <AmmoPills things={things} byId={byId} bump={bump} onOpen={onOpen} />
-      {groups.length ? (
-        <div className="space-y-3">
-          {groups.map((g) => (
-            <div key={g.label}>
-              <p className="label mb-1">{g.label}</p>
-              <ul className="divide-y divide-line-soft border border-line-soft">
-                {g.things.map((t) => (
-                  <li key={`${t.item ?? t.strain ?? ''}${t.field}`} className="flex items-center gap-2 px-3 py-1.5">
-                    {g.icon ? (
-                      <span className="grid size-7 place-items-center rounded bg-raised text-gold-400">
-                        <g.icon className="size-4" />
-                      </span>
-                    ) : (
-                      <img src={`/noel/logos/${t.strain ?? (t.field === 'coca' ? 'cokeSmall' : t.field)}.png`} alt="" className="size-7 object-contain" />
-                    )}
-                    <button className="min-w-0 flex-1 truncate text-left font-semibold text-gold-100 hover:underline" onClick={() => onOpen(t)}>
-                      {t.label}
-                    </button>
-                    <button className="btn-ghost btn-sm px-1.5" onClick={() => bump(t, -1)} aria-label="One less">
-                      <Minus className="size-3" />
-                    </button>
-                    <span className="w-12 text-center font-mono text-gold-100">{t.qty.toLocaleString()}</span>
-                    <button className="btn-ghost btn-sm px-1.5" onClick={() => bump(t, 1)} aria-label="One more">
-                      <Plus className="size-3" />
-                    </button>
-                    <button className="btn-ghost btn-sm px-1.5" onClick={() => onOpen(t)} title="Move, put in a stash or give">
-                      <Send className="size-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
         </div>
-      ) : things.length ? null : (
-        <p className="text-sm text-smoke">Empty.</p>
-      )}
+
+        <AmmoPills things={things} byId={byId} bump={bump} onOpen={(t) => onOpen(id, t)} />
+
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-40 flex-1">
+            <Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-smoke" />
+            <input className="input py-1.5 pl-8 text-sm" placeholder="Search this storage" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <select className="input w-auto py-1.5 text-sm" value={sort} onChange={(e) => setSort(e.target.value as SortId)} aria-label="Sort">
+            {SORTS.map(([v, l]) => (
+              <option key={v} value={v}>
+                Sort: {l}
+              </option>
+            ))}
+          </select>
+        </div>
+        {kinds.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {['all', 'fav', ...kinds].map((k) => (
+              <button
+                key={k}
+                onClick={() => setKind(k)}
+                className={`chip px-2.5 py-1 text-[11px] ${kind === k ? 'bg-gold-400 text-void' : 'bg-raised text-ash hover:text-gold-200'}`}
+                style={kind !== k && KIND_COLOR[k] ? { boxShadow: `inset 0 -2px 0 ${KIND_COLOR[k]}` } : undefined}
+              >
+                {k === 'all' ? 'All' : k === 'fav' ? '★ Favorites' : k === 'drug' ? 'Drugs' : (ITEM_KINDS.find((x) => x.id === k)?.label ?? k)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {shown.length ? (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8">
+            {shown.map((t, i) => (
+              <div key={thingKey(t)} className="locker-pop" style={{ animationDelay: `${Math.min(i, 24) * 25}ms` }}>
+                <Tile
+                  t={t}
+                  kind={kindOfThing(t)}
+                  meta={locker.meta[thingKey(t)]}
+                  signed={signed.has(thingKey(t))}
+                  onOpen={() => setInspect(t)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(DRAG, JSON.stringify(t));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-sm text-smoke">{things.length ? 'Nothing matches.' : 'Empty. Add something, or drag things here from another storage tab.'}</p>
+        )}
+        <p className="mt-3 hidden text-[11px] text-smoke sm:block">Drag a tile onto another storage tab to move it all. Tap a tile to see it up close.</p>
+      </div>
       {adding && <AddDialog locker={locker} storageId={id} onClose={() => setAdding(false)} />}
-    </Panel>
+      {inspect && (
+        <Inspect
+          locker={locker}
+          storageId={id}
+          t={inspect}
+          kind={kindOfThing(inspect)}
+          onClose={() => setInspect(null)}
+          onAction={() => {
+            const t = inspect;
+            setInspect(null);
+            onOpen(id, t);
+          }}
+        />
+      )}
+    </section>
   );
 }
 
@@ -538,7 +780,6 @@ function Body() {
   const toast = useToast();
   const [taking, setTaking] = useState(false);
   const [open, setOpen] = useState<{ storageId: string; thing: Thing } | null>(null);
-  const [newStorage, setNewStorage] = useState('');
   const [acceptInto, setAcceptInto] = useState<Record<string, string>>({});
   if (!locker.ready) return null;
   const out = locker.signouts.filter((s) => s.status === 'out');
@@ -639,29 +880,7 @@ function Body() {
         </Panel>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {locker.storages.map((s) => (
-          <StoragePanel key={s.id} locker={locker} id={s.id} name={s.name} onOpen={(thing) => setOpen({ storageId: s.id, thing })} />
-        ))}
-        <form
-          className="hud flex flex-col justify-center gap-3 border-dashed p-5"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!newStorage.trim()) return;
-            await locker.addStorage(newStorage);
-            setNewStorage('');
-          }}
-        >
-          <p className="font-hud text-lg font-bold text-gold-200">New storage</p>
-          <p className="text-sm text-smoke">A car trunk, an apartment safe, a buried crate. Name it whatever you like.</p>
-          <div className="flex gap-2">
-            <input className="input" placeholder="e.g. Sultan trunk" value={newStorage} onChange={(e) => setNewStorage(e.target.value)} maxLength={30} />
-            <button className="btn-gold">
-              <Plus className="size-4" /> Add
-            </button>
-          </div>
-        </form>
-      </div>
+      <LockerGrid locker={locker} onOpen={(storageId, thing) => setOpen({ storageId, thing })} />
 
       {!locker.storages.length && <Empty title="No storages">Add one above.</Empty>}
       {taking && <TakeDialog locker={locker} onClose={() => setTaking(false)} />}

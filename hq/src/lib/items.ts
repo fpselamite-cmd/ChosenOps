@@ -45,6 +45,8 @@ export const slotLabel = (id?: string) => SLOTS.find((s) => s.id === id)?.label 
 export interface ItemType {
   id: string;
   name: string;
+  /** Added by a member before the catalog had it. */
+  custom?: boolean;
   category: ItemKind;
   /** Guns: pistol, smg, rifle, shotgun, sniper. */
   gunClass?: string;
