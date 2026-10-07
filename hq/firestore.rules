@@ -163,6 +163,9 @@ service cloud.firestore {
     // Owners only: wiping a test account or the old half of a merged one.
     match /members/{id} {
       allow delete: if active() && isOwner() && id != myId();
+      // Admins too, but never themselves, the top rank, or an owner.
+      allow delete: if active() && id != myId() && isAdmin() && below(resource.data.rankId)
+        && (!exists(/databases/$(database)/documents/meta/owners) || !(id in get(/databases/$(database)/documents/meta/owners).data.get('ids', [])));
     }
 
     // Online check-ins and custom statuses. Each member writes only their own.
@@ -1113,6 +1116,8 @@ service cloud.firestore {
     // Owners only: merging a duplicate account or wiping a test one moves or removes that member's things.
     match /{coll}/{id} {
       allow read, update, delete: if coll in ['names', 'presence', 'sales', 'myCash', 'trophies', 'pettyLog', 'petty', 'repTransfers', 'builds', 'kits', 'kitPicks', 'signouts', 'lockerStock', 'stats', 'streaks', 'sheets', 'pettyGoals', 'shopping', 'welcomes', 'nudges'] && active() && isOwner();
+      // Admins can clear out a deleted member's things (the delete itself checks who).
+      allow read, delete: if coll in ['names', 'presence', 'sales', 'myCash', 'trophies', 'pettyLog', 'petty', 'repTransfers', 'builds', 'kits', 'kitPicks', 'signouts', 'lockerStock', 'stats', 'streaks', 'sheets', 'pettyGoals', 'shopping', 'welcomes', 'nudges'] && active() && isAdmin();
       allow create: if coll in ['lockerStock', 'petty', 'stats', 'streaks', 'sheets', 'shopping', 'kitPicks'] && active() && isOwner();
     }
 

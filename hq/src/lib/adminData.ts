@@ -210,12 +210,13 @@ export async function mergeMembers(from: { id: string; name: string; nameLower?:
 
 /** Wipes a member and everything of theirs (for test accounts). */
 export async function deleteMember(m: { id: string; nameLower?: string }) {
+  // The member file goes first: if this person can't be deleted (an owner, the top rank), nothing else is touched.
+  await deleteDoc(doc(db, 'members', m.id));
   const refs = [];
   for (const o of OWNED) refs.push(...(await getDocs(query(collection(db, o.coll), where(o.field, '==', m.id)))).docs.map((d) => d.ref));
   refs.push(...(await getDocs(query(collection(db, 'lockerStock'), where('owner', '==', m.id)))).docs.map((d) => d.ref));
   for (const c of ['petty', 'stats', 'streaks', 'sheets', 'pettyGoals', 'shopping', 'kitPicks', 'presence', 'welcomes']) refs.push(doc(db, c, m.id));
   if (m.nameLower) refs.push(doc(db, 'names', m.nameLower));
-  refs.push(doc(db, 'members', m.id));
   for (let i = 0; i < refs.length; i += 400) {
     const b = writeBatch(db);
     refs.slice(i, i + 400).forEach((r) => b.delete(r));

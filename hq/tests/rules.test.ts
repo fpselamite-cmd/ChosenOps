@@ -787,6 +787,16 @@ describe('owners and admins', () => {
     await assertSucceeds(updateDoc(doc(as('sol2'), 'members/boss'), { rankId: 'boss' }));
     await assertFails(updateDoc(doc(as('sol2'), 'members/capo'), { rankId: 'nope' }));
   });
+  it('lets admins delete members, but not themselves, the top rank or an owner', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/capo'), { admin: true }));
+    await assertFails(deleteDoc(doc(as('sol'), 'members/newbie')));
+    await assertFails(deleteDoc(doc(as('capo'), 'members/capo')));
+    await assertFails(deleteDoc(doc(as('capo'), 'members/boss')));
+    await assertFails(deleteDoc(doc(as('capo'), 'members/sol2')));
+    await assertSucceeds(deleteDoc(doc(as('capo'), 'members/sol')));
+    await assertSucceeds(deleteDoc(doc(as('capo'), 'petty/sol')));
+    await assertFails(deleteDoc(doc(as('ub'), 'petty/sol')));
+  });
   it('only owners grant or take away admin; the Boss cannot', async () => {
     await assertSucceeds(updateDoc(doc(as('sol2'), 'members/sol'), { admin: true }));
     await assertFails(updateDoc(doc(as('boss'), 'members/sol'), { admin: false }));
@@ -960,12 +970,12 @@ describe('admin', () => {
     await assertSucceeds(rename(as('capo')));
     await assertFails(updateDoc(doc(as('capo'), 'members/sol2'), { name: 'X', nameLower: 'y' }));
   });
-  it('lets admins edit lists and defaults; only owners merge or delete accounts', async () => {
+  it('lets admins edit lists and defaults; admins delete accounts below the top rank', async () => {
     await assertFails(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [] }));
     await makeAdmin('sol');
     await assertSucceeds(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [{ id: 'heist', name: 'Heist', icon: 'gem' }] }));
     await assertSucceeds(setDoc(doc(as('sol'), 'settings/defaults'), { callInCost: 200 }));
-    await assertFails(deleteDoc(doc(as('sol'), 'members/sol2')));
+    await assertFails(deleteDoc(doc(as('sol'), 'members/boss')));
     await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'meta/owners'), { ids: ['boss'] }));
     await assertSucceeds(getDocs(query(collection(as('boss'), 'sales'), where('sellerId', '==', 'sol2'))));
     await assertSucceeds(deleteDoc(doc(as('boss'), 'members/sol2')));
