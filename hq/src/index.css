@@ -2185,3 +2185,39 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 @keyframes party-pop { from { opacity: 0; transform: scale(0.7) translateY(20px); } to { opacity: 1; transform: none; } }
 @keyframes party-bounce { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-6px) rotate(4deg); } }
 @media (prefers-reduced-motion: reduce) { .party-hat, .party-streamers, .party-surprise-icon, .confetti { animation: none !important; } .confetti { display: none; } }
+
+/* ---------- Rank seals (wax + pressed gem) and role ribbons ---------- */
+.rank-seal { position: relative; overflow: hidden; gap: 5px; padding: 3px 10px 3px 6px; border-radius: 4px 4px 4px 4px / 6px 6px 6px 6px; isolation: isolate; }
+.rank-seal::before { display: none; }
+.rank-seal.seal-lg { gap: 7px; padding: 5px 14px 5px 8px; font-size: 12px; letter-spacing: 0.14em; }
+.seal-press { width: 8px; height: 8px; border-radius: 999px; background: radial-gradient(circle at 40% 35%, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.15) 60%, rgba(255, 255, 255, 0.12)); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.12); }
+.seal-gem { flex-shrink: 0; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 3px color-mix(in oklab, var(--gem) 55%, transparent)); }
+.seal-gem .g-base { fill: color-mix(in oklab, var(--gem) 70%, black); stroke: rgba(0, 0, 0, 0.55); stroke-width: 0.8; }
+.seal-gem .g-top { fill: color-mix(in oklab, var(--gem) 55%, white); }
+.seal-gem .g-left { fill: var(--gem); }
+.seal-gem .g-right { fill: color-mix(in oklab, var(--gem) 75%, black); }
+.seal-gem .g-low { fill: color-mix(in oklab, var(--gem) 85%, white); opacity: 0.85; }
+.seal-gem .g-glint { fill: #fff; opacity: 0; transform-origin: 8px 5.2px; animation: gem-glint 5s ease-in-out infinite; }
+@keyframes gem-glint { 0%, 82%, 100% { opacity: 0; transform: scale(0.3); } 88% { opacity: 1; transform: scale(1.4); } 94% { opacity: 0.2; transform: scale(0.6); } }
+.rank-seal.t-stamp { color: #d6d3d1; }
+.rank-seal.t-quartz .seal-gem .g-base { fill: #b9a8c4; }
+/* Leadership: a gold rim. The top leadership seal glows a little. */
+.rank-seal.t-ruby, .rank-seal.t-bloodruby, .rank-seal.t-diamond { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(232, 197, 106, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -2px 3px rgba(0, 0, 0, 0.35); }
+.rank-seal.t-bloodruby { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 10px rgba(255, 36, 66, 0.35), inset 0 0 0 1px rgba(232, 197, 106, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+/* The Boss: gold wax, a diamond with rainbow fire, and a slow sheen. */
+.rank-seal.t-diamond { color: #fff7dc; background: radial-gradient(circle at 30% 25%, #e6c25c, #a8801f 50%, #5a4108); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), 0 0 12px rgba(232, 197, 106, 0.45), inset 0 0 0 1px #fde68a, inset 0 -2px 3px rgba(0, 0, 0, 0.35); text-shadow: 0 1px 1px rgba(60, 40, 0, 0.9); }
+.rank-seal.t-diamond .seal-gem { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 4px rgba(255, 255, 255, 0.8)); }
+.rank-seal.t-diamond .seal-gem .g-left { fill: #dff3ff; }
+.rank-seal.t-diamond .seal-gem .g-right { fill: #b9d5ff; }
+.rank-seal.t-diamond .seal-gem .g-low { fill: #ffe4f3; }
+.rank-seal.t-diamond .seal-gem .g-base { fill: #9fb7d6; }
+.rank-seal.t-diamond::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.4) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: honor-shine 4.5s ease-in-out infinite; }
+/* Role ribbons: notched ends, a touch smaller than the rank seal. */
+.role-ribbon { --rr: #2b3440; --rr-hi: #cbd5e1; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 2px 11px 2px 9px; font: 700 9px/1.4 var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; color: var(--rr-hi); background: linear-gradient(180deg, color-mix(in oklab, var(--rr) 80%, white 10%), var(--rr) 55%, color-mix(in oklab, var(--rr) 70%, black)); clip-path: polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%, 5px 50%); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6); }
+.role-ribbon .rr-icon { width: 10px; height: 10px; flex-shrink: 0; }
+.role-ribbon.rr-lg { gap: 5px; padding: 3px 14px 3px 12px; font-size: 10.5px; }
+.role-ribbon.rr-lg .rr-icon { width: 12px; height: 12px; }
+.rr-work { --rr: #2f3a4a; --rr-hi: #dbe4ef; }
+.rr-lead { --rr: #6b4a0c; --rr-hi: #fff3c4; background: linear-gradient(180deg, #d9b350, #9a7418 55%, #5a4108); }
+.rr-honor { --rr: #1d4f73; --rr-hi: #e0f2fe; background: linear-gradient(180deg, #4aa3d8, #1f5f8b 55%, #143b57); filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.45)); }
+@media (prefers-reduced-motion: reduce) { .seal-gem .g-glint, .rank-seal.t-diamond::after { animation: none; } }

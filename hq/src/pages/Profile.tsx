@@ -944,8 +944,8 @@ export default function Profile() {
               )}
               {s.story?.quote && !edit && <p className="mt-2 font-display text-lg text-gold-200 italic">“{s.story.quote}”</p>}
               <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 sm:justify-start">
-                <RankBadge rank={rankById.get(m.rankId ?? '')} />
-                <RoleChips memberId={m.id} />
+                <RankBadge rank={rankById.get(m.rankId ?? '')} size="lg" />
+                <RoleChips memberId={m.id} size="lg" />
                 {crews.map((c) => (
                   <span key={c.id} className="inline-flex items-center gap-1">
                     {c.leaderId === m.id && <Crown className="size-3.5" style={{ color: c.color }} />}

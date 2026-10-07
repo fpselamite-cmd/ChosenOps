@@ -300,7 +300,7 @@ function PersonCard({ m, big }: { m: Member; big?: boolean }) {
       <Avatar member={m} size={big ? 'xl' : 'lg'} online={isOnline(m.id)} />
       <span className="w-full truncate font-hud text-base font-bold text-gold-100 group-hover:text-gold-200">{m.name}</span>
       {m.alias && <span className="-mt-1 w-full truncate text-xs text-ash italic">“{m.alias}”</span>}
-      <RankBadge rank={rank} />
+      <RankBadge rank={rank} size={big ? 'lg' : 'sm'} />
       <RoleChips memberId={m.id} className="justify-center" />
       <span className="text-[11px] text-smoke">
         {tenure(days(m))}

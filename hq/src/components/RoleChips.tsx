@@ -1,16 +1,15 @@
 import { useHub } from '../hooks/useHub';
+import { RoleRibbon } from './Badges';
 
-/** Plain chips for the roles someone holds. (The chip and badge look is being redesigned.) */
-export function RoleChips({ memberId, className = '' }: { memberId: string; className?: string }) {
+/** The roles someone holds, as ribbons: High Table roles first. */
+export function RoleChips({ memberId, className = '', size = 'sm' }: { memberId: string; className?: string; size?: 'sm' | 'lg' }) {
   const { rolesOf } = useHub();
-  const list = rolesOf(memberId);
+  const list = [...rolesOf(memberId)].sort((a, b) => Number(!!b.lead) - Number(!!a.lead) || Number(!!a.honor) - Number(!!b.honor) || a.order - b.order);
   if (!list.length) return null;
   return (
-    <span className={`flex flex-wrap gap-1 ${className}`}>
+    <span className={`flex flex-wrap items-center gap-1 ${className}`}>
       {list.map((r) => (
-        <span key={r.id} title={r.note} className={`chip px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${r.honor ? 'bg-sky-500/10 text-sky-300 ring-1 ring-sky-400/30' : 'bg-gold-400/10 text-gold-200 ring-1 ring-gold-400/30'}`}>
-          {r.name}
-        </span>
+        <RoleRibbon key={r.id} role={r} size={size} />
       ))}
     </span>
   );
