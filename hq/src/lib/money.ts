@@ -49,7 +49,49 @@ export interface Sale {
   noelKey?: string;
   note?: string;
   byName?: string;
+  /** Gang (from a gang stash: the money is the gang's) or personal (from my locker: the money is mine). Older sales have none. */
+  kind?: SaleKind;
+  /** Who went along on the Narco call. */
+  team?: string[];
+  /** Lines sold on the same Narco call share this. */
+  callId?: string;
   at?: Timestamp;
+}
+export type SaleKind = 'gang' | 'personal';
+/** A sale's kind; older sales go by where the product came from. */
+export const saleKind = (x: Pick<Sale, 'kind' | 'from'>): SaleKind => x.kind ?? (x.from.startsWith('lockerStock/') ? 'personal' : 'gang');
+
+/** Dirty money the call's leader paid to someone who came along: out of the sale itself, or out of their own pocket. */
+export interface TeamPay {
+  id: string;
+  callId: string;
+  /** The first sale of the call, for the rules to check. */
+  saleId: string;
+  from: string;
+  to: string;
+  dirty: number;
+  source: 'sale' | 'mine';
+  /** How much of it came out of the gang's share of the sale. */
+  fromBank: number;
+  at?: Timestamp;
+}
+
+/** Dirty money a member sends to the family's washers. It leaves their locker now; the clean comes back when it's done. */
+export type WashStatus = 'open' | 'claimed' | 'done' | 'cancelled';
+export interface WashRequest {
+  id: string;
+  memberId: string;
+  memberName: string;
+  dirty: number;
+  /** % lost in the wash, e.g. 50. */
+  pct: number;
+  clean: number;
+  status: WashStatus;
+  claimerId?: string | null;
+  claimerName?: string | null;
+  note?: string;
+  at?: Timestamp;
+  doneAt?: Timestamp;
 }
 
 export interface Wash {
@@ -87,6 +129,14 @@ export interface Wish {
   status: WishStatus;
   claimerId?: string | null;
   claimerName?: string | null;
+  /** A catalog item, so the asker can drop it into their locker when it's done. */
+  itemId?: string | null;
+  /** What the asker will pay. */
+  offer?: number;
+  /** Leadership: pinned to the top, or marked urgent. */
+  priority?: 'pinned' | 'urgent' | null;
+  /** The asker put the item in their locker. */
+  received?: boolean;
   at?: Timestamp;
   doneAt?: Timestamp;
 }
@@ -101,6 +151,16 @@ export interface BmSettings {
 
 export const money = (v: number) => `$${Math.round(Math.max(0, v)).toLocaleString('en-US')}`;
 const ms = (t?: Timestamp) => t?.toMillis() ?? Date.now();
+
+/** Splits a call's payout from the sale: out of the gang's share first, then out of the leader's personal share. */
+export function payoutSplit(callSales: Sale[], pays: TeamPay[], amount: number, source: 'sale' | 'mine') {
+  if (source === 'mine') return { fromBank: 0, room: Infinity };
+  const gang = callSales.filter((x) => saleKind(x) === 'gang').reduce((t, x) => t + (x.price ?? 0), 0);
+  const total = callSales.reduce((t, x) => t + (x.price ?? 0), 0);
+  const usedBank = pays.filter((p) => p.source === 'sale').reduce((t, p) => t + p.fromBank, 0);
+  const usedAll = pays.filter((p) => p.source === 'sale').reduce((t, p) => t + p.dirty, 0);
+  return { fromBank: Math.max(0, Math.min(amount, gang - usedBank)), room: Math.max(0, total - usedAll) };
+}
 
 export interface PersonMoney {
   id: string;
@@ -124,7 +184,21 @@ export interface PersonMoney {
 export function useMoney() {
   const { me, can, memberById } = useHub();
   const all = can('money');
-  const salesQ = useMemo(() => (all ? query(collection(db, 'sales')) : query(collection(db, 'sales'), where('sellerId', '==', me.id))), [all, me.id]);
+  const washer = can('washMoney');
+  // Narco sales are public to the family; personal amounts are hidden on screen.
+  const salesQ = useMemo(() => query(collection(db, 'sales')), []);
+  const tpAll = useMemo(() => query(collection(db, 'teamPays')), []);
+  const tpFrom = useMemo(() => query(collection(db, 'teamPays'), where('from', '==', me.id)), [me.id]);
+  const tpTo = useMemo(() => query(collection(db, 'teamPays'), where('to', '==', me.id)), [me.id]);
+  const paysAll = useCollection<TeamPay>(tpAll, all);
+  const paysFrom = useCollection<TeamPay>(tpFrom, !all);
+  const paysTo = useCollection<TeamPay>(tpTo, !all);
+  const pays = all ? paysAll : paysFrom && paysTo ? [...new Map([...paysFrom, ...paysTo].map((p) => [p.id, p])).values()] : null;
+  const wrAll = useMemo(() => query(collection(db, 'washRequests')), []);
+  const wrMine = useMemo(() => query(collection(db, 'washRequests'), where('memberId', '==', me.id)), [me.id]);
+  const reqsAll = useCollection<WashRequest>(wrAll, all || washer);
+  const reqsMine = useCollection<WashRequest>(wrMine, !(all || washer));
+  const washReqs = all || washer ? reqsAll : reqsMine;
   const washQ = useMemo(() => (all ? query(collection(db, 'washes')) : query(collection(db, 'washes'), where('memberId', '==', me.id))), [all, me.id]);
   const ledgerQ = useMemo(() => (all ? query(collection(db, 'ledger')) : query(collection(db, 'ledger'), where('toId', '==', me.id))), [all, me.id]);
   const sales = useCollection<Sale>(salesQ);
@@ -156,11 +230,14 @@ export function useMoney() {
       return people.get(id)!;
     };
     sorted.forEach((x) => {
+      // Only my own sales count toward my money: everyone can see the log now.
+      if (!all && x.sellerId !== me.id) return;
       const p = get(x.sellerId, x.sellerName);
       p.qty += x.qty;
       if (x.price) {
         p.sold += x.price;
-        p.dirtyIn += x.price;
+        // A gang sale's money is the gang's; older sales (no kind) stayed with the seller, as before.
+        if (!x.kind || x.kind === 'personal') p.dirtyIn += x.price;
         p.earned += Math.round((x.price * (x.cut ?? 0)) / 100);
       }
     });
@@ -174,6 +251,17 @@ export function useMoney() {
     });
     const moved = new Map<string, { dirty: number; clean: number }>();
     const add = (id: string, d: number, c: number) => moved.set(id, { dirty: (moved.get(id)?.dirty ?? 0) + d, clean: (moved.get(id)?.clean ?? 0) + c });
+    (pays ?? []).forEach((tp) => {
+      add(tp.from, -(tp.dirty - tp.fromBank), 0);
+      add(tp.to, tp.dirty, 0);
+      get(tp.from, '');
+      get(tp.to, '');
+    });
+    (washReqs ?? []).forEach((w) => {
+      if (w.status === 'cancelled') return;
+      add(w.memberId, -w.dirty, w.status === 'done' ? w.clean : 0);
+      get(w.memberId, w.memberName);
+    });
     (own ?? []).forEach((c) => {
       add(c.memberId, c.dirty ?? 0, c.clean ?? 0);
       get(c.memberId, '');
@@ -191,12 +279,16 @@ export function useMoney() {
       p.lost = p.washed - p.clean;
       p.clean += mv?.clean ?? 0;
     });
-    const income = sorted.reduce((t, x) => t + (x.price ?? 0), 0);
+    const gangSales = sorted.filter((x) => saleKind(x) === 'gang' || !x.kind);
+    const income = gangSales.reduce((t, x) => t + (x.price ?? 0), 0) - (pays ?? []).reduce((t, p) => t + p.fromBank, 0);
     const payouts = (ledger ?? []).filter((l) => l.type === 'payout').reduce((t, l) => t + l.amount, 0);
     const expenses = (ledger ?? []).filter((l) => l.type === 'expense').reduce((t, l) => t + l.amount, 0);
     return {
-      ready: !!sales && !!washes && !!ledger && !!wishes && settings !== undefined && !!moves && !!own,
+      ready: !!sales && !!washes && !!ledger && !!wishes && settings !== undefined && !!moves && !!own && !!pays && !!washReqs,
       all,
+      washer,
+      pays: pays ?? [],
+      washReqs: [...(washReqs ?? [])].sort((a, b) => ms(b.at) - ms(a.at)),
       sales: sorted,
       washes: [...(washes ?? [])].sort((a, b) => ms(b.at) - ms(a.at)),
       ledger: [...(ledger ?? [])].sort((a, b) => ms(b.at) - ms(a.at)),
@@ -205,7 +297,8 @@ export function useMoney() {
       prices: s.prices ?? {},
       defaultCut: s.defaultCut ?? 20,
       washPct: s.washPct ?? 50,
-      cutFor: (memberId: string) => s.cuts?.[memberId] ?? s.defaultCut ?? 20,
+      /** Narco sales pay no cut; the call's leader pays the team out of the sale instead. */
+      cutFor: (_memberId: string) => 0,
       people: [...people.values()],
       mine: people.get(me.id) ?? get(me.id, me.name),
       bank: income - payouts - expenses,
@@ -213,7 +306,7 @@ export function useMoney() {
       payouts,
       expenses,
     };
-  }, [sales, washes, ledger, wishes, settings, moves, own, all, me.id, me.name, memberById]);
+  }, [sales, washes, ledger, wishes, settings, moves, own, pays, washReqs, all, me.id, me.name, memberById]);
 }
 
 /** BlackMarket actions. Selling takes the product out of a stash or your own locker storage. */
@@ -222,7 +315,7 @@ export function useMoneyOps() {
   const ops = useOps('blackmarket');
   const sign = { _by: me.id, _via: ops.via };
   return {
-    async sell(p: { product: string; qty: number; from: string; fromLabel: string; seller: { id: string; name: string }; cut: number; price: number | null; narco: boolean; note: string }) {
+    async sell(p: { product: string; qty: number; from: string; fromLabel: string; seller: { id: string; name: string }; cut: number; price: number | null; narco: boolean; note: string; kind: SaleKind; team: string[]; callId: string }) {
       const item = saleItem(p.product)!;
       const taken = await ops.applyDeltas([{ loc: p.from, strain: item.strain, field: item.field, delta: -p.qty }]);
       if (!taken.length || -taken[0]!.delta < p.qty) {
@@ -246,6 +339,9 @@ export function useMoneyOps() {
         price: p.price,
         narco: p.narco,
         note: p.note.slice(0, 60),
+        kind: p.kind,
+        team: p.team.slice(0, 12),
+        callId: p.callId,
         byName: me.name,
         at: serverTimestamp(),
         ...(noelKey ? { noelKey } : {}),
@@ -257,6 +353,7 @@ export function useMoneyOps() {
       });
       if (p.price) countSale(sign, p.seller.id, p.price);
       return {
+        id: ref.id,
         text: `Sold ${p.qty} × ${item.name}${p.price ? ` for ${money(p.price)} dirty` : ''}.`,
         undo: () => Promise.all([ops.reverse(taken)(), deleteDoc(ref).catch(() => {}), noelKey ? removeNoelSale(noelKey) : null, p.price ? countSale(sign, p.seller.id, -p.price) : null]),
       };
@@ -272,11 +369,26 @@ export function useMoneyOps() {
     wash: (w: { memberId: string; memberName: string; dirty: number; pct: number; note: string }) =>
       addDoc(collection(db, 'washes'), { ...w, clean: Math.round((w.dirty * (100 - w.pct)) / 100), byName: me.name, at: serverTimestamp(), ...sign }),
     removeWash: (id: string) => deleteDoc(doc(db, 'washes', id)),
+    /** The call's leader pays someone who came along. */
+    payTeam: (t: Omit<TeamPay, 'id' | 'at'>) => addDoc(collection(db, 'teamPays'), { ...t, at: serverTimestamp() }),
+    requestWash: (dirty: number, pct: number, note: string) =>
+      addDoc(collection(db, 'washRequests'), {
+        memberId: me.id, memberName: me.name, dirty, pct, clean: Math.round((dirty * (100 - pct)) / 100), status: 'open', claimerId: null, claimerName: null, note: note.slice(0, 80), at: serverTimestamp(),
+      }),
+    washStep(w: WashRequest, step: 'claim' | 'unclaim' | 'done' | 'cancel') {
+      const ref = doc(db, 'washRequests', w.id);
+      if (step === 'claim') return updateDoc(ref, { status: 'claimed', claimerId: me.id, claimerName: me.name });
+      if (step === 'unclaim') return updateDoc(ref, { status: 'open', claimerId: null, claimerName: null });
+      if (step === 'done') return updateDoc(ref, { status: 'done', doneAt: serverTimestamp() });
+      return updateDoc(ref, { status: 'cancelled', doneAt: serverTimestamp() });
+    },
     addLedger: (e: Omit<LedgerEntry, 'id' | 'at' | 'byName'>) => addDoc(collection(db, 'ledger'), { ...e, byName: me.name, at: serverTimestamp() }),
     removeLedger: (id: string) => deleteDoc(doc(db, 'ledger', id)),
     saveSettings: (patch: Partial<BmSettings>) => setDoc(doc(db, 'settings', 'blackmarket'), patch, { merge: true }),
-    postWish: (w: { title: string; qty: number; notes: string; fields: Record<string, string> }) =>
+    postWish: (w: { title: string; qty: number; notes: string; fields: Record<string, string>; itemId?: string | null; offer?: number }) =>
       addDoc(collection(db, 'wishes'), { ...w, byId: me.id, byName: me.name, status: 'open', claimerId: null, claimerName: null, at: serverTimestamp() }),
+    setWishPriority: (w: Wish, priority: Wish['priority']) => updateDoc(doc(db, 'wishes', w.id), { priority: priority ?? null }),
+    markReceived: (w: Wish) => updateDoc(doc(db, 'wishes', w.id), { received: true }),
     wishAction(w: Wish, action: 'claim' | 'unclaim' | 'done' | 'cancel') {
       const ref = doc(db, 'wishes', w.id);
       if (action === 'claim') return updateDoc(ref, { status: 'claimed', claimerId: me.id, claimerName: me.name });

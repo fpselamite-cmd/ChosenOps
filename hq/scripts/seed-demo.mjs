@@ -20,7 +20,7 @@ const RANKS = [
   ['soldier', 'Soldier', false, {}],
   ['associate', 'Associate', false, {}],
 ];
-const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true, familyCards: true };
+const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true, familyCards: true, washMoney: true };
 const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
 const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
 const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
@@ -241,7 +241,21 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     ['dosidos', 3, 'main', 'Main Stash', 'Kira Lane', 15, 54000, 52 * 24], ['meth', 2, 'noel_basement', "Tempest's Basement", 'Jax Holt', 15, 50000, 75 * 24],
   ];
   for (const [i, [product, qty, from, fromLabel, who, cut, price, hoursAgo]] of sales.entries())
-    await setDoc(doc(db, 'sales', `s${i}`), { product, qty, from, fromLabel, sellerId: ids[who], sellerName: who, cut, price, narco: i === 1, note: i === 2 ? 'Pier buyer' : '', byName: who, at: Timestamp.fromMillis(now - hoursAgo * H), ...sign });
+    await setDoc(doc(db, 'sales', `s${i}`), {
+      product, qty, from, fromLabel, sellerId: ids[who], sellerName: who, cut: i < 4 ? 0 : cut, price, narco: true, note: i === 2 ? 'Pier buyer' : '', byName: who,
+      // The newest few are new-style Narco calls with a team.
+      ...(i < 4 ? { kind: 'gang', callId: `call${i}`, team: i === 0 ? [ids['Marco Gallo'], ids['Kira Lane']] : i === 2 ? [ids['Dani Cruz']] : [] } : {}),
+      at: Timestamp.fromMillis(now - hoursAgo * H), ...sign,
+    });
+  // A personal sale out of Vito's own locker, with a crew; he paid Rocco out of the sale.
+  await setDoc(doc(db, 'sales', 'sp'), { product: 'meth', qty: 1, from: `lockerStock/${ids['Don Vito']}__home`, fromLabel: 'My Home', sellerId: ids['Don Vito'], sellerName: 'Don Vito', cut: 0, price: 24000, narco: true, note: '', byName: 'Don Vito', kind: 'personal', callId: 'callp', team: [ids['Rocco Vale']], at: Timestamp.fromMillis(now - 3 * H), ...sign });
+  await setDoc(doc(db, 'teamPays', 'tp0'), { callId: 'callp', saleId: 'sp', from: ids['Don Vito'], to: ids['Rocco Vale'], dirty: 6000, source: 'sale', fromBank: 0, at: Timestamp.fromMillis(now - 2 * H) });
+  // Wash requests: one waiting, one being washed, one done.
+  const wr = (id, who, dirty, status, claimer, hoursAgo) =>
+    setDoc(doc(db, 'washRequests', id), { memberId: ids[who], memberName: who, dirty, pct: 50, clean: dirty / 2, status, claimerId: claimer ? ids[claimer] : null, claimerName: claimer, note: '', at: Timestamp.fromMillis(now - hoursAgo * H), ...(status === 'done' ? { doneAt: Timestamp.fromMillis(now - (hoursAgo - 1) * H) } : {}) });
+  await wr('wr0', 'Kira Lane', 12000, 'open', null, 1);
+  await wr('wr1', 'Don Vito', 20000, 'claimed', 'Lena Russo', 5);
+  await wr('wr2', 'Marco Gallo', 30000, 'done', 'Lena Russo', 30);
   await setDoc(doc(db, 'washes', 'w0'), { memberId: ids['Lena Russo'], memberName: 'Lena Russo', dirty: 30000, pct: 50, clean: 15000, note: 'Laundromat', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 4 * H), ...sign });
   await setDoc(doc(db, 'washes', 'w1'), { memberId: ids['Marco Gallo'], memberName: 'Marco Gallo', dirty: 40000, pct: 50, clean: 20000, note: '', byName: 'Lena Russo', at: Timestamp.fromMillis(now - 2 * D), ...sign });
   await setDoc(doc(db, 'ledger', 'l0'), { type: 'payout', amount: 7600, toId: ids['Lena Russo'], toName: 'Lena Russo', note: 'Weekly cut', byName: 'Lena Russo', at: Timestamp.fromMillis(now - D) });
@@ -251,7 +265,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     defaultCut: 20, cuts: { [ids['Kira Lane']]: 15, [ids['Jax Holt']]: 15, [ids['Rocco Vale']]: 25, [ids['Don Vito']]: 30 }, washPct: 50,
     wishFields: [{ id: 'pay', label: 'Will pay' }],
   });
-  await setDoc(doc(db, 'wishes', 'x0'), { title: 'Thermite', qty: 3, notes: 'For the bank job', fields: { pay: '$5k each' }, byId: ids['Rocco Vale'], byName: 'Rocco Vale', status: 'open', claimerId: null, claimerName: null, at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'wishes', 'x0'), { title: 'Thermite', qty: 3, notes: 'For the bank job', fields: { pay: '$5k each' }, byId: ids['Rocco Vale'], byName: 'Rocco Vale', status: 'open', claimerId: null, claimerName: null, priority: 'urgent', offer: 15000, at: Timestamp.fromMillis(now - 5 * H) });
+  await setDoc(doc(db, 'wishes', 'x2'), { title: 'Armor Plate', qty: 4, notes: '', fields: {}, itemId: 'ar_armor_plate', byId: ids['Don Vito'], byName: 'Don Vito', status: 'done', claimerId: ids['Tommy Reyes'], claimerName: 'Tommy Reyes', at: Timestamp.fromMillis(now - 30 * H), doneAt: Timestamp.fromMillis(now - 6 * H) });
   await setDoc(doc(db, 'wishes', 'x1'), { title: 'Heavy Armor', qty: 10, notes: '', fields: {}, byId: ids['Dani Cruz'], byName: 'Dani Cruz', status: 'claimed', claimerId: ids['Tommy Reyes'], claimerName: 'Tommy Reyes', at: Timestamp.fromMillis(now - 26 * H) });
 
   // Don Vito's locker, a sign-out and a trade

@@ -389,13 +389,38 @@ describe('money', () => {
       const db = ctx.firestore();
       await updateDoc(doc(db, 'hqRanks/soldier'), { pages: { blackmarket: true } });
       await updateDoc(doc(db, 'hqRanks/underboss'), { 'permissions.money': true });
-      await setDoc(doc(db, 'sales/s1'), { sellerId: 'sol', qty: 1, price: 5000 });
+      await setDoc(doc(db, 'sales/s1'), { sellerId: 'sol', qty: 1, price: 5000, callId: 'c1', team: ['sol2'] });
+      await updateDoc(doc(db, 'hqRanks/capo'), { 'permissions.washMoney': true });
     });
   });
-  it('shows sellers only their own sales; the Treasurer sees all', async () => {
+  it('shows the Narco log to the whole family', async () => {
     await assertSucceeds(getDoc(doc(as('sol'), 'sales/s1')));
-    await assertFails(getDoc(doc(as('sol2'), 'sales/s1')));
-    await assertSucceeds(getDoc(doc(as('ub'), 'sales/s1')));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'sales/s1')));
+    await assertSucceeds(getDocs(collection(as('sol2'), 'sales')));
+  });
+  it('lets the call leader pay only the people who came along', async () => {
+    const pay = { callId: 'c1', saleId: 's1', from: 'sol', to: 'sol2', dirty: 1000, source: 'sale', fromBank: 1000, at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'teamPays/p1'), pay));
+    await assertFails(setDoc(doc(as('sol'), 'teamPays/p2'), { ...pay, to: 'ub' }));
+    await assertFails(setDoc(doc(as('sol2'), 'teamPays/p3'), { ...pay, from: 'sol2', to: 'sol' }));
+    await assertFails(setDoc(doc(as('sol'), 'teamPays/p4'), { ...pay, source: 'mine' }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'teamPays/p1')));
+    await assertSucceeds(getDoc(doc(as('ub'), 'teamPays/p1')));
+    await assertFails(getDoc(doc(as('capo'), 'teamPays/p1')));
+  });
+  it('runs wash requests: member sends, a washer claims and finishes', async () => {
+    const req = { memberId: 'sol', memberName: 'Sol', dirty: 10000, pct: 50, clean: 5000, status: 'open', claimerId: null, claimerName: null, note: '', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'washRequests/w1'), req));
+    await assertFails(setDoc(doc(as('sol'), 'washRequests/w2'), { ...req, clean: 20000 }));
+    await assertFails(setDoc(doc(as('sol'), 'washRequests/w3'), { ...req, memberId: 'sol2' }));
+    await assertFails(getDoc(doc(as('sol2'), 'washRequests/w1')));
+    await assertSucceeds(getDoc(doc(as('capo'), 'washRequests/w1')));
+    await assertFails(updateDoc(doc(as('sol2'), 'washRequests/w1'), { status: 'claimed', claimerId: 'sol2', claimerName: 'Sol2' }));
+    await assertSucceeds(updateDoc(doc(as('capo'), 'washRequests/w1'), { status: 'claimed', claimerId: 'capo', claimerName: 'Capo' }));
+    await assertFails(updateDoc(doc(as('sol'), 'washRequests/w1'), { status: 'cancelled', doneAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(as('capo'), 'washRequests/w1'), { status: 'done', doneAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'washRequests/w4'), req));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'washRequests/w4'), { status: 'cancelled', doneAt: serverTimestamp() }));
   });
   it('lets sellers record their own sales only', async () => {
     const sale = { qty: 2, price: 9000, at: serverTimestamp(), _by: 'sol', _via: 'rank' };

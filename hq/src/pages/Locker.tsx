@@ -16,7 +16,7 @@ import { saveShopping, useShopping } from '../lib/shopping';
 import { KIND_COLOR, KIND_ICON } from '../lib/kindStyle';
 import { ITEM_KINDS, itemTitle, kindOf, type ItemType } from '../lib/items';
 import { countOf, thingKey, thingsIn, useLocker, type ItemMeta, type Kit, type Locker as LockerApi, type Thing } from '../lib/locker';
-import { addMyCash, money, useMoney, type MyCash } from '../lib/money';
+import { addMyCash, money, useMoney, useMoneyOps, type MyCash } from '../lib/money';
 import { collection, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { PRODUCTS, ROOT_FIELDS, STRAINS, toCount, type RootField } from '../noel/data';
@@ -1024,6 +1024,89 @@ function ShoppingPanel({ name }: { name: (id: string) => string }) {
   );
 }
 
+/** Send dirty money to the family's washers: it leaves your locker now, the clean comes back when it's done. */
+function WashDialog({ onClose }: { onClose: () => void }) {
+  const m = useMoney();
+  const mops = useMoneyOps();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const a = Math.round(Number(amount) || 0);
+  const back = Math.round((a * (100 - m.washPct)) / 100);
+  return (
+    <Modal title="Wash dirty money" onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (a <= 0) return setError('Enter how much to wash.');
+          if (a > m.mine.held) return setError(`You only hold ${money(m.mine.held)} dirty.`);
+          await mops.requestWash(a, m.washPct, note.trim());
+          onClose();
+        }}
+      >
+        <p className="text-sm text-ash">A family washer claims it and washes it in the city. It leaves your dirty money now; {100 - m.washPct}% comes back clean when it’s done. No fee on top.</p>
+        <Field label={`Amount · you hold ${money(m.mine.held)}`}>
+          <input className="input font-mono text-lg" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} autoFocus />
+        </Field>
+        <div className="flex flex-wrap gap-1.5">
+          {[25, 50, 100].map((p) => (
+            <button type="button" key={p} className="btn-ghost btn-sm" onClick={() => setAmount(String(Math.floor((m.mine.held * p) / 100)))}>
+              {p === 100 ? 'All' : `${p}%`}
+            </button>
+          ))}
+        </div>
+        <Field label="Note">
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={80} placeholder="Optional" />
+        </Field>
+        {a > 0 && (
+          <p className="text-center text-sm">
+            <span className="font-mono text-red-300">{money(a)}</span> dirty → <span className="font-mono text-gold-100">{money(back)}</span> clean
+          </p>
+        )}
+        <ErrorText error={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold">Send to the washers</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** My wash requests that are still going, or finished lately. */
+function WashList() {
+  const { me } = useHub();
+  const m = useMoney();
+  const mops = useMoneyOps();
+  const mine = m.washReqs.filter((w) => w.memberId === me.id && (w.status === 'open' || w.status === 'claimed' || (w.doneAt?.toMillis() ?? 0) > Date.now() - 3 * 86400e3));
+  if (!mine.length) return null;
+  return (
+    <Panel title="Washing" className="mb-6">
+      <ul className="divide-y divide-line-soft">
+        {mine.map((w) => (
+          <li key={w.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+            <span className="font-mono text-red-300">{money(w.dirty)}</span>→<span className="font-mono text-gold-100">{money(w.clean)}</span>
+            <span className="text-xs text-smoke">· {ago(w.at)}</span>
+            <span
+              className={`chip ml-auto px-2 py-0.5 text-[11px] font-bold ${w.status === 'done' ? 'bg-ok/15 text-green-300' : w.status === 'claimed' ? 'bg-sky-500/20 text-sky-300' : w.status === 'cancelled' ? 'bg-raised text-smoke' : 'bg-gold-400/15 text-gold-200'}`}
+            >
+              {w.status === 'done' ? 'Clean · in your locker' : w.status === 'claimed' ? `${w.claimerName} is washing it` : w.status === 'cancelled' ? 'Cancelled' : 'Waiting for a washer'}
+            </span>
+            {w.status === 'open' && (
+              <button className="text-xs text-smoke hover:text-red-300" onClick={() => mops.washStep(w, 'cancel')}>
+                Cancel
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 function Body() {
   const locker = useLocker();
   const m = useMoney();
@@ -1033,6 +1116,7 @@ function Body() {
   const [trading, setTrading] = useState(false);
   const [packing, setPacking] = useState(false);
   const [cash, setCash] = useState<'dirty' | 'clean' | null>(null);
+  const [washing, setWashing] = useState(false);
   const { name: itemName } = useItemTypes();
   const [open, setOpen] = useState<{ storageId: string; thing: Thing } | null>(null);
   const [acceptInto, setAcceptInto] = useState<Record<string, string>>({});
@@ -1075,9 +1159,17 @@ function Body() {
         <button className="text-left" onClick={() => setCash('clean')} title="Add or take out clean cash">
           <Stat label="Clean money" value={money(m.mine.clean)} sub={<span className="text-gold-300">+ add or take out</span>} />
         </button>
-        <Stat label="Earned (your cut)" value={money(m.mine.earned)} sub={`${money(m.mine.paid)} paid to you`} />
+        <button className="text-left" onClick={() => setWashing(true)} title="Send dirty money to the family's washers">
+          <Stat
+            label="Washing"
+            value={<span className="text-sky-300">{money(m.washReqs.filter((w) => w.memberId === m.mine.id && (w.status === 'open' || w.status === 'claimed')).reduce((t, w) => t + w.dirty, 0))}</span>}
+            sub={<span className="text-gold-300">+ wash dirty money</span>}
+          />
+        </button>
         <Stat label="Owed to you" value={<span className={m.mine.owed ? 'text-gold-200' : ''}>{money(m.mine.owed)}</span>} sub="by the Treasurer" />
       </div>
+
+      <WashList />
 
       {(incoming.length > 0 || mine.length > 0) && (
         <Panel title="Older trades" className="mb-6">
@@ -1160,6 +1252,7 @@ function Body() {
       {trading && <NewTrade locker={locker} itemName={itemName} onClose={() => setTrading(false)} />}
       {packing && <PackDialog locker={locker} onClose={() => setPacking(false)} />}
       {cash && <CashDialog kind={cash} onClose={() => setCash(null)} />}
+      {washing && <WashDialog onClose={() => setWashing(false)} />}
       {open && <ThingDialog locker={locker} storageId={open.storageId} thing={{ ...open.thing, qty: countOf(locker.stock.get(open.storageId), open.thing) || open.thing.qty }} onClose={() => setOpen(null)} />}
     </>
   );
