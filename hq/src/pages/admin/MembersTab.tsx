@@ -1,6 +1,6 @@
 import { doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { AlertTriangle, Eye, GitMerge, KeyRound, Pencil, Search, Trash2, Wrench } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { RankBadge } from '../../components/Badges';
@@ -199,8 +199,8 @@ function Rename({ m }: { m: Member }) {
   );
 }
 
-function DangerZone({ m, onDone }: { m: Member; onDone: () => void }) {
-  const { me, members } = useHub();
+function DangerZone({ m, onDone, startDelete }: { m: Member; onDone: () => void; startDelete?: boolean }) {
+  const { me, members, isOwner } = useHub();
   const [mode, setMode] = useState<'merge' | 'delete' | null>(null);
   const [into, setInto] = useState('');
   const [typed, setTyped] = useState('');
@@ -214,12 +214,21 @@ function DangerZone({ m, onDone }: { m: Member; onDone: () => void }) {
     setPreview(null);
     previewMember(m.id).then(setPreview, () => setPreview([]));
   };
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!startDelete) return;
+    start('delete');
+    setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
-    <div className="space-y-3">
+    <div ref={box} className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <button className="btn-ghost btn-sm" onClick={() => start('merge')}>
-          <GitMerge className="size-3.5" /> Merge into another account
-        </button>
+        {isOwner && (
+          <button className="btn-ghost btn-sm" onClick={() => start('merge')}>
+            <GitMerge className="size-3.5" /> Merge into another account
+          </button>
+        )}
         <button className="btn-danger btn-sm" onClick={() => start('delete')}>
           <Trash2 className="size-3.5" /> Delete account
         </button>
@@ -295,9 +304,17 @@ function DangerZone({ m, onDone }: { m: Member; onDone: () => void }) {
   );
 }
 
-function MemberTools({ m, onClose }: { m: Member; onClose: () => void }) {
+/** Who you can delete: never yourself, the top rank, or an HQ owner; owners and admins only. */
+export function useCanDelete() {
+  const { isAdmin, isOwner, me, rankById } = useHub();
+  const owners = useDoc<{ ids?: string[] }>('meta/owners', isOwner);
+  return (m: Member) => m.id !== me.id && (isOwner || (isAdmin && (rankById.get(m.rankId ?? '')?.order ?? 99) > 0 && !(owners?.ids ?? []).includes(m.id)));
+}
+
+function MemberTools({ m, onClose, startDelete }: { m: Member; onClose: () => void; startDelete?: boolean }) {
   const { isAdmin, isOwner, can, actsOn, rankById, setPreview, me } = useHub();
   const below = m.id !== me.id && actsOn(rankById.get(m.rankId ?? ''));
+  const canDelete = useCanDelete();
   return (
     <Modal title={`Admin · ${m.name}`} onClose={onClose} wide>
       <div className="space-y-4">
@@ -326,9 +343,9 @@ function MemberTools({ m, onClose }: { m: Member; onClose: () => void }) {
             <FixData m={m} />
           </Section>
         )}
-        {isOwner && m.id !== me.id && (
-          <Section title="Danger zone · owners only" icon={<AlertTriangle className="size-3.5 text-red-300" />}>
-            <DangerZone m={m} onDone={onClose} />
+        {canDelete(m) && (
+          <Section title={isOwner ? 'Danger zone · owners only' : 'Danger zone'} icon={<AlertTriangle className="size-3.5 text-red-300" />}>
+            <DangerZone m={m} onDone={onClose} startDelete={startDelete} />
           </Section>
         )}
       </div>
@@ -339,7 +356,8 @@ function MemberTools({ m, onClose }: { m: Member; onClose: () => void }) {
 export default function MembersTab() {
   const { members, ranks, rankById, actsOn, me, can, roster, isAdmin, isOwner } = useHub();
   const [q, setQ] = useState('');
-  const [open, setOpen] = useState<Member | null>(null);
+  const [open, setOpen] = useState<{ m: Member; del?: boolean } | null>(null);
+  const canDelete = useCanDelete();
   const grantable = ranks.filter((r) => actsOn(r));
   const list = members
     .filter((m) => m.status !== 'pending' && m.name.toLowerCase().includes(q.toLowerCase()))
@@ -436,11 +454,18 @@ export default function MembersTab() {
                     )}
                   </td>
                   <td className="px-4 text-right">
-                    {(isAdmin || can('resetPins')) && (
-                      <button className="btn-ghost btn-sm" onClick={() => setOpen(m)}>
-                        <Wrench className="size-3.5" /> Tools
-                      </button>
-                    )}
+                    <span className="inline-flex items-center gap-1.5">
+                      {(isAdmin || can('resetPins')) && (
+                        <button className="btn-ghost btn-sm" onClick={() => setOpen({ m })}>
+                          <Wrench className="size-3.5" /> Tools
+                        </button>
+                      )}
+                      {canDelete(m) && (
+                        <button className="p-1.5 text-smoke hover:text-red-300" onClick={() => setOpen({ m, del: true })} title={`Delete ${m.name}`} aria-label={`Delete ${m.name}`}>
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </span>
                   </td>
                 </tr>
               );
@@ -448,7 +473,7 @@ export default function MembersTab() {
           </tbody>
         </table>
       </div>
-      {open && <MemberTools m={open} onClose={() => setOpen(null)} />}
+      {open && <MemberTools m={open.m} startDelete={open.del} onClose={() => setOpen(null)} />}
     </div>
   );
 }
