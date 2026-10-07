@@ -33,33 +33,28 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     group: 'HQ',
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/locker', label: 'My Locker', icon: Lock },
+      { to: '/family', label: 'Family', icon: Network, page: 'family' },
+      { to: '/crews', label: 'Crews', icon: Users, page: 'crews' },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },
   {
-    group: 'Ops',
+    group: 'Me',
     items: [
-      { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics', href: NOELOPS_URL },
-      { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
-    ],
-  },
-  { group: 'Money', items: [{ to: '/blackmarket', label: 'BlackMarket', icon: VenetianMask, page: 'blackmarket' }] },
-  {
-    group: 'War',
-    items: [
-      { to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' },
+      { to: '/locker', label: 'My Locker', icon: Lock },
       { to: '/gear', label: 'Gear & Loadouts', icon: Swords, page: 'gear' },
     ],
   },
-  { group: 'Street', items: [{ to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' }] },
   {
-    group: 'People',
+    group: 'Business',
     items: [
-      { to: '/crews', label: 'Crews', icon: Users, page: 'crews' },
-      { to: '/family', label: 'Family', icon: Network, page: 'family' },
+      { to: '/blackmarket', label: 'BlackMarket', icon: VenetianMask, page: 'blackmarket' },
+      { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
+      { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics', href: NOELOPS_URL },
+      { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
     ],
   },
+  { group: 'War', items: [{ to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' }] },
 ];
 
 /** Shown as buttons in the header rather than in the menu. */

@@ -424,6 +424,15 @@ service cloud.firestore {
         || (wasMine('to') && resource.data.status in ['done', 'declined'] && onlyChanges(['toCollected', 'backReturned']))
         || (wasMine('from') && resource.data.status in ['done', 'declined', 'cancelled'] && onlyChanges(['fromCollected', 'giveReturned'])));
     }
+    // Cash members add to or take out of their own locker (city money, not gang sales).
+    match /myCash/{id} {
+      allow read: if active() && (wasMine('memberId') || can('money'));
+      allow create: if active() && mine('memberId') && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['memberId', 'dirty', 'clean', 'note', 'at'])
+        && request.resource.data.dirty is int && request.resource.data.clean is int
+        && str(request.resource.data.get('note', ''), 60);
+      allow delete: if active() && wasMine('memberId');
+    }
     // Money that changed hands in a finished trade (one per direction), checked against the trade.
     match /cashMoves/{id} {
       allow read: if active() && (wasMine('from') || wasMine('to') || can('money'));

@@ -6,6 +6,18 @@ import { PRODUCTS, STRAINS, toCount, type BudField, type RootField, type StrainI
 import { useOps } from '../noel/ops';
 import { countSale } from './boards';
 import type { CashMove } from './trades';
+
+/** Cash a member adds to (or takes out of) their own locker. Negative takes it out. */
+export interface MyCash {
+  id: string;
+  memberId: string;
+  dirty: number;
+  clean: number;
+  note?: string;
+  at?: Timestamp;
+}
+export const addMyCash = (memberId: string, dirty: number, clean: number, note: string) =>
+  addDoc(collection(db, 'myCash'), { memberId, dirty: Math.round(dirty), clean: Math.round(clean), note: note.trim().slice(0, 60), at: serverTimestamp() });
 import { db } from './firebase';
 import { bucketOf, noelSale, removeNoelSale } from './noelops';
 
@@ -127,6 +139,12 @@ export function useMoney() {
   const movesFrom = useCollection<CashMove>(cmFrom, !all);
   const movesTo = useCollection<CashMove>(cmTo, !all);
   const moves = all ? movesAll : movesFrom && movesTo ? [...movesFrom, ...movesTo] : null;
+  // Cash members put in (or took out of) their own locker: money from the city, not from gang sales.
+  const pcAll = useMemo(() => query(collection(db, 'myCash')), []);
+  const pcMine = useMemo(() => query(collection(db, 'myCash'), where('memberId', '==', me.id)), [me.id]);
+  const ownAll = useCollection<MyCash>(pcAll, all);
+  const ownMine = useCollection<MyCash>(pcMine, !all);
+  const own = all ? ownAll : ownMine;
   const settings = useDoc<BmSettings & { id: string }>('settings/blackmarket');
 
   return useMemo(() => {
@@ -156,6 +174,10 @@ export function useMoney() {
     });
     const moved = new Map<string, { dirty: number; clean: number }>();
     const add = (id: string, d: number, c: number) => moved.set(id, { dirty: (moved.get(id)?.dirty ?? 0) + d, clean: (moved.get(id)?.clean ?? 0) + c });
+    (own ?? []).forEach((c) => {
+      add(c.memberId, c.dirty ?? 0, c.clean ?? 0);
+      get(c.memberId, '');
+    });
     (moves ?? []).forEach((mv) => {
       add(mv.from, -mv.dirty, -mv.clean);
       add(mv.to, mv.dirty, mv.clean);
@@ -173,7 +195,7 @@ export function useMoney() {
     const payouts = (ledger ?? []).filter((l) => l.type === 'payout').reduce((t, l) => t + l.amount, 0);
     const expenses = (ledger ?? []).filter((l) => l.type === 'expense').reduce((t, l) => t + l.amount, 0);
     return {
-      ready: !!sales && !!washes && !!ledger && !!wishes && settings !== undefined && !!moves,
+      ready: !!sales && !!washes && !!ledger && !!wishes && settings !== undefined && !!moves && !!own,
       all,
       sales: sorted,
       washes: [...(washes ?? [])].sort((a, b) => ms(b.at) - ms(a.at)),
@@ -191,7 +213,7 @@ export function useMoney() {
       payouts,
       expenses,
     };
-  }, [sales, washes, ledger, wishes, settings, moves, all, me.id, me.name, memberById]);
+  }, [sales, washes, ledger, wishes, settings, moves, own, all, me.id, me.name, memberById]);
 }
 
 /** BlackMarket actions. Selling takes the product out of a stash or your own locker storage. */
