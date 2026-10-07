@@ -29,7 +29,8 @@ export const MILESTONES = [7, 30, 100, 365];
 
 /** The next streak after visiting on `today`. Returns null when today is already counted. */
 export function nextStreak(s: Streak | null, today: string): Omit<Streak, 'id' | 'at'> | null {
-  if (!s) return { current: 1, best: 1, last: today, freezes: {} };
+  // No streak yet (or only a leave an admin set before their first visit): start one.
+  if (!s?.last) return { current: 1, best: Math.max(1, s?.best ?? 0), last: today, freezes: {} };
   if (s.last >= today) return null;
   const freezes = { ...(s.freezes ?? {}) };
   let ok = true;

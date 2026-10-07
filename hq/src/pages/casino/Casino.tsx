@@ -210,6 +210,7 @@ function Cashier() {
                 ['perRun', 'Chips per run'],
                 ['perFight', 'Per blacksite'],
                 ['perDinner', 'Per dinner'],
+                ['perVote', 'Per poll vote'],
               ] as [keyof CasinoSettings, string][]
             ).map(([k, label]) => (
               <Field key={k} label={label}>

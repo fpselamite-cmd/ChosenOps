@@ -794,6 +794,33 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await fd('fd3', 'fix', "Fixed Tommy Reyes's petty rep (120 → 95)", 1, { target: ids['Tommy Reyes'], reason: 'Logged the same session twice' });
   await fd('fd4', 'list', 'Updated the petty crime types (Delivery, Vehicle, Arson, Assassination, Special, Store Heist)', 0.5);
   await setDoc(doc(db, 'welcomes', ids['Ghost']), { text: 'Glad to have you. Ask Rocco for your first run.', by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - 49 * H) });
+  // Polls: a dinner spot, a scheduling poll, a sealed motion still open, and a closed official one.
+  const opt = (...l) => ({ options: l.map((label, i) => ({ id: String.fromCharCode(97 + i), label })), ids: l.map((_, i) => String.fromCharCode(97 + i)) });
+  const poll = (id, p, back) => setDoc(doc(db, 'polls', id), { note: '', audience: 'members', anonymous: false, reveal: 'live', official: false, closesAt: null, status: 'open', voters: [], logged: false, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), ...p });
+  const named = async (pid, who, picks) => {
+    await setDoc(doc(db, 'polls', pid, 'votes', ids[who]), { picks, memberId: ids[who], name: who, at: Timestamp.fromMillis(now - H) });
+    await setDoc(doc(db, 'pollBallots', `${pid}_${ids[who]}`), { pollId: pid, memberId: ids[who], voteId: ids[who], at: Timestamp.fromMillis(now - H) });
+  };
+  const anon = async (pid, who, picks, n) => {
+    await setDoc(doc(db, 'polls', pid, 'votes', `${pid}v${n}`), { picks, at: Timestamp.fromMillis(now - H) });
+    await setDoc(doc(db, 'pollBallots', `${pid}_${ids[who]}`), { pollId: pid, memberId: ids[who], voteId: `${pid}v${n}`, at: Timestamp.fromMillis(now - H) });
+  };
+  await poll('pl1', { question: "Where's family dinner this Sunday?", note: 'Booking closes Saturday night.', kind: 'single', ...opt('Pearls by the pier', 'Bahama Mamas', 'The Yellow Jack', 'Vito\'s place'), closesAt: Timestamp.fromMillis(now + 30 * H), voters: ['Sal Moretti', 'Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Lena Russo'].map((n) => ids[n]) }, 5);
+  for (const [who, pick] of [['Sal Moretti', 'a'], ['Rocco Vale', 'c'], ['Dani Cruz', 'a'], ['Tommy Reyes', 'a'], ['Lena Russo', 'b']]) await named('pl1', who, [pick]);
+  const slot = (d, h) => { const x = new Date(now); x.setDate(x.getDate() + d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
+  await poll('pl2', { question: 'When do we hit the Paleto bank?', note: 'Tick every time you can make. Need 6 minimum.', kind: 'dates', ...opt(slot(1, 21), slot(2, 20), slot(3, 22), slot(4, 21)), audience: 'all', closesAt: Timestamp.fromMillis(now + 50 * H), voters: ['Rocco Vale', 'Kira Lane', 'Nico Bruno'].map((n) => ids[n]) }, 3);
+  await named('pl2', 'Rocco Vale', ['a', 'c']);
+  await named('pl2', 'Kira Lane', ['a', 'b', 'c']);
+  await named('pl2', 'Nico Bruno', ['c']);
+  await poll('pl3', { question: 'Motion: declare war on the Ballas', note: "After the van hit on Grove. If it carries, it's KOS on sight from Monday.", kind: 'yesno', ...opt('Yes', 'No', 'Abstain'), anonymous: true, reveal: 'closed', official: true, closesAt: Timestamp.fromMillis(now + 70 * H), voters: ['Sal Moretti', 'Rocco Vale', 'Marco Gallo'].map((n) => ids[n]) }, 2);
+  await anon('pl3', 'Sal Moretti', ['b'], 1);
+  await anon('pl3', 'Rocco Vale', ['a'], 2);
+  await anon('pl3', 'Marco Gallo', ['a'], 3);
+  await poll('pl4', { question: 'Motion: one-month truce with the Families', kind: 'yesno', ...opt('Yes', 'No', 'Abstain'), anonymous: true, reveal: 'closed', official: true, status: 'closed', closedAt: Timestamp.fromMillis(now - 60 * H), logged: true, voters: ['Sal Moretti', 'Rocco Vale', 'Marco Gallo', 'Dani Cruz', 'Lena Russo', 'Kira Lane'].map((n) => ids[n]) }, 90);
+  for (const [i, [who, pick]] of [['Sal Moretti', 'a'], ['Rocco Vale', 'b'], ['Marco Gallo', 'a'], ['Dani Cruz', 'a'], ['Lena Russo', 'a'], ['Kira Lane', 'c']].entries()) await anon('pl4', who, [pick], i);
+  await setDoc(doc(db, 'polls/pl4/comments/c1'), { by: ids['Rocco Vale'], name: 'Rocco Vale', text: "Truce with them means we can focus on the Ballas. I'm still voting no.", at: Timestamp.fromMillis(now - 80 * H) });
+  await setDoc(doc(db, 'polls/pl1/comments/c1'), { by: ids['Rocco Vale'], name: 'Rocco Vale', text: 'Yellow Jack has the pool table. Just saying.', at: Timestamp.fromMillis(now - 4 * H) });
+  await setDoc(doc(db, 'pollTemplates', 'pt1'), { name: 'Dinner spot', question: "Where's family dinner this Sunday?", note: '', kind: 'single', options: ['Pearls by the pier', 'Bahama Mamas', 'The Yellow Jack'], audience: 'members', anonymous: false, reveal: 'live', official: false, hours: 48 });
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',

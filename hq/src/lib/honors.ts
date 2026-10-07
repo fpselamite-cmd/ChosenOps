@@ -34,7 +34,7 @@ export type FrameTheme = (typeof FRAME_THEMES)[number];
 export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
 /** Badge icons, by lucide name (see HonorArt). */
-export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry'] as const;
+export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry', 'Vote'] as const;
 export const BADGE_SHAPES = ['gem', 'shield', 'hex'] as const;
 
 /** What a milestone counts. */
@@ -55,6 +55,7 @@ export const STATS = [
   { id: 'days', label: 'Days in the family', group: 'Family life' },
   { id: 'streak', label: 'Best login streak', group: 'Family life' },
   { id: 'repSent', label: 'Rep given to the family', group: 'Family life' },
+  { id: 'votes', label: 'Polls voted on', group: 'Family life' },
   { id: 'stories', label: 'Stories in the Archives', group: 'Fun & lore' },
   { id: 'sightings', label: 'Rival sightings reported', group: 'Fun & lore' },
   { id: 'bounties', label: 'Bounties collected', group: 'Fun & lore' },
@@ -338,8 +339,18 @@ const WAVE2: Omit<Honor, 'at'>[] = [
 ];
 DEFAULT_HONORS.push(...WAVE2);
 
+/** Wave 3: for voting in the family's polls. */
+DEFAULT_HONORS.push(
+  m('v-first', 'badge', 'Cast a Ballot', 'common', 'votes', 1, 'Your first vote in a family poll.', { icon: 'Vote', shape: 'shield' }),
+  m('v-voice', 'badge', 'Voice of the Family', 'uncommon', 'votes', 10, 'Ten polls voted on.', { icon: 'Vote', shape: 'gem' }),
+  m('v-box', 'badge', 'Ballot Box', 'rare', 'votes', 50, 'Fifty polls voted on.', { icon: 'Vote', shape: 'hex' }),
+  m('v-senator', 'title', 'The Senator', 'epic', 'votes', 100, 'A hundred polls voted on.'),
+  m('v-kingmaker', 'title', 'Kingmaker', 'legendary', 'votes', 250, 'Two hundred and fifty polls voted on.', { secret: true }),
+  m('v-hue', 'hue', 'Ballot Blue', 'rare', 'votes', 25, 'Twenty-five polls voted on.', { color: '#3b82f6' }),
+);
+
 /** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
-export const HONORS_VERSION = 3;
+export const HONORS_VERSION = 4;
 
 // ---------- writes ----------
 
