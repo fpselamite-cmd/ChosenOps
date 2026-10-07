@@ -634,3 +634,32 @@ describe('signing up', () => {
     await assertFails(getDoc(doc(as('brandnew'), 'members/sol')));
   });
 });
+
+describe('character sheets', () => {
+  it('lets anyone read a sheet but only its member write it', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'sheets/sol'), { traits: ['Loyal'], skills: { Driving: 4 }, song: 'https://youtu.be/dQw4w9WgXcQ' }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'sheets/sol')));
+    await assertFails(setDoc(doc(as('sol2'), 'sheets/sol'), { traits: ['Rat'] }));
+    await assertFails(setDoc(doc(as('sol'), 'sheets/sol'), { rankId: 'boss' }));
+  });
+
+  it('keeps journal entries private until shared, and lets others only react', async () => {
+    const entry = { memberId: 'sol', title: 'Day one', text: 'Joined up.', public: false, reactions: {}, at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'journal/j1'), entry));
+    await assertFails(getDoc(doc(as('sol2'), 'journal/j1')));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'journal/j1'), { public: true }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'journal/j1')));
+    await assertSucceeds(updateDoc(doc(as('sol2'), 'journal/j1'), { 'reactions.sol2': '🔥' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'journal/j1'), { 'reactions.capo': '💀' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'journal/j1'), { text: 'hacked' }));
+  });
+
+  it('lets leadership write notes the member can read but not change', async () => {
+    const note = { memberId: 'sol', kind: 'commendation', text: 'Held the hill.', by: 'ub', byName: 'Ub', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('ub'), 'leaderNotes/n1'), note));
+    await assertSucceeds(getDoc(doc(as('sol'), 'leaderNotes/n1')));
+    await assertFails(getDoc(doc(as('sol2'), 'leaderNotes/n1')));
+    await assertFails(setDoc(doc(as('sol'), 'leaderNotes/n2'), { ...note, by: 'sol', byName: 'Sol' }));
+    await assertFails(deleteDoc(doc(as('sol'), 'leaderNotes/n1')));
+  });
+});

@@ -1,23 +1,27 @@
 import { X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Modal({
   title,
   onClose,
   children,
   wide,
+  portal,
 }: {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  /** Render at the page root, for modals opened from inside the sidebar (its blur would trap them). */
+  portal?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  const box = (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div
         role="dialog"
@@ -35,4 +39,5 @@ export function Modal({
       </div>
     </div>
   );
+  return portal ? createPortal(box, document.body) : box;
 }
