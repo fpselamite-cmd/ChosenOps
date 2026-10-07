@@ -535,14 +535,30 @@ service cloud.firestore {
     match /pettyLog/{logId} {
       allow read: if active();
       allow create: if active()
-        && request.resource.data.keys().hasOnly(['memberId', 'crime', 'rep', 'cash', 'notes', 'at'])
+        && request.resource.data.keys().hasOnly(['memberId', 'crime', 'crimes', 'perJob', 'rep', 'cash', 'cashId', 'notes', 'at'])
         && request.resource.data.memberId == myId() && request.resource.data.at == request.time
-        && str(request.resource.data.crime, 40) && str(request.resource.data.notes, 140)
+        && str(request.resource.data.crime, 80) && str(request.resource.data.notes, 140)
+        && request.resource.data.get('crimes', {}) is map && request.resource.data.get('crimes', {}).size() <= 20
+        && request.resource.data.get('perJob', []) is list && request.resource.data.get('perJob', []).size() <= 50
         && request.resource.data.rep is int && request.resource.data.rep >= 0 && request.resource.data.rep <= 1000000
         && request.resource.data.cash is int && request.resource.data.cash >= 0;
       allow delete: if active() && (resource.data.memberId == myId() || can('confirmRep'));
     }
 
+    // Each member's own weekly petty rep goal.
+    match /pettyGoals/{memberId} {
+      allow read: if active();
+      allow write: if active() && myId() == memberId
+        && request.resource.data.keys().hasOnly(['weekly']) && request.resource.data.weekly is int
+        && request.resource.data.weekly >= 0 && request.resource.data.weekly <= 10000000;
+    }
+    // The family's petty rep goal, set by leadership.
+    match /settings/pettyGoal {
+      allow read: if active();
+      allow write: if (lead() || can('confirmRep'))
+        && request.resource.data.keys().hasOnly(['title', 'target', 'by', 'from'])
+        && str(request.resource.data.title, 60) && request.resource.data.target is int && str(request.resource.data.by, 10);
+    }
     // Rep a member sends to the family, confirmed (or turned down) by Lieutenant+.
     match /repTransfers/{tid} {
       allow read: if active();

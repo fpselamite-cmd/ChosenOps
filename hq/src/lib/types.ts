@@ -106,12 +106,20 @@ export interface PettyRep {
   rep: number;
 }
 
+/** One logged session: a tally of jobs by type, and what they brought in. Older entries are single jobs. */
 export interface PettyCrime {
   id: string;
   memberId: string;
+  /** A readable summary, e.g. "Delivery ×6 · Arson ×2". */
   crime: string;
+  /** Crime type → how many. */
+  crimes?: Record<string, number>;
+  /** Rep per mission, when it was entered job by job. */
+  perJob?: number[];
   rep: number;
+  /** Dirty money; it also went into the member's locker (cashId). */
   cash: number;
+  cashId?: string | null;
   notes?: string;
   at?: Timestamp;
 }
@@ -133,7 +141,8 @@ export interface FamilyRep {
   total: number;
 }
 
-export const PETTY_CRIMES = ['Store robbery', 'ATM', 'Car theft', 'Chop shop', 'Mugging', 'House robbery', 'Corner selling', 'Other'];
+/** The city's petty crime jobs. More to come. */
+export const PETTY_CRIMES = ['Delivery', 'Vehicle', 'Arson', 'Assassination', 'Special'];
 
 export interface Presence {
   id: string;
