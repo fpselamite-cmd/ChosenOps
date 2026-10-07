@@ -429,6 +429,34 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await fc('Kira Lane', 'XVII', 'THE STAR', '7', '♥', '#d9534f', '✦', 'The Star · Seven of Hearts');
   await fc('Lena Russo', 'X', 'WHEEL OF FORTUNE', 'Q', '♣', '#e8e2cf', '☸', 'Wheel of Fortune · Queen of Clubs');
 
+  // A filled-in character sheet, a couple of journal entries and leadership notes.
+  await setDoc(doc(db, 'sheets', ids['Don Vito']), {
+    basics: { fullName: 'Vittorio "Don" Amato', age: '52', hometown: 'Palermo', nationality: 'Italian', height: "6'1\"", build: 'Broad' },
+    looks: { hair: 'Silver, slicked back', eyes: 'Dark brown', marks: 'Scar across the left palm', outfit: 'Charcoal three-piece, gold cufflinks', distinct: 'Never takes his rings off' },
+    city: { job: 'Owns the Velvet Room club', vehicles: 'Black Enus Windsor', homePostal: '8021', hangout: 'Back booth at the Velvet Room' },
+    story: {
+      quote: 'Loyalty is the only currency that never washes clean.',
+      backstory: 'Came over on a cargo ship with nothing but a name. Ran numbers for the old Amato crew until there was no old crew left.',
+      joined: 'Founded the family the night the docks burned.',
+      goals: 'Own every port in the city.',
+      fears: 'Dying in a hospital bed.',
+    },
+    traits: ['Patient', 'Ruthless', 'Old-fashioned', 'Generous to his own'],
+    skills: { Shooting: 3, Melee: 2, Tactics: 5, Driving: 2, Stealth: 1, Lockpicking: 1, Hacking: 0, Charisma: 5, Intimidation: 5, Negotiation: 5, Cooking: 1, Growing: 2, Mechanic: 0, Medic: 1 },
+    customSkills: [{ name: 'Wine', value: 5 }],
+    customFields: [{ label: 'Favorite drink', value: 'Barolo, 1998' }],
+    relations: [
+      { memberId: ids['Lena Russo'], name: 'Lena Russo', kind: 'Protégé', note: 'Smartest in the room. Don’t tell her.' },
+      { memberId: ids['Marco Gallo'], name: 'Marco Gallo', kind: 'Rival', note: 'Wants the chair.' },
+      { memberId: null, name: 'Det. Hollis', kind: 'Owes me', note: 'LSPD. Paid off twice.' },
+    ],
+    song: 'https://www.youtube.com/watch?v=HiR9KeIJ7Ao',
+    wanted: { on: false, bounty: 250000, crime: 'running this city' },
+  });
+  await setDoc(doc(db, 'journal', 'j1'), { memberId: ids['Don Vito'], title: 'The night the docks burned', text: 'Three crews walked in. One walked out. We are the one.', public: true, reactions: { [ids['Lena Russo']]: '👑', [ids['Marco Gallo']]: '🔥' }, at: Timestamp.fromMillis(now - 20 * 86400_000) });
+  await setDoc(doc(db, 'journal', 'j2'), { memberId: ids['Don Vito'], title: 'Note to self', text: 'Watch Marco.', public: false, reactions: {}, at: Timestamp.fromMillis(now - 2 * 86400_000) });
+  await setDoc(doc(db, 'leaderNotes', 'n1'), { memberId: ids['Marco Gallo'], kind: 'warning', text: 'Late to the docks drop twice this week.', by: ids['Don Vito'], byName: 'Don Vito', at: Timestamp.fromMillis(now - 86400_000) });
+
   await setDoc(doc(db, 'settings/gang'), { name: 'The Chosen', motto: 'Chosen by blood. Bound in gold.' });
   await setDoc(doc(db, 'settings/announcement'), {
     text: 'Blacksite at the docks Friday 9PM ET. Hit Squad leads, everyone else on standby. Bring armor.',

@@ -126,7 +126,7 @@ function MeCard() {
         <Palette className="size-4" />
       </button>
       {look && (
-        <Modal title="Customize · only you see this" onClose={() => setLook(false)} wide>
+        <Modal title="Customize · only you see this" onClose={() => setLook(false)} wide portal>
           <Appearance bare />
         </Modal>
       )}

@@ -868,3 +868,22 @@ html[data-sky='plain'] .sky-glass {
   mix-blend-mode: screen;
   pointer-events: none;
 }
+
+/* ---------- Character sheet ---------- */
+/* An old paper WANTED poster in place of the portrait. */
+.wanted {
+  color: #2a1a08;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.25), transparent 60%),
+    radial-gradient(circle at 80% 90%, rgba(120, 72, 20, 0.35), transparent 55%),
+    linear-gradient(160deg, #e9d3a1, #cfae6c 60%, #b88f4a);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(90, 55, 15, 0.45);
+  border: 1px solid #8a6630;
+}
+
+/* Printing a sheet: just the page, no menus. */
+@media print {
+  aside, header, nav, .no-print { display: none !important; }
+  .lg\:pl-64 { padding-left: 0 !important; }
+  body { background: #0a0806 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
