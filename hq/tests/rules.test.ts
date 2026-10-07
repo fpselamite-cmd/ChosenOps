@@ -707,3 +707,11 @@ describe('trades with counters and cash', () => {
     await assertSucceeds(updateDoc(doc(as('sol2'), 'trades/t2'), { status: 'done', toCollected: true, closedAt: serverTimestamp() }));
   });
 });
+
+describe('locker storages', () => {
+  it('lets a member read their own empty storage (so the first item can go in) but not someone else’s', async () => {
+    await assertSucceeds(getDoc(doc(as('sol'), 'lockerStock/sol__onme')));
+    await assertFails(getDoc(doc(as('sol'), 'lockerStock/sol2__onme')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'lockerStock/sol__onme'), { items: { lockpick: 1 }, owner: 'sol' }));
+  });
+});
