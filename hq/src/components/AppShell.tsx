@@ -2,6 +2,7 @@ import { ExternalLink, LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
+import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
 import { TZ } from '../lib/format';
 import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
@@ -170,6 +171,7 @@ export function AppShell() {
       <AchievementWatcher />
       <ShootingStars enabled />
       <MonthlyAwarder />
+      <NoelDirectorySync />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">

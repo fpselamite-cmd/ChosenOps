@@ -217,3 +217,48 @@ export async function deleteNoelStash(id: string, grows: Record<string, NoelGrow
   });
   await update(noelRef(), changes);
 }
+
+// ---------- Member directory ----------
+// NoelOps matches people by name: the HQ shares each active member's name, rank and a small picture under
+// `hq/members/<member id>`, and NoelOps shows the rank and an "HQ profile" link next to them.
+
+export interface NoelHqMember {
+  name: string;
+  rank?: string;
+  avatar?: string | null;
+  /** A short fingerprint of the full-size picture, so a new thumbnail is only made when the picture changes. */
+  v?: string;
+}
+export interface NoelCrewMember {
+  name?: string;
+}
+
+/** Cheap fingerprint of a string (not for security; it only says "the picture changed"). */
+export function fingerprint(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return `${s.length.toString(36)}.${(h >>> 0).toString(36)}`;
+}
+
+/**
+ * The key NoelOps files a person's stats and titles under: their NoelOps crew id when they have one (matched by
+ * name, any case), otherwise their name.
+ */
+export function noelStatKey(name: string, crew: Record<string, NoelCrewMember> | null | undefined) {
+  const n = name.trim().toLowerCase();
+  const id = Object.entries(crew ?? {}).find(([, c]) => (c?.name ?? '').trim().toLowerCase() === n)?.[0];
+  return encodeURIComponent(id ? `id:${id}` : `name:${name}`).replace(/\./g, '%2E');
+}
+
+/** Writes only what changed in the shared directory (and removes people who left). */
+export function noelDirectoryChanges(have: Record<string, NoelHqMember>, want: Record<string, NoelHqMember>) {
+  const changes: Record<string, NoelHqMember | null> = {};
+  for (const [id, w] of Object.entries(want)) {
+    const h = have[id];
+    if (!h || h.name !== w.name || (h.rank ?? '') !== (w.rank ?? '') || (h.v ?? '') !== (w.v ?? '')) changes[`hq/members/${id}`] = w;
+  }
+  for (const id of Object.keys(have)) if (!(id in want)) changes[`hq/members/${id}`] = null;
+  return changes;
+}
+
+export const updateNoelDirectory = (changes: Record<string, NoelHqMember | null>) => update(noelRef(), changes);

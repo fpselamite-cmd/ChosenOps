@@ -17,7 +17,7 @@ leadership lets them in and gives them a rank.
 | **Dashboard** | Word from the top, family stats, this month's leaderboards, your crews, who's online. |
 | **My Locker** | Your own storages (On Me, Home, and any you name). Guns, attachments, ammo counters, drugs, gear. Sign gang property out of a stash, trade with other members, and name your own items. Only you can see it. |
 | **Hall of Fame** | Monthly leaderboards for sales and bricks, every past month, all-time records. The top 3 each month get trophies. |
-| **Narcotics** | Opens [NoelOps](https://fpselamite-cmd.github.io/noelops/) in a new tab: grow timers, meth cooks, coke runs, trimming, pressing and harvests. The HQ reads NoelOps' drug stock live and writes back to it. |
+| **Narcotics** | Opens [NoelOps](https://fpselamite-cmd.github.io/noelops/) in a new tab: weed and coca grow timers, meth cooks, coke runs, trimming, pressing and harvests. Selling lives only here in the HQ. The HQ reads NoelOps' drug stock live and writes back to it. |
 | **Stash** | Every stash house and what's in it. Drug counts are live from NoelOps; guns, attachments, ammo and gear are kept in the HQ. Stash houses added here show up in NoelOps too. The Main Stash is gang-wide. |
 | **BlackMarket** | Where narcotics are sold (at the Narco). A sale takes the product out of NoelOps' stock and lands in NoelOps' sales log too. Cuts and payouts, the 50% wash, price history, the wish list, budget and CSV export. Treasurer and leadership see everything; others see their own. |
 | **Blacksites** | Log King of the Hill fights. Everyone who was there fills in kills, downs and supply runs and votes the MVP. Rep counts once a Lieutenant+ confirms it. Loot is claimed into lockers, and the rest goes to the stash. |
@@ -27,7 +27,7 @@ leadership lets them in and gives them a rank.
 | **Family** | The chain of command, by rank or as an org chart. |
 | **Map** | The postal map. Drop pins that are just yours or for the family; leadership can limit pins to ranks or crews. |
 | **Calendar** | Events with RSVP and repeats, ops timers, character birthdays and anniversaries. |
-| **Profiles** | Dossier, keepsake cabinet with trophies, family card, blacksite record, loadout, and your own **Appearance** settings (accent color, sky, motion, text size). |
+| **Profiles** | Dossier, keepsake cabinet with trophies, family card, blacksite record, **NoelOps record** (harvests, cooks, runs, coca leaves), loadout, and your own **Appearance** settings (accent color, sky, motion, text size). Profiles link up with NoelOps by name: NoelOps shows each person's HQ rank and an HQ profile button. |
 | **Admin** | Approve members, ranks and permissions, item catalog, Discord, gang settings. |
 
 **Ranks:** Boss, Consigliere, Underboss, Treasurer, Caporegime, Lieutenant, Enforcer, Soldier, Associate. Each rank's

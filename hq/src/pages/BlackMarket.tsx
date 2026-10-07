@@ -1268,7 +1268,7 @@ function Body() {
         icon={VenetianMask}
         kicker="Money"
         title="BlackMarket"
-        sub="Product sells for dirty money at the Narco. Selling takes it out of the stash, and NoelOps sees the sale and the new counts straight away."
+        sub="Product sells for dirty money at the Narco. Selling takes it out of the stash, and NoelOps' stock counts update straight away."
         actions={
             <div className="dx-plan-actions">
               <button
@@ -1333,7 +1333,7 @@ function NoelStatus() {
       <a href={NOELOPS_URL} target="_blank" rel="noopener" className="text-gold-300 hover:text-gold-100">
         NoelOps
       </a>
-      : stock counts and sales sync both ways.
+      : stock counts sync both ways. Selling only happens here.
     </p>
   );
 }
