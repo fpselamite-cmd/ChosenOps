@@ -24,6 +24,7 @@ import { Field } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel, Stat } from '../components/Page';
+import { PettyRing } from '../components/PettyRing';
 import { StreakBadge } from '../components/Streak';
 import { Trophy } from '../components/Trophy';
 import { useCollection, useDoc } from '../hooks/useCollection';
@@ -580,7 +581,12 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader icon={LayoutDashboard} kicker={`${settings.name} · ${settings.motto}`} title={`${greet}, ${me.name}`} actions={<StreakBadge />} />
+      <PageHeader icon={LayoutDashboard} kicker={`${settings.name} · ${settings.motto}`} title={`${greet}, ${me.name}`} actions={
+          <div className="flex items-center gap-2">
+            <PettyRing />
+            <StreakBadge />
+          </div>
+        } />
 
       <div className="mb-6 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Hero />

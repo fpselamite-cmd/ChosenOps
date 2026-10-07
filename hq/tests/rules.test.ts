@@ -218,6 +218,19 @@ describe('petty crime', () => {
     const c = { crime: 'ATM', rep: 5, cash: 1200, notes: '', at: serverTimestamp() };
     await assertSucceeds(setDoc(doc(as('sol'), 'pettyLog/a'), { ...c, memberId: 'sol' }));
     await assertFails(setDoc(doc(as('sol'), 'pettyLog/b'), { ...c, memberId: 'sol2' }));
+    const session = { memberId: 'sol', crime: 'Delivery ×6 · Arson ×2', crimes: { Delivery: 6, Arson: 2 }, perJob: [5, 5, 5, 5, 5, 5, 10, 10], rep: 50, cash: 9000, cashId: 'm1', notes: '', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'pettyLog/s'), session));
+    await assertFails(setDoc(doc(as('sol'), 'pettyLog/t'), { ...session, extra: 1 }));
+  });
+
+  it('keeps weekly goals to their member and the family goal to leadership', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'pettyGoals/sol'), { weekly: 500 }));
+    await assertFails(setDoc(doc(as('sol'), 'pettyGoals/sol2'), { weekly: 500 }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'pettyGoals/sol')));
+    const g = { title: 'October push', target: 5000, by: '2026-10-31', from: serverTimestamp() };
+    await assertFails(setDoc(doc(as('sol'), 'settings/pettyGoal'), g));
+    await assertSucceeds(setDoc(doc(as('boss'), 'settings/pettyGoal'), g));
+    await assertSucceeds(getDoc(doc(as('sol'), 'settings/pettyGoal')));
   });
 
   it('lets members request a transfer for themselves', async () => {

@@ -123,12 +123,21 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const REP = { 'Don Vito': 120, 'Rocco Vale': 340, 'Dani Cruz': 210, 'Tommy Reyes': 185, 'Kira Lane': 95, Ghost: 60, 'Jax Holt': 30 };
   for (const [name, rep] of Object.entries(REP)) await setDoc(doc(db, 'petty', ids[name]), { rep });
   const crimes = [
-    ['Don Vito', 'Store robbery', 25, 4200, 'Little Seoul 24/7', 5],
-    ['Don Vito', 'Car theft', 15, 2800, 'Sultan RS to the chop shop', 26],
-    ['Don Vito', 'ATM', 10, 1500, '', 50],
+    ['Don Vito', { Delivery: 6, Arson: 2 }, 48, 9200, 'Paleto run, two torches on the way back', 3],
+    ['Don Vito', { Vehicle: 3 }, 30, 6400, 'Sultan RS to the chop shop', 26],
+    ['Don Vito', { Delivery: 4 }, 22, 3800, '', 50],
+    ['Don Vito', { Assassination: 1, Special: 1 }, 40, 12000, 'Quiet one', 75],
+    ['Rocco Vale', { Arson: 7, Delivery: 2 }, 70, 14000, '', 8],
+    ['Dani Cruz', { Assassination: 3 }, 60, 21000, '', 30],
+    ['Kira Lane', { Delivery: 12 }, 55, 8000, '', 20],
+    ['Tommy Reyes', { Vehicle: 5, Special: 2 }, 52, 11500, '', 40],
   ];
-  for (const [i, [who, crime, rep, cash, notes, hoursAgo]] of crimes.entries())
-    await setDoc(doc(db, 'pettyLog', `c${i}`), { memberId: ids[who], crime, rep, cash, notes, at: Timestamp.fromMillis(now - hoursAgo * 3600_000) });
+  for (const [i, [who, tally, rep, cash, notes, hoursAgo]] of crimes.entries()) {
+    const crime = Object.entries(tally).map(([k, v]) => `${k} ×${v}`).join(' · ');
+    await setDoc(doc(db, 'pettyLog', `c${i}`), { memberId: ids[who], crime, crimes: tally, perJob: [], rep, cash, cashId: null, notes, at: Timestamp.fromMillis(now - hoursAgo * 3600_000) });
+  }
+  await setDoc(doc(db, 'pettyGoals', ids['Don Vito']), { weekly: 200 });
+  await setDoc(doc(db, 'settings', 'pettyGoal'), { title: 'October push', target: 1000, by: new Date(now + 20 * 86400_000).toISOString().slice(0, 10), from: Timestamp.fromMillis(now - 40 * 86400_000) });
   const transfers = [
     ['Rocco Vale', 200, 'confirmed', 'Nico Bruno', 30],
     ['Dani Cruz', 150, 'confirmed', 'Rocco Vale', 20],
