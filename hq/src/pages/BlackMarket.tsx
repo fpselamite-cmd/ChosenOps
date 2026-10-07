@@ -1,24 +1,30 @@
-import '@fortawesome/fontawesome-free/css/all.min.css';
-import '../noel/noel.css';
-import { useMemo, useState, type FormEvent } from 'react';
+import { Check, Crown, Download, HandCoins, ListChecks, Minus, Pin, Plus, Settings2, ShoppingBag, Siren, Sparkles, Trash2, Users, VenetianMask, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Avatar } from '../components/Avatar';
+import { Empty, ErrorText, Field } from '../components/Field';
+import { ItemPicker } from '../components/ItemPicker';
+import { MemberName } from '../components/MemberName';
+import { Modal } from '../components/Modal';
+import { PageHeader, Panel, Stat, Tabs } from '../components/Page';
+import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { ago } from '../lib/format';
+import { itemTitle, type ItemType } from '../lib/items';
 import { countOf, useLocker } from '../lib/locker';
-import { SALE_ITEMS, money, saleItem, unitWord, useMoney, useMoneyOps, type Sale, type Wish } from '../lib/money';
-import { toCount } from '../noel/data';
-import { NarcoticsProvider, useNarcotics } from '../noel/store';
-import { NoelAvatar, relTime } from '../noel/avatar';
-import { VenetianMask } from 'lucide-react';
-import { PageHeader } from '../components/Page';
+import { SALE_ITEMS, money, payoutSplit, saleItem, saleKind, unitWord, useMoney, useMoneyOps, type Sale, type SaleKind, type WashRequest, type Wish } from '../lib/money';
 import { NOELOPS_URL } from '../lib/noelops';
-import { Empty, Logo, NoelModal, ToastProvider, useChartTips, useToast } from '../noel/ui';
+import { toCount } from '../noel/data';
+import { useOps } from '../noel/ops';
+import { NarcoticsProvider, useNarcotics } from '../noel/store';
+import { Logo, ToastProvider, useToast } from '../noel/ui';
 
-type View = 'sell' | 'wish' | 'wash';
-const PRICE_COLORS = ['#f87171', '#fbbf24', '#38bdf8'];
+type View = 'sell' | 'money' | 'wish' | 'washing';
 const DAY = 86400e3;
 const at = (x: { at?: { toMillis(): number } }) => x.at?.toMillis() ?? Date.now();
 const fmtWhen = (ms: number) =>
   `${new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })} ${new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}`;
+const digits = (v: string) => v.replace(/\D/g, '');
 
 /** Places a sale can come from: gang stashes, then your own locker storages. */
 function useSources() {
@@ -32,398 +38,494 @@ function useSources() {
     [storage, stock, locLabel, locker.storages, locker.stock],
   );
 }
+type Source = ReturnType<typeof useSources>[number];
 
-function SellForm({ narco, setNarco }: { narco: boolean; setNarco: (v: boolean) => void }) {
+function KindTag({ kind }: { kind: SaleKind }) {
+  return <span className={`bm-kind ${kind}`}>{kind === 'gang' ? 'Gang' : 'Personal'}</span>;
+}
+
+/** Ka-ching: bills fly when a sale goes through. */
+function KaChing({ amount, onDone }: { amount: number; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 2000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div className="kaching" aria-live="polite">
+      {Array.from({ length: 14 }, (_, i) => (
+        <span key={i} className="kaching-bill" style={{ '--i': i, '--x': `${(i * 37) % 100}%`, '--r': `${((i * 53) % 60) - 30}deg` } as React.CSSProperties}>
+          $
+        </span>
+      ))}
+      <span className="kaching-word">
+        KA-CHING
+        {amount > 0 && <small>{money(amount)}</small>}
+      </span>
+    </div>
+  );
+}
+
+function chime() {
+  try {
+    if (document.documentElement.dataset.motion === 'off') return;
+    const ctx = new AudioContext();
+    [1318, 1760].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.09);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + i * 0.09 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.09 + 0.5);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.09);
+      o.stop(ctx.currentTime + i * 0.09 + 0.55);
+    });
+    setTimeout(() => void ctx.close(), 900);
+  } catch {
+    /* no sound, no problem */
+  }
+}
+
+// ---------- selling ----------
+
+interface Line {
+  key: string;
+  product: string;
+  from: string | null;
+  qty: number;
+  price: string;
+  touched: boolean;
+}
+
+/** One Narco call: tap product tiles to add lines, each from a gang stash or your own locker. */
+function SellPanel({ onSold }: { onSold: (total: number) => void }) {
   const { me, roster } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
   const toast = useToast();
   const sources = useSources();
-  const [product, setProduct] = useState<string | null>(null);
-  const [from, setFrom] = useState<string | null>(null);
-  const [qty, setQty] = useState(1);
-  const [seller, setSeller] = useState(me.id);
-  const [price, setPrice] = useState('');
-  const [priceTouched, setPriceTouched] = useState(false);
+  const [lines, setLines] = useState<Line[]>([]);
+  const [team, setTeam] = useState<string[]>([]);
   const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const item = product ? saleItem(product) : null;
-  const have = (key: string | null, p: string | null) => {
-    const src = sources.find((s) => s.key === key);
-    const it = p ? saleItem(p) : null;
+  const have = (src: Source | undefined, p: string) => {
+    const it = saleItem(p);
     return src && it ? countOf(src.stock, { strain: it.strain, field: it.field }) : 0;
   };
-  const totalOf = (p: string) => sources.reduce((t, s) => t + have(s.key, p), 0);
-  const best = (p: string, keep: string | null) => (keep && have(keep, p) ? keep : (sources.find((s) => have(s.key, p))?.key ?? null));
-  const defaultPrice = product && m.prices[product] ? m.prices[product]! * qty : null;
-  const shownPrice = priceTouched ? price : defaultPrice ? String(defaultPrice) : '';
-  const sellerName = roster.find((r) => r.id === seller)?.name ?? me.name;
+  const gangHas = (p: string) => sources.filter((s) => !s.mine).reduce((t, s) => t + have(s, p), 0);
+  const mineHas = (p: string) => sources.filter((s) => s.mine).reduce((t, s) => t + have(s, p), 0);
+  const priceOf = (l: Line) => (l.touched ? toCount(l.price) : (m.prices[l.product] ?? 0) * l.qty);
+  const set = (key: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const add = (p: string) => {
+    const best = sources.find((s) => !s.mine && have(s, p)) ?? sources.find((s) => have(s, p));
+    setLines((ls) => [...ls, { key: `${p}${Date.now()}`, product: p, from: best?.key ?? null, qty: 1, price: '', touched: false }]);
+  };
+  const total = lines.reduce((t, l) => t + priceOf(l), 0);
+  const stocked = SALE_ITEMS.filter((it) => gangHas(it.id) + mineHas(it.id) > 0);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    if (!product || !from) return setError('Pick what’s being sold and where from.');
-    if (qty < 1) return setError('Enter at least 1.');
-    if (qty > have(from, product)) return setError(`Only ${have(from, product)} there.`);
-    const src = sources.find((s) => s.key === from)!;
-    const p = shownPrice.trim() === '' ? null : toCount(shownPrice);
-    await toast.run(
-      mops.sell({ product, qty, from, fromLabel: src.label, seller: { id: seller, name: sellerName }, cut: m.cutFor(seller), price: p, narco, note }).then((d) => {
-        if (!d) setError('Not enough there any more. Someone else may have moved it.');
-        return d;
-      }),
-    );
-    setQty(1);
-    setPrice('');
-    setPriceTouched(false);
-    setNote('');
-    setNarco(false);
+    if (!lines.length) return setError('Tap a product to add it to the call.');
+    for (const l of lines) {
+      const src = sources.find((s) => s.key === l.from);
+      if (!src) return setError(`Pick where the ${saleItem(l.product)?.name} comes from.`);
+      if (l.qty > have(src, l.product)) return setError(`Only ${have(src, l.product)} ${saleItem(l.product)?.name} in ${src.label}.`);
+    }
+    setBusy(true);
+    const callId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    let sold = 0;
+    let failed = false;
+    for (const l of lines) {
+      const src = sources.find((s) => s.key === l.from)!;
+      const price = priceOf(l) || null;
+      const d = await mops
+        .sell({ product: l.product, qty: l.qty, from: src.key, fromLabel: src.label, seller: { id: me.id, name: me.name }, cut: 0, price, narco: true, note, kind: src.mine ? 'personal' : 'gang', team, callId })
+        .catch(() => null);
+      if (!d) {
+        setError(`Couldn’t sell the ${saleItem(l.product)?.name}; someone may have moved it.`);
+        failed = true;
+        break;
+      }
+      sold += price ?? 0;
+      setLines((ls) => ls.filter((x) => x.key !== l.key));
+    }
+    setBusy(false);
+    if (sold || !failed) {
+      chime();
+      onSold(sold);
+      toast.done({ text: `Narco call logged${sold ? ` · ${money(sold)} dirty` : ''}.` });
+      setTeam([]);
+      setNote('');
+    }
   }
 
   return (
-    <form id="sale-form" className={`dx-glass dx-qs ${narco ? 'bm-ring' : ''}`} onSubmit={submit}>
-      <div className="dx-sec">
-        <h2>
-          <i className="fa-solid fa-sack-dollar bm-dirty mr-1" />
-          Sell at the BlackMarket{' '}
-          {narco && (
-            <span className="bm-tag">
-              <i className="fa-solid fa-phone-volume" />
-              Narco call
-            </span>
-          )}
-        </h2>
-        <span className="dx-muted hidden text-xs sm:inline">Takes it out of the stash (or your locker) and adds it to the ledger.</span>
+    <form id="sale-form" onSubmit={submit} className="hud overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
+        <p className="flex items-center gap-2 font-hud text-lg font-bold text-gold-100">
+          <Siren className="size-5 text-red-400" /> Narco call
+        </p>
+        <p className="text-xs text-smoke">Tap what’s going out. Gang stash = gang money · your locker = your money.</p>
       </div>
-      <div className="qs-step">
-        <span>1</span>What&apos;s being sold
-      </div>
-      <div className="qs-strains">
-        {SALE_ITEMS.map((st) => {
-          const total = totalOf(st.id);
+      <div className="grid grid-cols-3 gap-2 p-4 sm:grid-cols-4 lg:grid-cols-6">
+        {(stocked.length ? stocked : SALE_ITEMS).map((it) => {
+          const g = gangHas(it.id);
+          const mine = mineHas(it.id);
+          const on = lines.filter((l) => l.product === it.id).reduce((t, l) => t + l.qty, 0);
           return (
-            <button
-              key={st.id}
-              type="button"
-              className={`qs-strain ${product === st.id ? 'on' : ''} ${total ? '' : 'empty'} ${st.strain ? '' : 'product'}`}
-              style={{ ['--tint' as string]: st.tint }}
-              onClick={() => {
-                if (!total) return;
-                setProduct(st.id);
-                setFrom(best(st.id, from));
-                setError('');
-              }}
-              aria-disabled={!total}
-              title={`${st.name}: ${total} ${unitWord(st.id, total)} on hand`}
-            >
-              <span className="lg">
-                <Logo id={st.id} />
+            <button type="button" key={it.id} onClick={() => add(it.id)} disabled={!g && !mine} className={`bm-tile ${on ? 'on' : ''}`} title={`${it.name}: ${g} in gang stashes, ${mine} in your locker`}>
+              <span className="bm-tile-logo">
+                <Logo id={it.id === 'coca' ? 'cokeSmall' : it.id} />
               </span>
-              <b className={st.nameColor}>{st.name}</b>
-              <small>
-                <b>{total}</b> on hand
-              </small>
+              <span className="truncate text-[11px] font-bold text-gold-100">{it.name}</span>
+              <span className="font-mono text-[10px] text-smoke">
+                <span className="text-gold-300">{g}</span> gang · <span className="text-sky-300">{mine}</span> mine
+              </span>
+              {on > 0 && <span className="bm-tile-badge">{on}</span>}
             </button>
           );
         })}
       </div>
-      <div className="qs-cols">
-        <div>
-          <div className="qs-step">
-            <span>2</span>From
-          </div>
-          <div className="qs-from">
-            {product ? (
-              sources.map((s) => {
-                const c = have(s.key, product);
-                return (
-                  <button key={s.key} type="button" className={from === s.key ? 'on' : ''} disabled={!c} onClick={() => setFrom(s.key)}>
-                    {s.mine && <i className="fa-solid fa-lock mr-1 opacity-60" />}
-                    {s.label}
-                    <b>{c}</b>
+
+      {lines.length > 0 && (
+        <ul className="divide-y divide-line-soft border-t border-line-soft">
+          {lines.map((l) => {
+            const it = saleItem(l.product)!;
+            const src = sources.find((s) => s.key === l.from);
+            return (
+              <li key={l.key} className="flex flex-wrap items-center gap-2 px-4 py-2">
+                <span className="w-32 truncate text-sm font-bold text-gold-100">{it.name}</span>
+                <select className="input w-auto py-1 text-xs" value={l.from ?? ''} onChange={(e) => set(l.key, { from: e.target.value })}>
+                  <option value="">From…</option>
+                  <optgroup label="Gang stashes (gang money)">
+                    {sources
+                      .filter((s) => !s.mine)
+                      .map((s) => (
+                        <option key={s.key} value={s.key} disabled={!have(s, l.product)}>
+                          {s.label} · {have(s, l.product)}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="My locker (my money)">
+                    {sources
+                      .filter((s) => s.mine)
+                      .map((s) => (
+                        <option key={s.key} value={s.key} disabled={!have(s, l.product)}>
+                          {s.label} · {have(s, l.product)}
+                        </option>
+                      ))}
+                  </optgroup>
+                </select>
+                {src && <KindTag kind={src.mine ? 'personal' : 'gang'} />}
+                <span className="flex items-center gap-1">
+                  <button type="button" className="btn-ghost btn-sm px-1.5" onClick={() => set(l.key, { qty: Math.max(1, l.qty - 1) })} aria-label="One less">
+                    <Minus className="size-3" />
                   </button>
-                );
-              })
-            ) : (
-              <p className="dx-muted text-xs">Pick what&apos;s being sold first.</p>
-            )}
+                  <input className="input w-14 py-1 text-center font-mono" inputMode="numeric" value={l.qty} onChange={(e) => set(l.key, { qty: Math.max(1, +digits(e.target.value) || 1) })} aria-label="How many" />
+                  <button type="button" className="btn-ghost btn-sm px-1.5" onClick={() => set(l.key, { qty: l.qty + 1 })} aria-label="One more">
+                    <Plus className="size-3" />
+                  </button>
+                  <span className="text-[11px] text-smoke">{unitWord(l.product, l.qty)}</span>
+                </span>
+                <input
+                  className="input ml-auto w-28 py-1 font-mono text-sm"
+                  inputMode="numeric"
+                  placeholder="$ price"
+                  value={l.touched ? l.price : priceOf(l) ? String(priceOf(l)) : ''}
+                  onChange={(e) => set(l.key, { price: digits(e.target.value), touched: true })}
+                  aria-label="Price"
+                />
+                <button type="button" className="p-1 text-smoke hover:text-red-300" onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} aria-label="Remove line">
+                  <X className="size-4" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="space-y-3 border-t border-line-soft p-4">
+        <Field label="Who came along" hint="They can be paid out of the sale afterwards">
+          <div className="flex flex-wrap gap-1">
+            {roster
+              .filter((r) => r.id !== me.id)
+              .map((r) => (
+                <button
+                  type="button"
+                  key={r.id}
+                  onClick={() => setTeam(team.includes(r.id) ? team.filter((x) => x !== r.id) : [...team, r.id])}
+                  className={`chip flex items-center gap-1.5 py-1 pr-2.5 pl-1 text-xs ${team.includes(r.id) ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}
+                >
+                  <Avatar member={r} size="xs" /> {r.name}
+                </button>
+              ))}
           </div>
+        </Field>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-48 flex-1">
+            <span className="label">Note</span>
+            <input className="input mt-1" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Optional" />
+          </label>
+          <span className="text-right">
+            <span className="label block">Call total</span>
+            <span className="font-mono text-2xl text-gold-100">{money(total)}</span>
+          </span>
+          <button className="btn-gold px-6 py-3" disabled={busy || !lines.length}>
+            <HandCoins className="size-4" /> {busy ? 'Selling…' : 'Sell'}
+          </button>
         </div>
-        <div>
-          <div className="qs-step">
-            <span>3</span>How many <em>{product && from ? `(${have(from, product)} at ${sources.find((s) => s.key === from)?.label})` : ''}</em>
-          </div>
-          <div className="qs-count">
-            <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One less">
-              −
-            </button>
-            <input type="number" min={1} value={qty} inputMode="numeric" aria-label="How many" onChange={(e) => setQty(toCount(e.target.value))} />
-            <button type="button" onClick={() => setQty(qty + 1)} aria-label="One more">
-              +
-            </button>
-          </div>
-          <div className="qs-quick">
-            {[1, 2, 5, 10].map((n) => (
-              <button key={n} type="button" onClick={() => setQty(n)}>
-                {n}
-              </button>
-            ))}
-            <button type="button" onClick={() => setQty(have(from, product))}>
-              All
-            </button>
-          </div>
-        </div>
+        <ErrorText error={error} />
       </div>
-      <div className="qs-step">
-        <span>4</span>Details
-      </div>
-      <div className="qs-details">
-        <label>
-          Sold by {m.all && <span>(gets the seller&apos;s cut)</span>}
-          <select className="dx-input w-full" value={seller} onChange={(e) => setSeller(e.target.value)} disabled={!m.all}>
-            {(m.all ? roster : roster.filter((r) => r.id === me.id)).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Dirty money <span>(total{defaultPrice ? ', fills in from the default' : ''})</span>
-          <input
-            type="number"
-            min={0}
-            placeholder="$"
-            className="dx-input w-full font-mono"
-            value={shownPrice}
-            onChange={(e) => {
-              setPriceTouched(true);
-              setPrice(e.target.value);
-            }}
-          />
-        </label>
-        <label>
-          Note <span>(optional)</span>
-          <input type="text" maxLength={60} placeholder="Buyer, drop spot…" className="dx-input w-full" value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-      </div>
-      {error && <p className="mt-3 text-sm font-semibold text-red-400">{error}</p>}
-      <button type="submit" className="qs-submit" disabled={!product || qty < 1}>
-        {product && item ? (
-          <>
-            <i className="fa-solid fa-sack-dollar mr-2" />
-            Sell {qty} {item.strain ? `${item.name} ${unitWord(item.id, qty)}` : qty === 1 ? item.name : `${item.name}s`}
-            {shownPrice ? ` for ${money(toCount(shownPrice))} dirty` : ''}
-          </>
-        ) : (
-          'Pick what’s being sold to start'
-        )}
-      </button>
     </form>
   );
 }
 
-function hbars(rows: { id: string; label: string; qty: number; cash: number; logo?: boolean }[], showCash: boolean) {
-  if (!rows.length) return <p className="dx-muted text-xs">Nothing in this period.</p>;
-  const max = Math.max(1, ...rows.map((r) => r.qty));
-  return rows.map((r) => (
-    <div key={r.id} className="row" data-tip={`<b>${r.label}</b><br>${r.qty} out${showCash && r.cash ? `<br>${money(r.cash)}` : ''}`}>
-      <div className="nm">
-        {r.logo ? (
-          <span className="lg">
-            <Logo id={r.id} />
-          </span>
-        ) : (
-          <NoelAvatar name={r.label} />
+/** The call's leader pays the people who came along, out of the sale or their own pocket. */
+function PayTeam({ call, onClose }: { call: Sale[]; onClose: () => void }) {
+  const m = useMoney();
+  const mops = useMoneyOps();
+  const lead = call[0]!;
+  const team = lead.team ?? [];
+  const pays = m.pays.filter((p) => p.callId === lead.callId);
+  const [source, setSource] = useState<'sale' | 'mine'>('sale');
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const total = call.reduce((t, x) => t + (x.price ?? 0), 0);
+  const want = team.reduce((t, id) => t + toCount(amounts[id] ?? ''), 0);
+  const room = payoutSplit(call, pays, 0, 'sale').room;
+  const paidTo = (id: string) => pays.filter((p) => p.to === id).reduce((t, p) => t + p.dirty, 0);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!want) return setError('Enter an amount for someone.');
+    if (source === 'sale' && want > room) return setError(`Only ${money(room)} of this sale is left to pay out.`);
+    if (source === 'mine' && want > m.mine.held) return setError(`You only hold ${money(m.mine.held)} dirty.`);
+    let done = [...pays];
+    for (const id of team) {
+      const a = toCount(amounts[id] ?? '');
+      if (!a) continue;
+      const { fromBank } = payoutSplit(call, done, a, source);
+      const t = { callId: lead.callId!, saleId: lead.id, from: lead.sellerId, to: id, dirty: a, source, fromBank };
+      await mops.payTeam(t);
+      done = [...done, { ...t, id: '' }];
+    }
+    onClose();
+  }
+  return (
+    <Modal title="Pay the team" onClose={onClose}>
+      <form className="space-y-4" onSubmit={submit}>
+        <p className="text-sm text-ash">
+          This call made <b className="font-mono text-gold-100">{money(total)}</b>. Dirty money goes straight into each person’s locker.
+        </p>
+        <div className="flex overflow-hidden rounded-full ring-1 ring-line">
+          {(
+            [
+              ['sale', `Out of the sale · ${money(room)} left`],
+              ['mine', `Out of my pocket · ${money(m.mine.held)}`],
+            ] as const
+          ).map(([v, l]) => (
+            <button type="button" key={v} onClick={() => setSource(v)} className={`flex-1 px-3 py-1.5 text-xs font-bold ${source === v ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <ul className="space-y-2">
+          {team.map((id) => (
+            <li key={id} className="flex items-center gap-3">
+              <MemberName id={id} className="flex-1" />
+              {paidTo(id) > 0 && <span className="text-[11px] text-ok">paid {money(paidTo(id))}</span>}
+              <input className="input w-32 font-mono" inputMode="numeric" placeholder="$0" value={amounts[id] ?? ''} onChange={(e) => setAmounts({ ...amounts, [id]: digits(e.target.value) })} />
+            </li>
+          ))}
+        </ul>
+        {source === 'sale' && team.length > 0 && room > 0 && (
+          <button type="button" className="text-xs text-gold-300 hover:underline" onClick={() => setAmounts(Object.fromEntries(team.map((id) => [id, String(Math.floor(room / (team.length + 1)))])))}>
+            Split evenly with me ({money(Math.floor(room / (team.length + 1)))} each)
+          </button>
         )}
-        <span>{r.label}</span>
-      </div>
-      <div className="bar">
-        <i style={{ width: `calc(${((r.qty / max) * 100).toFixed(2)}% * 0.8)` }} />
-        <em>
-          {r.qty}
-          {showCash && r.cash ? ` · ${money(r.cash)}` : ''}
-        </em>
-      </div>
-    </div>
-  ));
+        <ErrorText error={error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold" disabled={!want}>
+            <HandCoins className="size-4" /> Pay {money(want)}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
-function PriceHistory({ sales }: { sales: Sale[] }) {
-  const [slots, setSlots] = useState<(string | null)[] | null>(null);
-  const [table, setTable] = useState(false);
-  // Mondays (ET) of the last 12 weeks
-  const weeks = useMemo(() => {
-    const out: string[] = [];
-    const now = Date.now();
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now - i * 7 * DAY);
-      const et = new Date(d.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      et.setDate(et.getDate() - ((et.getDay() + 6) % 7));
-      out.push(et.toISOString().slice(0, 10));
-    }
-    return out;
-  }, []);
-  const byProduct = useMemo(() => {
-    const map: Record<string, ({ units: number; total: number; min: number; max: number; n: number } | null)[]> = {};
-    for (const x of sales) {
-      if (!x.price || !x.qty) continue;
-      const et = new Date(new Date(at(x)).toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      et.setDate(et.getDate() - ((et.getDay() + 6) % 7));
-      const i = weeks.indexOf(et.toISOString().slice(0, 10));
-      if (i < 0) continue;
-      const row = (map[x.product] ??= weeks.map(() => null));
-      const c = (row[i] ??= { units: 0, total: 0, min: Infinity, max: 0, n: 0 });
-      const each = x.price / x.qty;
-      c.units += x.qty;
-      c.total += x.price;
-      c.n += 1;
-      c.min = Math.min(c.min, each);
-      c.max = Math.max(c.max, each);
-    }
-    return map;
-  }, [sales, weeks]);
-  const items = SALE_ITEMS.filter((s) => byProduct[s.id]);
-  const picked =
-    slots ??
-    [0, 1, 2].map(
-      (i) =>
-        items
-          .map((s) => [s.id, byProduct[s.id]!.reduce((t, c) => t + (c?.units ?? 0), 0)] as const)
-          .sort((a, b) => b[1] - a[1])
-          .map((x) => x[0])[i] ?? null,
-    );
-  const series = picked.map((id, slot) => (id && byProduct[id] ? { id, slot, name: saleItem(id)!.name, cells: byProduct[id]! } : null)).filter(Boolean) as {
-    id: string;
-    slot: number;
-    name: string;
-    cells: ({ units: number; total: number; min: number; max: number; n: number } | null)[];
-  }[];
-  const toggle = (id: string) => {
-    const s = [...picked];
-    const i = s.indexOf(id);
-    if (i >= 0) s[i] = null;
-    else if (s.indexOf(null) >= 0) s[s.indexOf(null)] = id;
-    setSlots(s);
-  };
-  const W = 900,
-    H = 240,
-    L = 64,
-    R = 110,
-    T = 14,
-    B = 30;
-  const vals = series.flatMap((s) => s.cells.filter(Boolean).map((c) => c!.total / c!.units));
-  const raw = Math.max(1, ...vals) / 4;
-  const mag = 10 ** Math.floor(Math.log10(raw || 1));
-  const maxV = ([1, 2, 2.5, 5, 10].map((x) => x * mag).find((s) => s >= raw) ?? raw) * 4;
-  const x = (i: number) => L + (W - L - R) * (i / (weeks.length - 1));
-  const y = (v: number) => T + (H - T - B) * (1 - v / maxV);
-  const fmtW = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+function SellView() {
+  const { me, memberById } = useHub();
+  const m = useMoney();
+  const mops = useMoneyOps();
+  const toast = useToast();
+  const [kaching, setKaching] = useState<number | null>(null);
+  const doneKaching = useCallback(() => setKaching(null), []);
+  const [type, setType] = useState<'all' | SaleKind>('all');
+  const [range, setRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
+  const [paying, setPaying] = useState<Sale[] | null>(null);
+  const since = range === 'today' ? Date.now() - DAY : range === 'week' ? Date.now() - 7 * DAY : range === 'month' ? Date.now() - 30 * DAY : 0;
+  const inRange = m.sales.filter((x) => at(x) >= since);
+  const list = inRange.filter((x) => type === 'all' || saleKind(x) === type);
+  const gang = inRange.filter((x) => saleKind(x) === 'gang');
+  const personal = inRange.filter((x) => saleKind(x) === 'personal');
+  const sum = (xs: Sale[]) => xs.reduce((t, x) => t + (x.price ?? 0), 0);
+  const units = (xs: Sale[]) => xs.reduce((t, x) => t + x.qty, 0);
+  const showPrice = (x: Sale) => saleKind(x) === 'gang' || x.sellerId === me.id || m.all;
+  // Today's top seller (by units, so personal amounts stay private).
+  const today = m.sales.filter((x) => at(x) >= Date.now() - DAY);
+  const topToday = [...today.reduce((mp, x) => mp.set(x.sellerId, (mp.get(x.sellerId) ?? 0) + x.qty), new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0];
+  // Group lines by call.
+  const calls = new Map<string, Sale[]>();
+  list.forEach((x) => {
+    const k = x.callId ?? x.id;
+    calls.set(k, [...(calls.get(k) ?? []), x]);
+  });
+  const allLines = (k: string) => m.sales.filter((x) => (x.callId ?? x.id) === k);
+  const lastPrice = (p: string) => m.sales.find((x) => x.product === p && x.price && saleKind(x) === 'gang');
+
   return (
-    <div className={`dx-glass dx-panel mb-4 ${table ? 'show-table' : ''}`}>
-      <div className="dx-sec">
-        <h2>
-          Price history <span className="dx-muted text-xs font-semibold">· average per brick / bin, last 12 weeks</span>
-        </h2>
-        <button type="button" className={`dx-tbl-btn ${table ? 'on' : ''}`} onClick={() => setTable(!table)}>
-          {table ? 'Chart' : 'Table'}
-        </button>
+    <div className="space-y-6">
+      <SellPanel onSold={(t) => setKaching(t)} />
+      {kaching !== null && <KaChing amount={kaching} onDone={doneKaching} />}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Gang sales" value={money(sum(gang))} sub={`${units(gang)} out · ${gang.length} lines`} />
+        <Stat label="Personal sales" value={m.all ? money(sum(personal)) : `${units(personal)} out`} sub={m.all ? `${units(personal)} out` : 'Amounts are private'} />
+        <Stat label="Calls" value={calls.size} sub={range === 'all' ? 'All time' : `Last ${range === 'today' ? '24h' : range}`} />
+        <Stat label="Top seller today" value={topToday ? <MemberName id={topToday} /> : '—'} sub={topToday ? 'Most product moved' : 'No sales yet today'} />
       </div>
-      <div className="price-chips">
-        {items.map((s) => {
-          const slot = picked.indexOf(s.id);
-          return (
-            <button key={s.id} type="button" className={`price-chip ${slot >= 0 ? 'on' : ''}`} style={slot >= 0 ? { ['--pc' as string]: PRICE_COLORS[slot] } : undefined} onClick={() => toggle(s.id)}>
-              {slot >= 0 && <i />}
-              {s.name}
-            </button>
-          );
-        })}
-      </div>
-      {!series.length ? (
-        <p className="dx-muted py-6 text-center text-xs">{items.length ? 'Pick a product above to see its price.' : 'No priced sales in the last 12 weeks yet.'}</p>
-      ) : table ? (
-        <table className="dx-sales-table">
-          <thead>
-            <tr>
-              <th>Week of</th>
-              {series.map((s) => (
-                <th key={s.id} className="r">
-                  {s.name}
-                </th>
+
+      <Panel
+        title="Narco log"
+        right={
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="flex overflow-hidden rounded-full ring-1 ring-line">
+              {(
+                [
+                  ['all', 'All'],
+                  ['gang', 'Gang'],
+                  ['personal', 'Personal'],
+                ] as const
+              ).map(([v, l]) => (
+                <button key={v} onClick={() => setType(v)} className={`px-2.5 py-1 text-[11px] font-bold ${type === v ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+                  {l}
+                </button>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {weeks.map((w, i) => (
-              <tr key={w}>
-                <td>{fmtW(w)}</td>
-                {series.map((s) => (
-                  <td key={s.id} className="r">
-                    {s.cells[i] ? money(s.cells[i]!.total / s.cells[i]!.units) : '—'}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="price-svg" role="img" aria-label="Average price per unit by week">
-          {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-            <g key={f}>
-              <line x1={L} x2={W - R} y1={y(maxV * f)} y2={y(maxV * f)} className="pg" />
-              <text x={L - 8} y={y(maxV * f) + 4} textAnchor="end" className="pa">
-                {money(maxV * f)}
-              </text>
-            </g>
-          ))}
-          {weeks.map((w, i) =>
-            i % 2 === (weeks.length - 1) % 2 ? (
-              <text key={w} x={x(i)} y={H - 8} textAnchor="middle" className="pa">
-                {fmtW(w)}
-              </text>
-            ) : null,
-          )}
-          {series.map((s) => {
-            let d = '';
-            let pen = false;
-            s.cells.forEach((c, i) => {
-              if (c) {
-                d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(c.total / c.units).toFixed(1)}`;
-                pen = true;
-              } else pen = false;
-            });
-            const last = s.cells.map((c, j) => (c ? j : -1)).filter((j) => j >= 0).pop()!;
+            </span>
+            <select className="input w-auto py-1 text-xs" value={range} onChange={(e) => setRange(e.target.value as typeof range)}>
+              <option value="today">Today</option>
+              <option value="week">This week</option>
+              <option value="month">30 days</option>
+              <option value="all">All time</option>
+            </select>
+            <button className="btn-ghost btn-sm" onClick={() => exportCsv(list, m.all, me.id)}>
+              <Download className="size-3.5" /> CSV
+            </button>
+          </span>
+        }
+        pad={false}
+      >
+        {calls.size ? (
+          <ul className="divide-y divide-line-soft">
+            {[...calls].map(([k, xs]) => {
+              const lead = xs[0]!;
+              const whole = allLines(k);
+              const team = lead.team ?? [];
+              const paid = m.pays.filter((p) => p.callId === lead.callId).reduce((t, p) => t + p.dirty, 0);
+              return (
+                <li key={k} className="flex flex-wrap items-start gap-3 px-4 py-3">
+                  <span className="relative">
+                    <Avatar member={memberById.get(lead.sellerId)} />
+                    {lead.sellerId === topToday && <Crown className="absolute -top-2 -right-1 size-4 rotate-12 text-gold-300 drop-shadow" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 text-sm">
+                      <MemberName id={lead.sellerId} />
+                      {team.length > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-smoke">
+                          <Users className="size-3" /> with {team.map((id, i) => (
+                            <span key={id}>
+                              {i > 0 && ', '}
+                              <MemberName id={id} className="text-xs" />
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                      <span className="text-xs text-smoke">· {fmtWhen(at(lead))}</span>
+                    </span>
+                    <span className="mt-1 flex flex-wrap gap-1.5">
+                      {xs.map((x) => (
+                        <span key={x.id} className="inline-flex items-center gap-1.5 rounded border border-line-soft bg-coal/60 px-2 py-0.5 text-xs">
+                          <KindTag kind={saleKind(x)} />
+                          <b className="text-gold-100">
+                            {x.qty} × {saleItem(x.product)?.name ?? x.product}
+                          </b>
+                          <span className="text-smoke">{x.fromLabel}</span>
+                          {showPrice(x) ? <span className="font-mono text-red-300">{x.price ? money(x.price) : '—'}</span> : <span className="text-smoke italic">private</span>}
+                          {m.all && (
+                            <button
+                              className="text-smoke hover:text-red-300"
+                              title="Remove this sale and return the product"
+                              onClick={() => confirm('Remove this sale? The product goes back where it came from.') && toast.run(mops.removeSale(x).then(() => ({ text: 'Sale removed, product returned.' })))}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </span>
+                    {lead.note && <span className="mt-1 block text-xs text-ash italic">“{lead.note}”</span>}
+                    {paid > 0 && <span className="mt-1 block text-[11px] text-ok">Team paid {money(paid)}</span>}
+                  </span>
+                  {lead.sellerId === me.id && team.length > 0 && lead.callId && (
+                    <button className="btn-ghost btn-sm" onClick={() => setPaying(whole)}>
+                      <HandCoins className="size-3.5" /> Pay the team
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="p-6">
+            <Empty icon={<VenetianMask className="size-7" />} title={m.sales.length ? 'Nothing matches' : 'Nothing sold yet'}>
+              {m.sales.length ? 'Try another filter.' : 'Got a Narco call? Tap what’s going out above.'}
+            </Empty>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Going rate">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {SALE_ITEMS.map((it) => {
+            const last = lastPrice(it.id);
             return (
-              <g key={s.id}>
-                <path d={d} fill="none" stroke={PRICE_COLORS[s.slot]} strokeWidth="2" strokeLinejoin="round" />
-                {s.cells.map((c, i) => (c ? <circle key={i} cx={x(i)} cy={y(c.total / c.units)} r="4" fill={PRICE_COLORS[s.slot]} stroke="#0c140f" strokeWidth="2" /> : null))}
-                <text x={x(last) + 8} y={y(s.cells[last]!.total / s.cells[last]!.units) + 4} className="pl">
-                  {s.name}
-                </text>
-              </g>
+              <div key={it.id} className="flex items-center gap-2 text-sm">
+                <span className="size-7 shrink-0">
+                  <Logo id={it.id === 'coca' ? 'cokeSmall' : it.id} />
+                </span>
+                <span className="flex-1 truncate text-ash">{it.name}</span>
+                <span className="font-mono text-gold-200">{m.prices[it.id] ? money(m.prices[it.id]!) : '—'}</span>
+                <span className="w-24 text-right text-[11px] text-smoke">{last?.price ? `last ${money(Math.round(last.price / last.qty))}` : ''}</span>
+              </div>
             );
           })}
-          <g className="phits">
-            {weeks.map((w, i) => (
-              <rect
-                key={w}
-                x={x(i) - (W - L - R) / (weeks.length - 1) / 2}
-                y={T}
-                width={(W - L - R) / (weeks.length - 1)}
-                height={H - T - B}
-                className="ph"
-                data-tip={`<b>Week of ${fmtW(w)}</b><br>${series
-                  .map((s) => `<i style="background:${PRICE_COLORS[s.slot]}"></i>${s.name} <b>${s.cells[i] ? money(s.cells[i]!.total / s.cells[i]!.units) : '—'}</b>`)
-                  .join('<br>')}`}
-              />
-            ))}
-          </g>
-        </svg>
-      )}
+        </div>
+        <p className="mt-2 text-[11px] text-smoke">Set price per {`${'brick / bin'}`}; “last” is the most recent gang sale.</p>
+      </Panel>
+
+      {paying && <PayTeam call={paying} onClose={() => setPaying(null)} />}
     </div>
   );
 }
+
+// ---------- money ----------
 
 function LedgerModal({ type, toId, onClose }: { type: 'payout' | 'expense'; toId?: string; onClose: () => void }) {
   const m = useMoney();
@@ -434,902 +536,557 @@ function LedgerModal({ type, toId, onClose }: { type: 'payout' | 'expense'; toId
   const [amount, setAmount] = useState(type === 'payout' && toId ? String(owed) : '');
   const [note, setNote] = useState('');
   return (
-    <NoelModal
-      onClose={onClose}
-      onSubmit={async () => {
-        const a = toCount(amount);
-        if (!a) return;
-        await mops.addLedger({ type, amount: a, toId: type === 'payout' ? who : null, toName: type === 'payout' ? roster.find((r) => r.id === who)?.name : undefined, note: note.trim().slice(0, 60) });
-        onClose();
-      }}
-    >
-      <h2 className="text-center text-xl font-black text-white">{type === 'payout' ? 'Record payout' : 'Record expense'}</h2>
-      {type === 'payout' && (
-        <label className="block text-xs font-semibold text-slate-300">
-          Paid to
-          <select className="dx-input mt-1 w-full" value={who} onChange={(e) => setWho(e.target.value)}>
-            {roster.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} · owed {money(m.people.find((p) => p.id === r.id)?.owed ?? 0)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <label className="block text-xs font-semibold text-slate-300">
-        Amount
-        <input type="number" min={1} className="dx-input mt-1 w-full font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
-      </label>
-      <label className="block text-xs font-semibold text-slate-300">
-        Note
-        <input className="dx-input mt-1 w-full" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Optional" />
-      </label>
-      <button type="submit" className="qs-submit">
-        Save
-      </button>
-      <button type="button" onClick={onClose} className="w-full text-xs text-slate-400 hover:text-white">
-        Cancel
-      </button>
-    </NoelModal>
+    <Modal title={type === 'payout' ? 'Record a payout' : 'Record an expense'} onClose={onClose}>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const a = toCount(amount);
+          if (!a) return;
+          await mops.addLedger({ type, amount: a, toId: type === 'payout' ? who : null, toName: type === 'payout' ? roster.find((r) => r.id === who)?.name : undefined, note: note.trim().slice(0, 60) });
+          onClose();
+        }}
+      >
+        {type === 'payout' && (
+          <Field label="Paid to">
+            <select className="input" value={who} onChange={(e) => setWho(e.target.value)}>
+              {roster.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} · owed {money(m.people.find((p) => p.id === r.id)?.owed ?? 0)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        <Field label="Amount">
+          <input className="input font-mono" inputMode="numeric" value={amount} onChange={(e) => setAmount(digits(e.target.value))} autoFocus />
+        </Field>
+        <Field label="Note">
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="Optional" />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold">Save</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
-function Budget({ since, periodLabel }: { since: number; periodLabel: string }) {
+function MoneyView() {
   const m = useMoney();
   const mops = useMoneyOps();
   const [ledger, setLedger] = useState<{ type: 'payout' | 'expense'; toId?: string } | null>(null);
-  const range = m.sales.filter((x) => at(x) >= since);
-  const rangeIncome = range.reduce((t, x) => t + (x.price ?? 0), 0);
-  const rangePaid = m.ledger.filter((l) => l.type === 'payout' && at(l) >= since).reduce((t, l) => t + l.amount, 0);
-  const rangeExp = m.ledger.filter((l) => l.type === 'expense' && at(l) >= since).reduce((t, l) => t + l.amount, 0);
+  const month = Date.now() - 30 * DAY;
+  const gang30 = m.sales.filter((x) => saleKind(x) === 'gang' && at(x) >= month).reduce((t, x) => t + (x.price ?? 0), 0);
   const owedTotal = m.people.reduce((t, p) => t + p.owed, 0);
-  const ranked = m.people.filter((p) => p.sold || p.owed || p.paid).sort((a, b) => b.earned - a.earned);
+  const holders = m.people.filter((p) => p.held || p.clean).sort((a, b) => b.held - a.held);
+  const myPays = m.pays.filter((p) => p.to === m.mine.id || p.from === m.mine.id).sort((a, b) => at(b) - at(a));
   return (
-    <div className="dx-glass dx-budget mb-4">
-      <div className="dx-sec">
-        <h2>
-          <i className="fa-solid fa-sack-dollar mr-1 text-amber-400" />
-          Budget
-        </h2>
-        <div className="flex gap-2">
-          <button type="button" className="dx-act" style={{ flex: 'none', padding: '6px 12px' }} onClick={() => setLedger({ type: 'payout' })}>
-            <i className="fa-solid fa-hand-holding-dollar mr-1" />
-            Record Payout
-          </button>
-          <button type="button" className="dx-act" style={{ flex: 'none', padding: '6px 12px' }} onClick={() => setLedger({ type: 'expense' })}>
-            <i className="fa-solid fa-receipt mr-1" />
-            Record Expense
-          </button>
-        </div>
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="My dirty money" value={<span className="text-red-300">{money(m.mine.held)}</span>} sub="In your locker" />
+        <Stat label="My clean money" value={money(m.mine.clean)} sub="Wash dirty from My Locker" />
+        {m.all ? (
+          <>
+            <Stat label="Gang bank" value={money(m.bank)} sub="Gang sales, minus team pay, payouts & expenses" />
+            <Stat label="Gang sales · 30 days" value={money(gang30)} sub={owedTotal ? `${money(owedTotal)} owed to members` : 'Nothing owed'} />
+          </>
+        ) : (
+          <>
+            <Stat label="Owed to me" value={money(m.mine.owed)} sub="By the Treasurer" />
+            <Stat label="Paid to me" value={money(m.mine.paid)} sub="Payouts recorded" />
+          </>
+        )}
       </div>
-      <div className="dx-budget-tiles">
-        <div>
-          <div className="l">Gang bank</div>
-          <div className={`v bank ${m.bank < 0 ? 'neg' : ''}`}>
-            {m.bank < 0 ? '−' : ''}
-            {money(Math.abs(m.bank))}
-          </div>
-          <div className="s">sales in, minus payouts &amp; expenses</div>
-        </div>
-        <div>
-          <div className="l">Sales · {periodLabel}</div>
-          <div className="v">{money(rangeIncome)}</div>
-          <div className="s">{range.reduce((t, x) => t + x.qty, 0)} out</div>
-        </div>
-        <div>
-          <div className="l">Paid out · {periodLabel}</div>
-          <div className="v">{money(rangePaid)}</div>
-          <div className="s">expenses {money(rangeExp)}</div>
-        </div>
-        <div>
-          <div className="l">Owed to crew</div>
-          <div className={`v ${owedTotal ? 'text-amber-300' : ''}`}>{money(owedTotal)}</div>
-          <div className="s">bank after paying: {money(m.bank - owedTotal)}</div>
-        </div>
-      </div>
-      <div className="dx-budget-grid">
-        <div>
-          <h3>Payouts by person</h3>
-          <div className="overflow-x-auto">
-            <table className="dx-sales-table">
-              {ranked.length ? (
-                <>
-                  <thead>
-                    <tr>
-                      <th>Seller</th>
-                      <th className="r">Out</th>
-                      <th className="r">Sold</th>
-                      <th className="r">Earned</th>
-                      <th className="r">Paid</th>
-                      <th className="r">Owed now</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ranked.map((p, i) => (
-                      <tr key={p.id}>
-                        <td>
-                          <span className="rank">{i + 1}</span>
-                          <NoelAvatar name={p.name} /> <b>{p.name}</b>
-                        </td>
-                        <td className="r">{p.qty}</td>
-                        <td className="r">{money(p.sold)}</td>
-                        <td className="r">
-                          <b>{money(p.earned)}</b>
-                        </td>
-                        <td className="r">{money(p.paid)}</td>
-                        <td className={`r ${p.owed ? 'owed' : ''}`}>{money(p.owed)}</td>
-                        <td className="r">
-                          {p.owed > 0 && (
-                            <button type="button" className="pay" onClick={() => setLedger({ type: 'payout', toId: p.id })}>
-                              Pay
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              ) : (
-                <tbody>
-                  <tr>
-                    <td className="m">No sales with prices yet.</td>
+
+      {myPays.length > 0 && (
+        <Panel title="Team pay">
+          <ul className="divide-y divide-line-soft text-sm">
+            {myPays.slice(0, 12).map((p) => (
+              <li key={p.id} className="flex items-center gap-2 py-2">
+                {p.from === m.mine.id ? (
+                  <>
+                    You paid <MemberName id={p.to} />
+                  </>
+                ) : (
+                  <>
+                    <MemberName id={p.from} /> paid you
+                  </>
+                )}
+                <span className="text-xs text-smoke">· {p.source === 'sale' ? 'out of the sale' : 'out of pocket'} · {ago(p.at)}</span>
+                <span className="ml-auto font-mono text-red-300">{money(p.dirty)}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {m.all && (
+        <>
+          <Panel
+            title="Treasury"
+            right={
+              <span className="flex gap-1.5">
+                <button className="btn-ghost btn-sm" onClick={() => setLedger({ type: 'payout' })}>
+                  Record payout
+                </button>
+                <button className="btn-ghost btn-sm" onClick={() => setLedger({ type: 'expense' })}>
+                  Record expense
+                </button>
+              </span>
+            }
+          >
+            {m.ledger.length ? (
+              <ul className="divide-y divide-line-soft text-sm">
+                {m.ledger.slice(0, 15).map((l) => (
+                  <li key={l.id} className="flex items-center gap-2 py-2">
+                    <span className="flex-1">
+                      {l.type === 'payout' ? (
+                        <>
+                          Paid <b className="text-gold-100">{l.toName}</b>
+                        </>
+                      ) : (
+                        <b className="text-gold-100">Expense</b>
+                      )}
+                      {l.note && <span className="text-smoke"> · {l.note}</span>}
+                      <span className="block text-[11px] text-smoke">
+                        {l.byName} · {ago(l.at)}
+                      </span>
+                    </span>
+                    <span className="font-mono text-gold-200">−{money(l.amount)}</span>
+                    <button className="p-1 text-smoke hover:text-red-300" onClick={() => confirm('Remove this entry?') && mops.removeLedger(l.id)} aria-label="Remove">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-smoke">Nothing recorded yet.</p>
+            )}
+          </Panel>
+
+          <Panel title="Who holds what" pad={false}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="label text-left">
+                  <tr className="border-b border-line-soft">
+                    <th className="px-4 py-2">Member</th>
+                    <th className="px-2 py-2 text-right">Moved</th>
+                    <th className="px-2 py-2 text-right">Dirty held</th>
+                    <th className="px-2 py-2 text-right">Clean</th>
+                    <th className="px-2 py-2 text-right">Owed</th>
+                    <th className="px-4 py-2" />
                   </tr>
+                </thead>
+                <tbody>
+                  {holders.map((p) => (
+                    <tr key={p.id} className="border-b border-line-soft/60">
+                      <td className="px-4 py-2">
+                        <MemberName id={p.id} />
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono text-ash">{p.qty}</td>
+                      <td className="px-2 py-2 text-right font-mono text-red-300">{money(p.held)}</td>
+                      <td className="px-2 py-2 text-right font-mono text-gold-100">{money(p.clean)}</td>
+                      <td className="px-2 py-2 text-right font-mono text-gold-300">{p.owed ? money(p.owed) : '—'}</td>
+                      <td className="px-4 py-2 text-right">
+                        {p.owed > 0 && (
+                          <button className="btn-ghost btn-sm" onClick={() => setLedger({ type: 'payout', toId: p.id })}>
+                            Pay
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!holders.length && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-4 text-center text-smoke">
+                        Nobody holds anything yet.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
-              )}
-            </table>
-          </div>
-          <p className="dx-muted mt-2 text-[11px]">Earned = each sale&apos;s price × the seller&apos;s cut at the time. &quot;Owed now&quot; counts all time.</p>
-        </div>
-        <div>
-          <h3>Payouts &amp; expenses</h3>
-          {m.ledger.length ? (
-            <ul className="dx-ledger">
-              {m.ledger.slice(0, 8).map((l) => (
-                <li key={l.id}>
-                  <i className={`fa-solid ${l.type === 'payout' ? 'fa-hand-holding-dollar text-amber-400' : 'fa-receipt text-slate-400'}`} />
-                  <div className="min-w-0">
-                    <div>
-                      {l.type === 'payout' ? <>Paid <b>{l.toName}</b></> : <b>Expense</b>}
-                      {l.note ? <span className="dx-muted"> · {l.note}</span> : null}
-                    </div>
-                    <div className="dx-muted text-[11px]">
-                      {l.byName} · {relTime(at(l), Date.now())}
-                    </div>
-                  </div>
-                  <span className="amt">−{money(l.amount)}</span>
-                  <button type="button" className="text-xs text-slate-500 hover:text-red-300" onClick={() => confirm('Remove this entry?') && mops.removeLedger(l.id)} title="Remove">
-                    <i className="fa-solid fa-xmark" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="dx-muted text-xs">Nothing recorded yet.</p>
+              </table>
+            </div>
+          </Panel>
+
+          {m.washes.length > 0 && (
+            <Panel title="Earlier washes">
+              <ul className="divide-y divide-line-soft text-sm">
+                {m.washes.slice(0, 10).map((w) => (
+                  <li key={w.id} className="flex items-center gap-2 py-2">
+                    <MemberName id={w.memberId} />
+                    <span className="text-xs text-smoke">· {ago(w.at)}</span>
+                    <span className="ml-auto font-mono text-red-300">{money(w.dirty)}</span>→<span className="font-mono text-gold-100">{money(w.clean)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
-        </div>
-      </div>
+        </>
+      )}
       {ledger && <LedgerModal type={ledger.type} toId={ledger.toId} onClose={() => setLedger(null)} />}
     </div>
   );
 }
 
-function SellView({ narco, setNarco }: { narco: boolean; setNarco: (v: boolean) => void }) {
+// ---------- wish list ----------
+
+function WishView() {
+  const { me, can, myRank } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
   const toast = useToast();
-  const [period, setPeriod] = useState('30');
-  const [product, setProduct] = useState('');
-  const [who, setWho] = useState('');
-  const [from, setFrom] = useState('');
-  const [shown, setShown] = useState(50);
-  const since = period === 'all' ? 0 : Date.now() - Number(period) * DAY;
-  const list = m.sales.filter((x) => at(x) >= since && (!product || x.product === product) && (!who || x.sellerId === who) && (!from || x.fromLabel === from));
-  const sinceTile = (msBack: number) => {
-    const l = m.sales.filter((x) => at(x) >= Date.now() - msBack);
-    return { qty: l.reduce((t, x) => t + x.qty, 0), cash: l.reduce((t, x) => t + (x.price ?? 0), 0), n: l.length };
-  };
-  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const sinceMidnight = (today.getHours() * 60 + today.getMinutes()) * 60000;
-  const group = (key: (x: Sale) => string, label: (x: Sale) => string, logo: boolean) => {
-    const map = new Map<string, { id: string; label: string; qty: number; cash: number; logo: boolean }>();
-    list.forEach((x) => {
-      const k = key(x);
-      const r = map.get(k) ?? { id: k, label: label(x), qty: 0, cash: 0, logo };
-      r.qty += x.qty;
-      r.cash += x.price ?? 0;
-      map.set(k, r);
-    });
-    return [...map.values()].sort((a, b) => b.qty - a.qty);
-  };
-
-  return (
-    <>
-      <SellForm narco={narco} setNarco={setNarco} />
-      <div className="dx-stats">
-        {(
-          [
-            ['Today', sinceTile(sinceMidnight)],
-            ['Last 7 days', sinceTile(7 * DAY)],
-            ['Last 30 days', sinceTile(30 * DAY)],
-            ['All time', sinceTile(Date.now())],
-          ] as const
-        ).map(([label, x]) => (
-          <div key={label} className="dx-glass dx-stat" style={{ minHeight: 96 }}>
-            <div className="lbl">
-              {label}
-              {!m.all && ' · you'}
-            </div>
-            <div className="num dx-mono">
-              {x.qty.toLocaleString()}
-              <span className="text-sm text-slate-500"> out</span>
-            </div>
-            <div className="delta dx-muted">{x.cash ? money(x.cash) : `${x.n} ${x.n === 1 ? 'entry' : 'entries'}`}</div>
-          </div>
-        ))}
-      </div>
-      {m.all && <Budget since={since} periodLabel={period === 'all' ? 'all time' : `last ${period} days`} />}
-      <div className="dx-sales-filters dx-glass">
-        <label>
-          Period
-          <select className="dx-input" value={period} onChange={(e) => setPeriod(e.target.value)}>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="all">All time</option>
-          </select>
-        </label>
-        <label>
-          Product
-          <select className="dx-input" value={product} onChange={(e) => setProduct(e.target.value)}>
-            <option value="">All products</option>
-            {SALE_ITEMS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {m.all && (
-          <label>
-            Person
-            <select className="dx-input" value={who} onChange={(e) => setWho(e.target.value)}>
-              <option value="">Everyone</option>
-              {m.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label>
-          From
-          <select className="dx-input" value={from} onChange={(e) => setFrom(e.target.value)}>
-            <option value="">All places</option>
-            {[...new Set(m.sales.map((x) => x.fromLabel))].map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="dx-muted ml-auto text-xs">
-          {list.length} {list.length === 1 ? 'entry' : 'entries'} · <b className="text-slate-200">{list.reduce((t, x) => t + x.qty, 0)} out</b>
-          {list.some((x) => x.price) && (
-            <>
-              {' '}
-              · <b className="text-slate-200">{money(list.reduce((t, x) => t + (x.price ?? 0), 0))}</b>
-            </>
-          )}
-        </span>
-      </div>
-      <PriceHistory sales={m.sales} />
-      <div className="dx-charts mb-4">
-        <div className="dx-glass dx-panel">
-          <div className="dx-sec">
-            <h2>By Product</h2>
-            <span className="dx-muted text-xs">went out</span>
-          </div>
-          <div className="dx-hbars">{hbars(group((x) => x.product, (x) => saleItem(x.product)?.name ?? x.product, true), true)}</div>
-        </div>
-        <div className="dx-glass dx-panel">
-          <div className="dx-sec">
-            <h2>By Person</h2>
-            <span className="dx-muted text-xs">went out</span>
-          </div>
-          <div className="dx-hbars">{hbars(group((x) => x.sellerId, (x) => x.sellerName, false), true)}</div>
-        </div>
-      </div>
-      <div className="dx-glass dx-sales">
-        <div className="dx-sec">
-          <h2>Ledger{!m.all && ' · your sales'}</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="dx-sales-table">
-            {list.length ? (
-              <>
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Who</th>
-                    <th>Product</th>
-                    <th className="r">Qty</th>
-                    <th>From</th>
-                    <th className="r">Dirty money</th>
-                    <th>Note</th>
-                    {m.all && <th />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.slice(0, shown).map((x) => (
-                    <tr key={x.id}>
-                      <td className="m">{fmtWhen(at(x))}</td>
-                      <td>
-                        <b>{x.sellerName}</b>
-                      </td>
-                      <td>
-                        <b>{saleItem(x.product)?.name}</b>
-                      </td>
-                      <td className="n r">−{x.qty}</td>
-                      <td className="m">{x.fromLabel}</td>
-                      <td className="r">{x.price ? money(x.price) : <span className="dx-muted">—</span>}</td>
-                      <td className="m">
-                        {x.narco && (
-                          <span className="bm-tag" title="From a Narco call">
-                            <i className="fa-solid fa-phone-volume" />
-                            Narco
-                          </span>
-                        )}{' '}
-                        {x.note}
-                      </td>
-                      {m.all && (
-                        <td className="r">
-                          <button
-                            type="button"
-                            className="text-slate-500 hover:text-red-300"
-                            title="Remove entry and return the product"
-                            onClick={() => confirm(`Remove this sale and put ${x.qty} back in ${x.fromLabel}?`) && toast.run(mops.removeSale(x))}
-                          >
-                            <i className="fa-solid fa-rotate-left" />
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </>
-            ) : (
-              <tbody>
-                <tr>
-                  <td className="m" style={{ padding: '14px 8px' }}>
-                    {m.sales.length ? 'Nothing matches these filters.' : <Empty title="Nothing sold yet" text="Got a Narco call? Sell it above and it comes out of the stash." />}
-                  </td>
-                </tr>
-              </tbody>
-            )}
-          </table>
-        </div>
-        {list.length > shown && (
-          <div className="mt-3 text-center">
-            <button type="button" className="dx-act" style={{ flex: 'none', padding: '6px 14px' }} onClick={() => setShown(shown + 50)}>
-              Show more ({list.length - shown} left)
-            </button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function WishView() {
-  const m = useMoney();
-  const mops = useMoneyOps();
-  const { me, can } = useHub();
+  const locker = useLocker();
+  const ops = useOps('stash');
+  const types = useCollection<ItemType>('itemTypes') ?? [];
+  const byId = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
+  const lead = can('money') || myRank?.order === 0 || !!myRank?.leadership;
   const fields = m.settings.wishFields ?? [];
+  const [posting, setPosting] = useState(false);
   const [title, setTitle] = useState('');
+  const [itemId, setItemId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [qty, setQty] = useState('1');
+  const [offer, setOffer] = useState('');
   const [notes, setNotes] = useState('');
   const [extra, setExtra] = useState<Record<string, string>>({});
-  const active = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').sort((a, b) => Number(a.status === 'claimed') - Number(b.status === 'claimed') || at(b) - at(a));
+  const rank = (w: Wish) => (w.priority === 'pinned' ? 0 : w.priority === 'urgent' ? 1 : 2);
+  const active = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').sort((a, b) => rank(a) - rank(b) || Number(a.status === 'claimed') - Number(b.status === 'claimed') || at(b) - at(a));
   const done = m.wishes.filter((w) => w.status === 'done' || w.status === 'cancelled').sort((a, b) => (b.doneAt?.toMillis() ?? 0) - (a.doneAt?.toMillis() ?? 0));
-  const boss = can('money');
+
+  async function post(e: FormEvent) {
+    e.preventDefault();
+    const name = itemId ? itemTitle(byId.get(itemId), byId) : title.trim();
+    if (!name) return;
+    await mops.postWish({ title: name.slice(0, 60), qty: Math.max(1, Math.min(999, toCount(qty) || 1)), notes: notes.trim().slice(0, 200), fields: extra, itemId, offer: toCount(offer) || 0 });
+    setTitle('');
+    setItemId(null);
+    setQty('1');
+    setOffer('');
+    setNotes('');
+    setExtra({});
+    setPosting(false);
+  }
+  async function receive(w: Wish) {
+    if (!w.itemId) return;
+    const onme = locker.storages.find((s) => s.id === 'onme') ?? locker.storages[0];
+    if (!onme) return;
+    await toast.run(
+      ops
+        .applyDeltas([{ loc: locker.path(onme.id), field: 'meth', item: w.itemId, delta: w.qty }])
+        .then(() => mops.markReceived(w))
+        .then(() => ({ text: `Added ${w.qty} × ${w.title} to ${onme.name}.` })),
+    );
+  }
+
   const card = (w: Wish) => {
     const claimed = w.status === 'claimed';
+    const mine = w.byId === me.id;
     return (
-      <div key={w.id} className={`dx-glass wish ${w.status}`}>
-        <div className="top">
-          <div className="min-w-0">
-            <h3>
-              {w.title}
-              {w.qty > 1 && <span className="qty"> ×{w.qty}</span>}
-            </h3>
-            <div className="by">
-              Asked by <b>{w.byName}</b> · {relTime(at(w), Date.now())}
-            </div>
+      <li key={w.id} className={`hud p-4 ${w.priority === 'urgent' ? 'ring-1 ring-red-400/50' : w.priority === 'pinned' ? 'ring-1 ring-gold-400/50' : ''}`}>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2">
+              {w.priority === 'pinned' && <Pin className="size-3.5 text-gold-300" />}
+              {w.priority === 'urgent' && <span className="chip bg-red-500/20 px-2 py-0.5 text-[10px] font-bold text-red-300">URGENT</span>}
+              <b className="font-hud text-lg text-gold-100">
+                {w.qty > 1 ? `${w.qty} × ` : ''}
+                {w.title}
+              </b>
+              {w.itemId && <span className="chip bg-raised px-2 py-0.5 text-[10px] text-ash">catalog item</span>}
+            </p>
+            <p className="text-xs text-smoke">
+              asked by <MemberName id={w.byId} className="text-xs" /> · {ago(w.at)}
+              {w.offer ? (
+                <>
+                  {' '}
+                  · offering <b className="font-mono text-gold-200">{money(w.offer)}</b>
+                </>
+              ) : null}
+            </p>
+            {w.notes && <p className="mt-1 text-sm text-ash">{w.notes}</p>}
+            {fields.some((f) => w.fields?.[f.id]) && (
+              <p className="mt-1 text-xs text-smoke">
+                {fields
+                  .filter((f) => w.fields?.[f.id])
+                  .map((f) => `${f.label}: ${w.fields![f.id]}`)
+                  .join(' · ')}
+              </p>
+            )}
           </div>
-          <span className={`wish-pill ${w.status}`}>{claimed ? `${w.claimerName} is on it` : 'Open'}</span>
+          <span className={`chip px-2 py-0.5 text-[11px] font-bold ${claimed ? 'bg-sky-500/20 text-sky-300' : 'bg-gold-400/15 text-gold-200'}`}>{claimed ? `${w.claimerName} is on it` : 'Open'}</span>
         </div>
-        {fields.some((f) => w.fields?.[f.id]) && (
-          <div className="fields">
-            {fields
-              .filter((f) => w.fields?.[f.id])
-              .map((f) => (
-                <span key={f.id}>
-                  <b>{f.label}:</b> {w.fields![f.id]}
-                </span>
-              ))}
-          </div>
-        )}
-        {w.notes && <p className="notes">{w.notes}</p>}
-        <div className="acts">
-          {w.status === 'open' && (
-            <button type="button" className="dx-btn dx-btn-g" onClick={() => mops.wishAction(w, 'claim')}>
-              <i className="fa-solid fa-hand mr-1" />
-              I&apos;ll get it
-            </button>
-          )}
-          {claimed && (w.claimerId === me.id || boss) && (
-            <button type="button" className="dx-btn dx-btn-g" onClick={() => mops.wishAction(w, 'done')}>
-              <i className="fa-solid fa-check mr-1" />
-              Got it
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {!claimed && (
+            <button className="btn-gold btn-sm" onClick={() => mops.wishAction(w, 'claim')}>
+              <Check className="size-3.5" /> I’ll get it
             </button>
           )}
           {claimed && w.claimerId === me.id && (
-            <button type="button" className="dx-btn dx-btn-o" onClick={() => mops.wishAction(w, 'unclaim')}>
-              Let it go
-            </button>
+            <>
+              <button className="btn-gold btn-sm" onClick={() => mops.wishAction(w, 'done')}>
+                <Check className="size-3.5" /> Delivered
+              </button>
+              <button className="btn-ghost btn-sm" onClick={() => mops.wishAction(w, 'unclaim')}>
+                Let it go
+              </button>
+            </>
           )}
-          {(boss || w.byId === me.id) && (
-            <button type="button" className="dx-btn dx-stop" title="Cancel this request" onClick={() => confirm(`Cancel "${w.title}"?`) && mops.wishAction(w, 'cancel')}>
-              <i className="fa-solid fa-xmark" />
+          {lead && (
+            <>
+              <button className="btn-ghost btn-sm" onClick={() => mops.setWishPriority(w, w.priority === 'pinned' ? null : 'pinned')}>
+                <Pin className="size-3.5" /> {w.priority === 'pinned' ? 'Unpin' : 'Pin'}
+              </button>
+              <button className="btn-ghost btn-sm" onClick={() => mops.setWishPriority(w, w.priority === 'urgent' ? null : 'urgent')}>
+                <Siren className="size-3.5" /> {w.priority === 'urgent' ? 'Not urgent' : 'Urgent'}
+              </button>
+            </>
+          )}
+          {(mine || lead) && (
+            <button className="btn-ghost btn-sm ml-auto text-red-300" onClick={() => confirm(`Cancel “${w.title}”?`) && mops.wishAction(w, 'cancel')}>
+              <X className="size-3.5" /> Cancel
             </button>
           )}
         </div>
-      </div>
+      </li>
     );
   };
+
   return (
-    <>
-      <form
-        className="dx-glass dx-qs"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!title.trim()) return;
-          await mops.postWish({ title: title.trim().slice(0, 60), qty: Math.max(1, Math.min(999, toCount(qty) || 1)), notes: notes.trim().slice(0, 200), fields: extra });
-          setTitle('');
-          setQty('1');
-          setNotes('');
-          setExtra({});
-        }}
-      >
-        <div className="dx-sec">
-          <h2>
-            <i className="fa-solid fa-list-check bm-dirty mr-1" />
-            Wish list
-          </h2>
-          <span className="dx-muted hidden text-xs sm:inline">Something the family needs got? Post it, someone claims it, then marks it got.</span>
-        </div>
-        <div className="wish-grid">
-          <label className="wide">
-            What&apos;s needed
-            <input maxLength={60} required placeholder="e.g. Battery acid, a boat, 2 pistols" className="dx-input w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <label>
-            How many
-            <input type="number" min={1} max={999} className="dx-input dx-mono w-full" value={qty} onChange={(e) => setQty(e.target.value)} />
-          </label>
-          {fields.map((f) => (
-            <label key={f.id}>
-              {f.label}
-              <input maxLength={60} className="dx-input w-full" value={extra[f.id] ?? ''} onChange={(e) => setExtra({ ...extra, [f.id]: e.target.value })} />
-            </label>
-          ))}
-          <label className="wide">
-            Notes <span>(optional)</span>
-            <input maxLength={200} placeholder="Where, by when, who to give it to…" className="dx-input w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
-        </div>
-        <button type="submit" className="qs-submit">
-          <i className="fa-solid fa-plus mr-2" />
-          Add to the wish list
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-ash">Need something sourced? Post it; someone claims it and delivers it in the city.</p>
+        <button className="btn-gold" onClick={() => setPosting(true)}>
+          <Plus className="size-4" /> Ask for something
         </button>
-      </form>
-      <div className="wish-list">
-        {active.length ? (
-          active.map(card)
-        ) : (
-          <div style={{ gridColumn: '1/-1' }}>
-            <Empty title="Nothing on the list" text="Need something sourced? Post it above and someone can claim it." />
-          </div>
-        )}
       </div>
-      {done.length > 0 && (
-        <div className="wish-done">
-          <details>
-            <summary>Done &amp; cancelled ({done.length})</summary>
-            <ul>
-              {done.slice(0, 30).map((w) => (
-                <li key={w.id}>
-                  <span className={`wish-pill ${w.status}`}>{w.status === 'done' ? 'Got it' : 'Cancelled'}</span> <b>{w.title}</b>
-                  {w.qty > 1 ? ` ×${w.qty}` : ''} <span className="dx-muted">· {w.status === 'done' ? `by ${w.claimerName}` : ''}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        </div>
+      {active.length ? (
+        <ul className="grid gap-3 lg:grid-cols-2">{active.map(card)}</ul>
+      ) : (
+        <Empty icon={<ListChecks className="size-7" />} title="Nothing on the list">
+          Post what you need and someone can claim it.
+        </Empty>
       )}
-    </>
+      {done.length > 0 && (
+        <Panel title="Done & cancelled">
+          <ul className="divide-y divide-line-soft text-sm">
+            {done.slice(0, 20).map((w) => (
+              <li key={w.id} className="flex flex-wrap items-center gap-2 py-2">
+                <span className={w.status === 'done' ? 'text-gold-100' : 'text-smoke line-through'}>
+                  {w.qty > 1 ? `${w.qty} × ` : ''}
+                  {w.title}
+                </span>
+                <span className="text-xs text-smoke">
+                  for <MemberName id={w.byId} className="text-xs" />
+                  {w.status === 'done' && w.claimerName ? ` · delivered by ${w.claimerName}` : ''}
+                </span>
+                {w.status === 'done' && w.itemId && w.byId === me.id && !w.received && (
+                  <button className="btn-gold btn-sm ml-auto" onClick={() => receive(w)}>
+                    <ShoppingBag className="size-3.5" /> Add to my locker
+                  </button>
+                )}
+                {w.received && <span className="ml-auto text-[11px] text-ok">In your locker</span>}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+      {posting && (
+        <Modal title="Ask for something" onClose={() => setPosting(false)}>
+          <form className="space-y-4" onSubmit={post}>
+            <Field label="What">
+              {itemId ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-gold-100">{itemTitle(byId.get(itemId), byId)}</span>
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setItemId(null)}>
+                    Type it instead
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} placeholder="e.g. 2 armor plates" autoFocus />
+                  <button type="button" className="btn-ghost shrink-0" onClick={() => setPicking(true)}>
+                    From the catalog
+                  </button>
+                </div>
+              )}
+            </Field>
+            {picking && <ItemPicker types={types} value={itemId} onChange={(id) => (setItemId(id), setPicking(false))} />}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="How many">
+                <input className="input font-mono" inputMode="numeric" value={qty} onChange={(e) => setQty(digits(e.target.value))} />
+              </Field>
+              <Field label="I’ll pay" hint="Optional">
+                <input className="input font-mono" inputMode="numeric" value={offer} onChange={(e) => setOffer(digits(e.target.value))} placeholder="$" />
+              </Field>
+            </div>
+            {fields.map((f) => (
+              <Field key={f.id} label={f.label}>
+                <input className="input" value={extra[f.id] ?? ''} maxLength={60} onChange={(e) => setExtra({ ...extra, [f.id]: e.target.value })} />
+              </Field>
+            ))}
+            <Field label="Notes">
+              <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={200} placeholder="Optional" />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-ghost" onClick={() => setPosting(false)}>
+                Cancel
+              </button>
+              <button className="btn-gold" disabled={!itemId && !title.trim()}>
+                Post it
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
   );
 }
 
-function WashView() {
+// ---------- washing (washers) ----------
+
+function WashingView() {
+  const { me } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
-  const toast = useToast();
-  const { me } = useHub();
-  const [who, setWho] = useState(me.id);
-  const [amount, setAmount] = useState('');
-  const [pct, setPct] = useState<string | null>(null);
-  const [note, setNote] = useState('');
-  const person = m.people.find((p) => p.id === who) ?? m.mine;
-  const p = pct ?? String(m.washPct);
-  const dirty = toCount(amount);
-  const clean = Math.round((dirty * (100 - Math.max(0, Math.min(100, Number(p) || 0)))) / 100);
-  const visible = m.all ? m.people : [m.mine];
-  const tot = visible.reduce((t, x) => ({ held: t.held + x.held, lost: t.lost + x.lost }), { held: 0, lost: 0 });
-  return (
-    <>
-      <div className="dx-stats">
-        <div className="dx-glass dx-stat">
-          <div className="lbl">Your dirty money</div>
-          <div className="num dx-mono bm-dirty">{money(m.mine.held)}</div>
-          <div className="delta dx-muted">from your sales, not washed yet</div>
-        </div>
-        <div className="dx-glass dx-stat">
-          <div className="lbl">You&apos;ve washed</div>
-          <div className="num dx-mono">{money(m.mine.clean)}</div>
-          <div className="delta dx-muted">clean, from {money(m.mine.washed)} dirty</div>
-        </div>
-        {m.all && (
-          <>
-            <div className="dx-glass dx-stat">
-              <div className="lbl">Family dirty money</div>
-              <div className="num dx-mono bm-dirty">{money(tot.held)}</div>
-              <div className="delta dx-muted">held by {visible.filter((x) => x.held).length} people</div>
-            </div>
-            <div className="dx-glass dx-stat">
-              <div className="lbl">Lost to washing</div>
-              <div className="num dx-mono" style={{ color: '#fca5a5' }}>
-                {money(tot.lost)}
-              </div>
-              <div className="delta dx-muted">launderers&apos; cuts, all time</div>
-            </div>
-          </>
-        )}
-      </div>
-      <form
-        className="dx-glass dx-qs"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!dirty) return toast.alert('Enter how much dirty money is being washed.', 'warning');
-          if (dirty > person.held) return toast.alert(`${person.name} only has ${money(person.held)} dirty.`, 'warning');
-          await toast.run(
-            mops.wash({ memberId: person.id, memberName: person.name, dirty, pct: Math.round(Number(p) || 0), note: note.trim().slice(0, 60) }).then(() => ({ text: `Washed: ${money(clean)} clean.` })),
-          );
-          setAmount('');
-          setNote('');
-        }}
-      >
-        <div className="dx-sec">
-          <h2>
-            <i className="fa-solid fa-soap bm-dirty mr-1" />
-            Wash dirty money
-          </h2>
-          <span className="dx-muted hidden text-xs sm:inline">Each seller holds the dirty money from their sales until they wash it.</span>
-        </div>
-        <div className="wish-grid">
-          <label>
-            Whose money
-            <select className="dx-input w-full" value={who} onChange={(e) => setWho(e.target.value)} disabled={!m.all}>
-              {(m.all ? m.people.filter((x) => x.held > 0 || x.id === me.id) : [m.mine]).map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name} · {money(x.held)} dirty
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Dirty money in
-            <div className="flex gap-2">
-              <input type="number" min={1} placeholder="$" className="dx-input dx-mono w-full" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              <button type="button" className="dx-act" style={{ flex: 'none' }} onClick={() => setAmount(String(person.held))}>
-                All
-              </button>
-            </div>
-          </label>
-          <label>
-            Wash cut %
-            <input type="number" min={0} max={100} className="dx-input dx-mono w-full" value={p} onChange={(e) => setPct(e.target.value)} />
-          </label>
-          <label>
-            Note <span>(optional)</span>
-            <input maxLength={60} placeholder="Launderer, where…" className="dx-input w-full" value={note} onChange={(e) => setNote(e.target.value)} />
-          </label>
-        </div>
-        <p className="mt-3 text-sm text-slate-300">
-          {dirty ? (
-            <>
-              You get <b>{money(clean)}</b> clean · <span style={{ color: '#fca5a5' }}>{money(dirty - clean)}</span> to the launderer
-            </>
-          ) : (
-            'Enter how much dirty money goes in.'
-          )}
-        </p>
-        <button type="submit" className="qs-submit">
-          <i className="fa-solid fa-soap mr-2" />
-          Wash it
+  const open = m.washReqs.filter((w) => w.status === 'open' || w.status === 'claimed');
+  const done = m.washReqs.filter((w) => w.status === 'done');
+  const row = (w: WashRequest) => (
+    <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
+      <MemberName id={w.memberId} />
+      <span className="text-xs text-smoke">· {ago(w.at)}</span>
+      {w.note && <span className="text-xs text-ash italic">“{w.note}”</span>}
+      <span className="ml-auto font-mono text-red-300">{money(w.dirty)}</span>
+      <span className="text-smoke">→</span>
+      <span className="font-mono text-gold-100">{money(w.clean)}</span>
+      <span className="text-[11px] text-smoke">({100 - w.pct}% back)</span>
+      {w.status === 'open' && m.washer && (
+        <button className="btn-gold btn-sm" onClick={() => mops.washStep(w, 'claim')}>
+          Claim
         </button>
-      </form>
-      <div className="mt-4">
-        <div className="dx-glass dx-sales">
-          <div className="dx-sec">
-            <h2>Who holds what</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="dx-sales-table">
-              <thead>
-                <tr>
-                  <th>Person</th>
-                  <th className="r">Dirty held</th>
-                  <th className="r">Washed</th>
-                  <th className="r">Clean out</th>
-                  <th className="r">Lost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((x) => (
-                  <tr key={x.id}>
-                    <td>
-                      <b>{x.name}</b>
-                    </td>
-                    <td className="r bm-dirty">{money(x.held)}</td>
-                    <td className="r">{money(x.washed)}</td>
-                    <td className="r">{money(x.clean)}</td>
-                    <td className="r" style={{ color: '#fca5a5' }}>
-                      {money(x.lost)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="dx-glass dx-sales mt-4">
-          <div className="dx-sec">
-            <h2>Wash log</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="dx-sales-table">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Who</th>
-                  <th className="r">Dirty</th>
-                  <th className="r">Cut</th>
-                  <th className="r">Clean</th>
-                  <th>Note</th>
-                  {m.all && <th />}
-                </tr>
-              </thead>
-              <tbody>
-                {m.washes.slice(0, 50).map((w) => (
-                  <tr key={w.id}>
-                    <td className="m">{fmtWhen(at(w))}</td>
-                    <td>
-                      <b>{w.memberName}</b>
-                    </td>
-                    <td className="r bm-dirty">{money(w.dirty)}</td>
-                    <td className="r">{w.pct}%</td>
-                    <td className="r">{money(w.clean)}</td>
-                    <td className="m">{w.note}</td>
-                    {m.all && (
-                      <td className="r">
-                        <button
-                          type="button"
-                          className="text-slate-500 hover:text-red-300"
-                          title="Remove this wash (the money goes back to dirty)"
-                          onClick={() => confirm(`Remove this wash of ${money(w.dirty)}?`) && mops.removeWash(w.id)}
-                        >
-                          <i className="fa-solid fa-rotate-left" />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-                {!m.washes.length && (
-                  <tr>
-                    <td colSpan={7} className="dx-muted">
-                      Nothing washed yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      )}
+      {w.status === 'claimed' &&
+        (w.claimerId === me.id ? (
+          <span className="flex gap-1.5">
+            <button className="btn-gold btn-sm" onClick={() => mops.washStep(w, 'done')}>
+              <Check className="size-3.5" /> Washed
+            </button>
+            <button className="btn-ghost btn-sm" onClick={() => mops.washStep(w, 'unclaim')}>
+              Let it go
+            </button>
+          </span>
+        ) : (
+          <span className="chip bg-sky-500/20 px-2 py-0.5 text-[11px] text-sky-300">{w.claimerName} is washing it</span>
+        ))}
+    </li>
+  );
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="Waiting" value={money(open.reduce((t, w) => t + w.dirty, 0))} sub={`${open.length} ${open.length === 1 ? 'request' : 'requests'}`} />
+        <Stat label="Washed · 7 days" value={money(done.filter((w) => (w.doneAt?.toMillis() ?? 0) > Date.now() - 7 * DAY).reduce((t, w) => t + w.dirty, 0))} sub="Dirty in" />
+        <Stat label="Rate" value={`${100 - m.washPct}% back`} sub="Set in BlackMarket settings" />
       </div>
-    </>
+      <Panel title="Wash queue">
+        {open.length ? <ul className="divide-y divide-line-soft">{open.map(row)}</ul> : <p className="text-sm text-smoke">Nothing to wash right now.</p>}
+      </Panel>
+      {done.length > 0 && (
+        <Panel title="Done">
+          <ul className="divide-y divide-line-soft">{done.slice(0, 20).map(row)}</ul>
+        </Panel>
+      )}
+    </div>
   );
 }
+
+// ---------- settings ----------
 
 function Settings({ onClose }: { onClose: () => void }) {
   const m = useMoney();
   const mops = useMoneyOps();
-  const { roster } = useHub();
   const [prices, setPrices] = useState<Record<string, string>>(() => Object.fromEntries(SALE_ITEMS.map((s) => [s.id, m.prices[s.id] ? String(m.prices[s.id]) : ''])));
-  const [cut, setCut] = useState(String(m.defaultCut));
   const [wash, setWash] = useState(String(m.washPct));
-  const [cuts, setCuts] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(m.settings.cuts ?? {}).map(([k, v]) => [k, String(v)])));
   const [fields, setFields] = useState((m.settings.wishFields ?? []).map((f) => f.label).join(', '));
   return (
-    <NoelModal
-      wide
-      onClose={onClose}
-      onSubmit={async () => {
-        await mops.saveSettings({
-          prices: Object.fromEntries(Object.entries(prices).filter(([, v]) => toCount(v) > 0).map(([k, v]) => [k, toCount(v)])),
-          defaultCut: Math.min(100, toCount(cut)),
-          washPct: Math.min(100, toCount(wash)),
-          cuts: Object.fromEntries(Object.entries(cuts).filter(([, v]) => v.trim() !== '').map(([k, v]) => [k, Math.min(100, toCount(v))])),
-          wishFields: fields
-            .split(',')
-            .map((f) => f.trim().slice(0, 24))
-            .filter(Boolean)
-            .slice(0, 8)
-            .map((label, i) => ({ id: `f${i}`, label })),
-        });
-        onClose();
-      }}
-    >
-      <h2 className="text-center text-xl font-black text-white">BlackMarket settings</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block text-xs font-semibold text-slate-300">
-          Default seller cut %
-          <input type="number" min={0} max={100} className="dx-input mt-1 w-full font-mono" value={cut} onChange={(e) => setCut(e.target.value)} />
-        </label>
-        <label className="block text-xs font-semibold text-slate-300">
-          Default wash cut %
-          <input type="number" min={0} max={100} className="dx-input mt-1 w-full font-mono" value={wash} onChange={(e) => setWash(e.target.value)} />
-        </label>
-      </div>
-      <p className="text-xs font-semibold text-slate-300">Default prices (per brick / bin)</p>
-      <div className="grid max-h-56 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-        {SALE_ITEMS.map((s) => (
-          <label key={s.id} className="block text-[11px] text-slate-400">
-            {s.name}
-            <input type="number" min={0} placeholder="$" className="dx-input mt-0.5 w-full font-mono" value={prices[s.id]} onChange={(e) => setPrices({ ...prices, [s.id]: e.target.value })} />
-          </label>
-        ))}
-      </div>
-      <p className="text-xs font-semibold text-slate-300">Personal cuts (blank = default)</p>
-      <div className="grid max-h-40 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-        {roster.map((r) => (
-          <label key={r.id} className="block text-[11px] text-slate-400">
-            {r.name}
-            <input type="number" min={0} max={100} placeholder={`${m.defaultCut}%`} className="dx-input mt-0.5 w-full font-mono" value={cuts[r.id] ?? ''} onChange={(e) => setCuts({ ...cuts, [r.id]: e.target.value })} />
-          </label>
-        ))}
-      </div>
-      <label className="block text-xs font-semibold text-slate-300">
-        Extra wish list boxes <span className="font-normal text-slate-500">(comma separated, up to 8, e.g. Buyer, Meet spot)</span>
-        <input className="dx-input mt-1 w-full" value={fields} onChange={(e) => setFields(e.target.value)} />
-      </label>
-      <button type="submit" className="qs-submit">
-        Save
-      </button>
-      <button type="button" onClick={onClose} className="w-full text-xs text-slate-400 hover:text-white">
-        Cancel
-      </button>
-    </NoelModal>
+    <Modal title="BlackMarket settings" onClose={onClose} wide>
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await mops.saveSettings({
+            prices: Object.fromEntries(Object.entries(prices).filter(([, v]) => toCount(v) > 0).map(([k, v]) => [k, toCount(v)])),
+            washPct: Math.min(100, toCount(wash)),
+            wishFields: fields
+              .split(',')
+              .map((f) => f.trim().slice(0, 24))
+              .filter(Boolean)
+              .slice(0, 8)
+              .map((label, i) => ({ id: `f${i}`, label })),
+          });
+          onClose();
+        }}
+      >
+        <Field label="Lost in the wash %" hint="50 means half comes back clean. Family washers take no fee on top.">
+          <input className="input w-28 font-mono" inputMode="numeric" value={wash} onChange={(e) => setWash(digits(e.target.value))} />
+        </Field>
+        <div>
+          <p className="label mb-1.5">Usual price (per brick / bin)</p>
+          <div className="grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+            {SALE_ITEMS.map((s) => (
+              <label key={s.id} className="block text-[11px] text-smoke">
+                {s.name}
+                <input className="input mt-0.5 py-1 font-mono" inputMode="numeric" placeholder="$" value={prices[s.id]} onChange={(e) => setPrices({ ...prices, [s.id]: digits(e.target.value) })} />
+              </label>
+            ))}
+          </div>
+        </div>
+        <Field label="Extra wish list boxes" hint="Comma separated, up to 8, e.g. Buyer, Meet spot">
+          <input className="input" value={fields} onChange={(e) => setFields(e.target.value)} />
+        </Field>
+        <p className="text-xs text-smoke">Narco sales pay no cuts: the call’s leader pays the team out of the sale.</p>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-gold">Save</button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
-function exportCsv(sales: Sale[]) {
-  const rows = [['When (ET)', 'Seller', 'Product', 'Qty', 'From', 'Dirty money', 'Narco', 'Note']].concat(
-    sales.map((x) => [fmtWhen(at(x)), x.sellerName, saleItem(x.product)?.name ?? x.product, String(x.qty), x.fromLabel, x.price ? String(x.price) : '', x.narco ? 'yes' : '', x.note ?? '']),
+function exportCsv(sales: Sale[], all: boolean, me: string) {
+  const rows = [['When (ET)', 'Seller', 'Type', 'Product', 'Qty', 'From', 'Dirty money', 'Team', 'Note']].concat(
+    sales.map((x) => [
+      fmtWhen(at(x)),
+      x.sellerName,
+      saleKind(x),
+      saleItem(x.product)?.name ?? x.product,
+      String(x.qty),
+      x.fromLabel,
+      x.price && (saleKind(x) === 'gang' || all || x.sellerId === me) ? String(x.price) : '',
+      String(x.team?.length ?? 0),
+      x.note ?? '',
+    ]),
   );
   const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = `blackmarket-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = 'narco-log.csv';
   a.click();
-}
-
-function Body() {
-  const [params, setParams] = useSearchParams();
-  const view = (['sell', 'wish', 'wash'].includes(params.get('tab') ?? '') ? params.get('tab') : 'sell') as View;
-  const setView = (v: View) => setParams(v === 'sell' ? {} : { tab: v });
-  const m = useMoney();
-  const { ready } = useNarcotics();
-  const [narco, setNarco] = useState(false);
-  const [settings, setSettings] = useState(false);
-  const openWishes = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').length;
-  useChartTips();
-  if (!m.ready || !ready)
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center text-gold-400">
-        <i className="fa-solid fa-mask fa-beat text-3xl" />
-      </div>
-    );
-  return (
-    <div className="bm-page">
-      <PageHeader
-        icon={VenetianMask}
-        kicker="Money"
-        title="BlackMarket"
-        sub="Product sells for dirty money at the Narco. Selling takes it out of the stash, and NoelOps' stock counts update straight away."
-        actions={
-            <div className="dx-plan-actions">
-              <button
-                type="button"
-                className="bm-narco"
-                title="Got a Narco call? Start a sale"
-                onClick={() => {
-                  setView('sell');
-                  setNarco(true);
-                  setTimeout(() => document.getElementById('sale-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-                }}
-              >
-                <i className="fa-solid fa-phone-volume mr-1" />
-                Narco call
-              </button>
-              <button type="button" className="dx-act" onClick={() => exportCsv(m.sales)}>
-                <i className="fa-solid fa-file-csv mr-1" />
-                Export CSV
-              </button>
-              {m.all && (
-                <button type="button" className="dx-act" onClick={() => setSettings(true)} title="Prices, cuts and wash %">
-                  <i className="fa-solid fa-gear mr-1" />
-                  Settings
-                </button>
-              )}
-            </div>
-        }
-      />
-      <NoelStatus />
-      <div className="dx-tabs bm-tabs mb-4">
-        <button type="button" className={`dx-tab ${view === 'sell' ? 'on' : ''}`} onClick={() => setView('sell')}>
-          <i className="fa-solid fa-sack-dollar" />
-          Sell
-        </button>
-        <button type="button" className={`dx-tab ${view === 'wish' ? 'on' : ''}`} onClick={() => setView('wish')}>
-          <i className="fa-solid fa-list-check" />
-          Wish list {openWishes > 0 && <span className="count">{openWishes}</span>}
-        </button>
-        <button type="button" className={`dx-tab ${view === 'wash' ? 'on' : ''}`} onClick={() => setView('wash')}>
-          <i className="fa-solid fa-soap" />
-          Wash
-        </button>
-      </div>
-      {view === 'sell' && <SellView narco={narco} setNarco={setNarco} />}
-      {view === 'wish' && <WishView />}
-      {view === 'wash' && <WashView />}
-      {settings && <Settings onClose={() => setSettings(false)} />}
-    </div>
-  );
 }
 
 /** Live link to NoelOps: drug counts and sales go both ways. */
 function NoelStatus() {
   const { noelDown } = useNarcotics();
   return noelDown ? (
-    <p className="mb-4 border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-      Can’t reach NoelOps right now, so drug counts aren’t showing. Sales will work again once it’s back.
-    </p>
+    <p className="mb-4 border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">Can’t reach NoelOps right now, so drug counts aren’t showing. Sales will work again once it’s back.</p>
   ) : (
     <p className="mb-4 flex items-center gap-2 text-xs text-smoke">
-      <span className="size-2 rounded-full bg-ok shadow-[0_0_6px_currentColor] text-ok" /> Live with{' '}
+      <span className="size-2 rounded-full bg-ok text-ok shadow-[0_0_6px_currentColor]" /> Live with{' '}
       <a href={NOELOPS_URL} target="_blank" rel="noopener" className="text-gold-300 hover:text-gold-100">
         NoelOps
       </a>
@@ -1338,7 +1095,60 @@ function NoelStatus() {
   );
 }
 
-/** The BlackMarket: NoelOps' layout in the HQ's gold. Money is gang-wide; the Treasurer sees it all. */
+function Body() {
+  const [params, setParams] = useSearchParams();
+  const m = useMoney();
+  const { ready } = useNarcotics();
+  const [settings, setSettings] = useState(false);
+  const washTab = m.washer || m.all;
+  const asked = params.get('tab');
+  const view = (asked === 'money' || asked === 'wish' || (asked === 'washing' && washTab) ? asked : 'sell') as View;
+  const openWishes = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').length;
+  const openWashes = m.washReqs.filter((w) => w.status === 'open').length;
+  if (!m.ready || !ready)
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-gold-400">
+        <Sparkles className="size-8 animate-pulse" />
+      </div>
+    );
+  return (
+    <>
+      <PageHeader
+        icon={VenetianMask}
+        kicker="Business"
+        title="BlackMarket"
+        sub="Product sells for dirty money at the Narco. Gang stash sales are the gang’s money; sales from your own locker are yours."
+        actions={
+          m.all && (
+            <button className="btn-ghost" onClick={() => setSettings(true)}>
+              <Settings2 className="size-4" /> Settings
+            </button>
+          )
+        }
+      />
+      <NoelStatus />
+      <div className="mb-5">
+        <Tabs
+          value={view}
+          onChange={(v) => setParams(v === 'sell' ? {} : { tab: v })}
+          tabs={[
+            { id: 'sell', label: 'Sell' },
+            { id: 'money', label: 'Money' },
+            { id: 'wish', label: `Wish list${openWishes ? ` · ${openWishes}` : ''}` },
+            ...(washTab ? [{ id: 'washing', label: `Washing${openWashes ? ` · ${openWashes}` : ''}` }] : []),
+          ]}
+        />
+      </div>
+      {view === 'sell' && <SellView />}
+      {view === 'money' && <MoneyView />}
+      {view === 'wish' && <WishView />}
+      {view === 'washing' && <WashingView />}
+      {settings && <Settings onClose={() => setSettings(false)} />}
+    </>
+  );
+}
+
+/** The BlackMarket, in the HQ's gold. Narco logs are public to the family; personal amounts stay private. */
 export default function BlackMarket() {
   return (
     <NarcoticsProvider>

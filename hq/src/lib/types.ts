@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   money: 'See and manage all money (Treasurer)',
   awardTrophies: 'Award trophies to anyone',
   familyCards: 'Give members their family card',
+  washMoney: 'Wash money for the family (complete wash requests)',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;

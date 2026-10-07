@@ -484,7 +484,8 @@ service cloud.firestore {
 
     // ── BlackMarket: drugs sell for dirty money ─────────────────
     match /sales/{id} {
-      allow read: if active() && (can('money') || wasMine('sellerId'));
+      // Narco logs are public to the family (personal amounts are hidden on screen).
+      allow read: if active();
       allow create: if opens('blackmarket') && request.resource.data.at == request.time
         && (mine('sellerId') || can('money'))
         && request.resource.data.qty is int && request.resource.data.qty > 0;
@@ -495,6 +496,42 @@ service cloud.firestore {
       allow create: if active() && request.resource.data.at == request.time
         && ((mine('memberId') && opens('blackmarket')) || can('money'));
       allow delete: if can('money');
+    }
+    // The leader of a Narco call paying someone who came along: out of the sale, or their own pocket.
+    match /teamPays/{id} {
+      allow read: if active() && (wasMine('from') || wasMine('to') || can('money'));
+      allow create: if active() && mine('from') && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['callId', 'saleId', 'from', 'to', 'dirty', 'source', 'fromBank', 'at'])
+        && request.resource.data.dirty is int && request.resource.data.dirty > 0
+        && request.resource.data.fromBank is int && request.resource.data.fromBank >= 0
+        && request.resource.data.fromBank <= request.resource.data.dirty
+        && request.resource.data.source in ['sale', 'mine']
+        && (request.resource.data.source == 'sale' || request.resource.data.fromBank == 0)
+        && get(/databases/$(database)/documents/sales/$(request.resource.data.saleId)).data.sellerId == myId()
+        && get(/databases/$(database)/documents/sales/$(request.resource.data.saleId)).data.callId == request.resource.data.callId
+        && request.resource.data.to in get(/databases/$(database)/documents/sales/$(request.resource.data.saleId)).data.get('team', []);
+      allow delete: if active() && (wasMine('from') || can('money'));
+    }
+    // Wash requests: a member sends dirty money; a washer claims it and marks it done.
+    match /washRequests/{id} {
+      allow read: if active() && (wasMine('memberId') || can('washMoney') || can('money'));
+      allow create: if active() && mine('memberId') && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['memberId', 'memberName', 'dirty', 'pct', 'clean', 'status', 'claimerId', 'claimerName', 'note', 'at'])
+        && request.resource.data.status == 'open' && request.resource.data.claimerId == null
+        && request.resource.data.dirty is int && request.resource.data.dirty > 0
+        && request.resource.data.pct is int && request.resource.data.pct >= 0 && request.resource.data.pct <= 100
+        && request.resource.data.clean is int && request.resource.data.clean >= 0 && request.resource.data.clean <= request.resource.data.dirty;
+      allow update: if active() && (
+        // A washer claims an open one, lets go of their own, or finishes their own.
+        (can('washMoney') && onlyChanges(['status', 'claimerId', 'claimerName']) && resource.data.status == 'open'
+          && request.resource.data.status == 'claimed' && request.resource.data.claimerId == myId())
+        || (can('washMoney') && onlyChanges(['status', 'claimerId', 'claimerName']) && resource.data.status == 'claimed'
+          && resource.data.claimerId == myId() && request.resource.data.status == 'open' && request.resource.data.claimerId == null)
+        || (can('washMoney') && onlyChanges(['status', 'doneAt']) && resource.data.status == 'claimed'
+          && resource.data.claimerId == myId() && request.resource.data.status == 'done' && request.resource.data.doneAt == request.time)
+        // The member cancels one nobody has claimed yet.
+        || (wasMine('memberId') && onlyChanges(['status', 'doneAt']) && resource.data.status == 'open'
+          && request.resource.data.status == 'cancelled' && request.resource.data.doneAt == request.time));
     }
     // Payouts and expenses. A member can see payouts made to them.
     match /ledger/{id} {
