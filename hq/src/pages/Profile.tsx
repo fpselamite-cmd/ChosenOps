@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  Leaf,
   Link2,
   Lock,
   Music,
@@ -32,7 +31,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { CrewChip, RankBadge } from '../components/Badges';
 import { Cabinet } from '../components/Cabinet';
-import { FamilyCard } from '../components/FamilyCard';
+import { FamilyCard, MiniFamilyCard } from '../components/FamilyCard';
 import { ErrorText, Field } from '../components/Field';
 import { Modal } from '../components/Modal';
 import { Panel, Tabs } from '../components/Page';
@@ -167,6 +166,7 @@ function useStats(m: Member) {
         ['Wins', r?.wins ?? 0],
         ['Kills', r?.kills ?? 0],
         ['Downs', r?.downs ?? 0],
+        ['K/D', r ? (r.kills / Math.max(1, r.downs)).toFixed(1) : '—'],
         ['MVPs', r?.mvps ?? 0],
       ],
       Street: [
@@ -183,7 +183,19 @@ function useStats(m: Member) {
 }
 
 function StatBlock({ m }: { m: Member }) {
-  const stats = useStats(m);
+  const stats = { ...useStats(m), NoelOps: useNoelOpsStats(m.name) };
+  const links: Record<string, ReactNode> = {
+    War: (
+      <Link to="/blacksites" className="text-smoke hover:text-gold-300" title="Blacksites">
+        <Crosshair className="size-3" />
+      </Link>
+    ),
+    NoelOps: (
+      <a href={NOELOPS_URL} target="_blank" rel="noopener" className="text-smoke hover:text-gold-300" title="Open NoelOps">
+        <ExternalLink className="size-3" />
+      </a>
+    ),
+  };
   return (
     <Box
       title={
@@ -196,7 +208,9 @@ function StatBlock({ m }: { m: Member }) {
       <div className="space-y-3">
         {Object.entries(stats).map(([group, rows]) => (
           <div key={group}>
-            <p className="label mb-1 text-gold-500">{group}</p>
+            <p className="label mb-1 flex items-center gap-1.5 text-gold-500">
+              {group} {links[group]}
+            </p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1">
               {rows.map(([l, v]) => (
                 <div key={l} className="flex items-baseline justify-between gap-2 border-b border-line-soft py-0.5 text-sm">
@@ -691,80 +705,21 @@ function ChangePin({ onClose }: { onClose: () => void }) {
 }
 
 /** What they've done in NoelOps (grows, cooks, runs), matched by name. Read live from NoelOps. */
-function NoelOpsRecord({ name }: { name: string }) {
+function useNoelOpsStats(name: string) {
   const crew = useNoel<Record<string, NoelCrewMember>>('crew');
   const key = crew.data === undefined ? '' : noelStatKey(name, crew.data);
   const stats = useNoel<Record<string, unknown>>(`stats/${key}`, !!key);
   const titles = useNoel<Record<string, unknown>>(`titles/${key}`, !!key);
   const n = (f: string) => Math.max(0, Math.floor(Number(stats.data?.[f]) || 0));
-  const short = (v: number) => (v >= 10_000 ? `${Math.round(v / 1000)}k` : v.toLocaleString());
-  const cells: [string, number][] = [
-    ['Harvests', n('harvests')],
-    ['Bud', n('bud')],
-    ['Bricks', n('bricks')],
-    ['Meth cooks', n('cooks')],
-    ['Coke runs', n('runs')],
-    ['Coca leaves', n('coca')],
+  const rows: [string, string | number][] = [
+    ['Harvests', n('harvests').toLocaleString('en-US')],
+    ['Bud', n('bud').toLocaleString('en-US')],
+    ['Bricks', n('bricks').toLocaleString('en-US')],
+    ['Meth cooks', n('cooks').toLocaleString('en-US')],
+    ['Coke runs', n('runs').toLocaleString('en-US')],
+    ['Titles', titles.data ? Object.keys(titles.data).length : 0],
   ];
-  const titleCount = titles.data ? Object.keys(titles.data).length : 0;
-  const any = cells.some(([, v]) => v > 0) || titleCount > 0;
-  return (
-    <a href={NOELOPS_URL} target="_blank" rel="noopener" className="hud flex gap-3 p-4 hover:bg-raised/40">
-      <Leaf className="mt-0.5 size-5 shrink-0 text-ok" />
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-1.5 font-hud font-bold text-gold-200">
-          NoelOps record <ExternalLink className="size-3.5 text-smoke" />
-        </p>
-        {stats.data === undefined && key ? (
-          <p className="text-sm text-smoke">Loading…</p>
-        ) : any ? (
-          <>
-            <div className="mt-1 grid grid-cols-3 gap-1 text-center">
-              {cells.map(([l, v]) => (
-                <div key={l}>
-                  <p className="font-mono text-lg text-gold-100">{short(v)}</p>
-                  <p className="label">{l}</p>
-                </div>
-              ))}
-            </div>
-            {titleCount > 0 && <p className="mt-1 text-xs text-smoke">{titleCount} NoelOps {titleCount === 1 ? 'title' : 'titles'} unlocked</p>}
-          </>
-        ) : (
-          <p className="text-sm text-smoke">Nothing logged in NoelOps yet. Using the same name on both sites links them.</p>
-        )}
-      </div>
-    </a>
-  );
-}
-
-function BlacksiteRecord({ id }: { id: string }) {
-  const sites = useCollection<Blacksite>('blacksites');
-  const r = sites ? records(sites).get(id) : undefined;
-  return (
-    <Link to="/blacksites" className="hud block p-4 transition hover:bg-white/[0.02]">
-      <div className="flex items-center gap-2">
-        <Crosshair className="size-5 text-gold-500" />
-        <p className="font-hud font-bold text-gold-200">Blacksite record</p>
-      </div>
-      {r ? (
-        <div className="mt-1 grid grid-cols-4 gap-1 text-center">
-          {[
-            ['Fights', r.fights],
-            ['Kills', r.kills],
-            ['K/D', (r.kills / Math.max(1, r.downs)).toFixed(1)],
-            ['MVPs', r.mvps],
-          ].map(([l, v]) => (
-            <div key={l}>
-              <p className="font-mono text-lg text-gold-100">{v}</p>
-              <p className="label">{l}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-1 text-sm text-smoke">No fights logged yet.</p>
-      )}
-    </Link>
-  );
+  return rows;
 }
 
 /** Admin: a leave of absence, so the days away don't break the member's login streak. */
@@ -1010,6 +965,17 @@ export default function Profile() {
               )}
               <ErrorText error={error} />
             </div>
+            {!edit && (
+              <div className="no-print shrink-0 self-center">
+                <MiniFamilyCard
+                  member={m}
+                  onOpen={() => {
+                    setParams({}, { replace: true });
+                    setTimeout(() => document.getElementById('family-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                  }}
+                />
+              </div>
+            )}
             <div className="no-print flex flex-wrap justify-center gap-2 sm:flex-col sm:items-end">
               {mine &&
                 (edit ? (
@@ -1074,6 +1040,9 @@ export default function Profile() {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,330px)]">
           <div className="space-y-6 xl:contents">
           <div className="space-y-6 xl:order-1">
+            <div id="family-card">
+              <FamilyCard member={m} />
+            </div>
             <Box title="Vitals">
               <dl className="grid gap-3 sm:grid-cols-2">
                 {BASICS.map(([k, label]) => (
@@ -1155,9 +1124,6 @@ export default function Profile() {
           <div className="space-y-6 xl:order-3">
             <KitCard memberId={m.id} />
             <StatBlock m={m} />
-            <BlacksiteRecord id={m.id} />
-            <NoelOpsRecord name={m.name} />
-            <FamilyCard member={m} />
             <LeaderNotes m={m} mine={mine} />
           </div>
           </div>
