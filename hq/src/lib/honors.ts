@@ -34,7 +34,7 @@ export type FrameTheme = (typeof FRAME_THEMES)[number];
 export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
 /** Badge icons, by lucide name (see HonorArt). */
-export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry', 'Vote'] as const;
+export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry', 'Vote', 'Cake', 'PartyPopper'] as const;
 export const BADGE_SHAPES = ['gem', 'shield', 'hex'] as const;
 
 /** What a milestone counts. */
@@ -56,6 +56,7 @@ export const STATS = [
   { id: 'streak', label: 'Best login streak', group: 'Family life' },
   { id: 'repSent', label: 'Rep given to the family', group: 'Family life' },
   { id: 'votes', label: 'Polls voted on', group: 'Family life' },
+  { id: 'birthdays', label: 'Birthdays with the family', group: 'Family life' },
   { id: 'stories', label: 'Stories in the Archives', group: 'Fun & lore' },
   { id: 'sightings', label: 'Rival sightings reported', group: 'Fun & lore' },
   { id: 'bounties', label: 'Bounties collected', group: 'Fun & lore' },
@@ -346,11 +347,17 @@ DEFAULT_HONORS.push(
   m('v-box', 'badge', 'Ballot Box', 'rare', 'votes', 50, 'Fifty polls voted on.', { icon: 'Vote', shape: 'hex' }),
   m('v-senator', 'title', 'The Senator', 'epic', 'votes', 100, 'A hundred polls voted on.'),
   m('v-kingmaker', 'title', 'Kingmaker', 'legendary', 'votes', 250, 'Two hundred and fifty polls voted on.', { secret: true }),
+  // Parties: birthdays and the years you've stood with the family.
+  m('p-cake', 'badge', 'Another Year Older', 'common', 'birthdays', 1, 'Your first birthday with the family.', { icon: 'Cake', shape: 'shield' }),
+  m('p-party', 'title', 'Party Animal', 'rare', 'birthdays', 3, 'Three birthdays with the family.'),
+  m('p-2y', 'badge', 'Two Years Strong', 'rare', 'days', 730, 'Two years in the family.', { icon: 'PartyPopper', shape: 'gem' }),
+  m('p-3y', 'badge', 'Three Years Deep', 'epic', 'days', 1095, 'Three years in the family.', { icon: 'PartyPopper', shape: 'hex' }),
+  m('p-5y', 'badge', 'Five Years Made', 'legendary', 'days', 1825, 'Five years in the family.', { icon: 'Crown', shape: 'hex' }),
   m('v-hue', 'hue', 'Ballot Blue', 'rare', 'votes', 25, 'Twenty-five polls voted on.', { color: '#3b82f6' }),
 );
 
 /** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
-export const HONORS_VERSION = 4;
+export const HONORS_VERSION = 5;
 
 // ---------- writes ----------
 

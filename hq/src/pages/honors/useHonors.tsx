@@ -108,6 +108,7 @@ export function useMyHonorStats(): HonorStats | null {
     bounties: bounties.filter((b) => b.status === 'paid').length,
     reactions: reacts.length,
     votes: ballots.length,
+    birthdays: (chips?.partiesPaid ?? []).filter((x) => x.startsWith('birthday_')).length,
     hands: chips?.hands ?? 0,
     chipsWon: chips?.chipsWon ?? 0,
     biggestWin: chips?.biggestWin ?? 0,

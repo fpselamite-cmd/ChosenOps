@@ -794,6 +794,16 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await fd('fd3', 'fix', "Fixed Tommy Reyes's petty rep (120 → 95)", 1, { target: ids['Tommy Reyes'], reason: 'Logged the same session twice' });
   await fd('fd4', 'list', 'Updated the petty crime types (Delivery, Vehicle, Arson, Assassination, Special, Store Heist)', 0.5);
   await setDoc(doc(db, 'welcomes', ids['Ghost']), { text: 'Glad to have you. Ask Rocco for your first run.', by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - 49 * H) });
+  // Parties today: Kira's birthday and Rocco's first year in the family (Eastern time).
+  const etNow = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  await setDoc(doc(db, 'members', ids['Kira Lane']), { birthday: `${etNow.month}-${etNow.day}` }, { merge: true });
+  await setDoc(doc(db, 'members', ids['Rocco Vale']), { joinedAt: Timestamp.fromDate(new Date(`${+etNow.year - 1}-${etNow.month}-${etNow.day}T18:00:00Z`)) }, { merge: true });
+  const pn = (party, forWho, kind, label, who, text, back) =>
+    setDoc(doc(db, 'partyNotes', `${party}_${ids[who]}`), { party, for: ids[forWho], kind, label, by: ids[who], name: who, text, at: Timestamp.fromMillis(now - back * H) });
+  await pn(`birthday_${ids['Kira Lane']}_${etNow.year}`, 'Kira Lane', 'birthday', 'Birthday', 'Rocco Vale', 'Happy birthday, kid. Drinks on me at the Yellow Jack.', 3);
+  await pn(`birthday_${ids['Kira Lane']}_${etNow.year}`, 'Kira Lane', 'birthday', 'Birthday', 'Dani Cruz', 'HBD! Best driver we got 🎂', 2);
+  await pn(`anniversary_${ids['Rocco Vale']}_${etNow.year}-${etNow.month}-${etNow.day}`, 'Rocco Vale', 'anniversary', '1 year in the family', 'Don Vito', 'A year already. Proud to have you, Hammer.', 1);
+  await pn(`birthday_${ids['Tommy Reyes']}_${+etNow.year - 1}`, 'Tommy Reyes', 'birthday', 'Birthday', 'Kira Lane', 'Happy birthday Tank!', 24 * 200);
   // Polls: a dinner spot, a scheduling poll, a sealed motion still open, and a closed official one.
   const opt = (...l) => ({ options: l.map((label, i) => ({ id: String.fromCharCode(97 + i), label })), ids: l.map((_, i) => String.fromCharCode(97 + i)) });
   const poll = (id, p, back) => setDoc(doc(db, 'polls', id), { note: '', audience: 'members', anonymous: false, reveal: 'live', official: false, closesAt: null, status: 'open', voters: [], logged: false, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), ...p });

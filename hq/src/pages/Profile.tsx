@@ -39,6 +39,7 @@ import { useCollection, useDoc } from '../hooks/useCollection';
 import { VouchBar } from './welcome/VouchBar';
 import { Badge, FancyName, Framed, TitleTag } from '../components/HonorArt';
 import { useHonors } from './honors/useHonors';
+import { PartyCards } from './parties/Parties';
 import { Vault } from './honors/Vault';
 import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
@@ -1055,6 +1056,7 @@ export default function Profile() {
         )}
         {view === 'trophies' && (
           <div className="no-print">
+            <PartyCards memberId={m.id} />
             <Cabinet member={m} />
           </div>
         )}
