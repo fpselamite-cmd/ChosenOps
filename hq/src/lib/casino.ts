@@ -37,13 +37,15 @@ export interface CasinoSettings {
   perRun: number;
   perFight: number;
   perDinner: number;
+  /** Chips for voting in a poll. */
+  perVote: number;
   /** An event night: bigger max bets, and a banner on the floor. */
   eventUntil?: Timestamp | null;
   eventName?: string;
   /** Extra % on winnings during an event night. */
   eventBonus: number;
 }
-export const DEFAULT_CASINO: CasinoSettings = { weekly: 1000, daily: 50, min: 10, max: 500, eventMax: 2000, eventBonus: 10, perRun: 5, perFight: 25, perDinner: 50, eventUntil: null, eventName: '' };
+export const DEFAULT_CASINO: CasinoSettings = { weekly: 1000, daily: 50, min: 10, max: 500, eventMax: 2000, eventBonus: 10, perRun: 5, perFight: 25, perDinner: 50, perVote: 10, eventUntil: null, eventName: '' };
 
 export const weekKey = (t = Date.now()) => {
   const d = new Date(t);

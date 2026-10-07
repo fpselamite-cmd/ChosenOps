@@ -91,6 +91,7 @@ export function useMyHonorStats(): HonorStats | null {
   const seen = useCollection<Sighting>(useMemo(() => query(collection(db, 'sightings'), where('by', '==', me.id)), [me.id])) ?? [];
   const bounties = useCollection<Bounty>(useMemo(() => query(collection(db, 'bounties'), where('claimBy', '==', me.id)), [me.id])) ?? [];
   const reacts = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'archiveReacts'), where('memberId', '==', me.id)), [me.id]), blooded) ?? [];
+  const ballots = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'pollBallots'), where('memberId', '==', me.id)), [me.id])) ?? [];
   const chips = useDoc<Chips>(`chips/${me.id}`);
   if (!base || !sites || chips === undefined) return null;
   const r = records(sites).get(me.id);
@@ -106,6 +107,7 @@ export function useMyHonorStats(): HonorStats | null {
     sightings: seen.length,
     bounties: bounties.filter((b) => b.status === 'paid').length,
     reactions: reacts.length,
+    votes: ballots.length,
     hands: chips?.hands ?? 0,
     chipsWon: chips?.chipsWon ?? 0,
     biggestWin: chips?.biggestWin ?? 0,
@@ -146,7 +148,7 @@ function HonorWatcher() {
       return;
     }
     const paid = chips.paidFor ?? {};
-    const units: Record<string, [number, number]> = { runs: [stats.runs, casino.perRun], fights: [stats.fights, casino.perFight], dinners: [stats.dinners, casino.perDinner] };
+    const units: Record<string, [number, number]> = { runs: [stats.runs, casino.perRun], fights: [stats.fights, casino.perFight], dinners: [stats.dinners, casino.perDinner], votes: [stats.votes, casino.perVote] };
     let add = 0;
     const patch: Record<string, unknown> = {};
     if (chips.lastWeekly !== weekKey()) (add += casino.weekly), (patch.lastWeekly = weekKey());
@@ -168,7 +170,7 @@ function HonorWatcher() {
     void updateDoc(doc(db, 'chips', me.id), { ...patch, ...(add ? { balance: increment(add) } : {}) })
       .catch(() => {})
       .finally(() => (busy.current = false));
-  }, [preview, stats, chips, casino.weekly, casino.daily, casino.perRun, casino.perFight, casino.perDinner, me.id, ownedBy, honorById]);
+  }, [preview, stats, chips, casino.weekly, casino.daily, casino.perRun, casino.perFight, casino.perDinner, casino.perVote, me.id, ownedBy, honorById]);
   useEffect(() => {
     if (preview || !chips) return;
     gifts.forEach((g) => void claimGift(me.id, g).catch(() => {}));

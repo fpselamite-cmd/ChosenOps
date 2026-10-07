@@ -1253,3 +1253,103 @@ describe('live tables', () => {
     await assertFails(getDoc(doc(as('capo'), 'casinoTables/t2/hands/sol2')));
   });
 });
+
+describe('polls', () => {
+  const poll = (over: Record<string, unknown> = {}) => ({
+    question: 'Dinner spot?', note: '', kind: 'single', options: [{ id: 'a', label: 'Pier' }, { id: 'b', label: 'Diner' }], ids: ['a', 'b'],
+    audience: 'members', anonymous: false, reveal: 'live', official: false, closesAt: null, status: 'open', voters: [], logged: false,
+    by: 'boss', byName: 'Boss', at: serverTimestamp(), ...over,
+  });
+  const seed = (id: string, over: Record<string, unknown> = {}) =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'hqRanks/associate'), { name: 'Associate', order: 9, permissions: {} });
+      await setDoc(doc(db, 'members/assoc'), member('Assoc', 'associate'));
+      await setDoc(doc(db, 'polls', id), poll(over));
+    });
+  const vote = (uid: string, pid: string, picks: string[], anon = false, voteId?: string) => {
+    const db = as(uid);
+    const b = writeBatch(db);
+    const v = anon ? doc(db, 'polls', pid, 'votes', voteId ?? 'v_' + uid) : doc(db, 'polls', pid, 'votes', uid);
+    b.set(v, anon ? { picks, at: serverTimestamp() } : { picks, memberId: uid, name: uid, at: serverTimestamp() });
+    b.set(doc(db, 'pollBallots', `${pid}_${uid}`), { pollId: pid, memberId: uid, voteId: v.id, at: serverTimestamp() });
+    b.update(doc(db, 'polls', pid), { voters: arrayUnion(uid) });
+    return b.commit();
+  };
+
+  it('lets only leadership ask', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'polls/p1'), poll()));
+    await assertFails(setDoc(doc(as('sol'), 'polls/p2'), poll({ by: 'sol' })));
+    await assertFails(setDoc(doc(as('boss'), 'polls/p3'), poll({ voters: ['boss'] })));
+  });
+  it('keeps polls to their audience', async () => {
+    await seed('p1', { audience: 'members' });
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'polls/p2'), poll({ audience: 'table' })));
+    await assertSucceeds(getDoc(doc(as('sol'), 'polls/p1')));
+    await assertFails(getDoc(doc(as('assoc'), 'polls/p1')));
+    await assertFails(getDoc(doc(as('sol'), 'polls/p2')));
+    await assertSucceeds(getDocs(query(collection(as('assoc'), 'polls'), where('audience', '==', 'all'))));
+    await assertSucceeds(getDocs(query(collection(as('sol'), 'polls'), where('audience', 'in', ['all', 'members']))));
+    await assertSucceeds(getDocs(collection(as('boss'), 'polls')));
+    await assertFails(vote('assoc', 'p1', ['a']));
+  });
+  it('takes one vote each, with valid picks, and lets you change it while open', async () => {
+    await seed('p1');
+    await assertFails(vote('sol', 'p1', ['a', 'b'])); // single choice
+    await assertFails(vote('sol', 'p1', ['z']));
+    await assertSucceeds(vote('sol', 'p1', ['a']));
+    await assertFails(vote('sol', 'p1', ['b'])); // already voted
+    await assertSucceeds(updateDoc(doc(as('sol'), 'polls/p1/votes/sol'), { picks: ['b'] }));
+    await assertFails(updateDoc(doc(as('sol2'), 'polls/p1/votes/sol'), { picks: ['a'] }));
+    // Can't add yourself to the voters without a ballot, or someone else.
+    await assertFails(updateDoc(doc(as('sol2'), 'polls/p1'), { voters: arrayUnion('sol2') }));
+    await assertFails(setDoc(doc(as('sol2'), 'pollBallots/p1_sol2'), { pollId: 'p1', memberId: 'sol2', voteId: 'sol' }));
+  });
+  it('keeps anonymous votes nameless', async () => {
+    await seed('p1', { anonymous: true });
+    const db = as('sol');
+    const b = writeBatch(db);
+    b.set(doc(db, 'polls/p1/votes/x1'), { picks: ['a'], memberId: 'sol', at: serverTimestamp() });
+    b.set(doc(db, 'pollBallots/p1_sol'), { pollId: 'p1', memberId: 'sol', voteId: 'x1', at: serverTimestamp() });
+    b.update(doc(db, 'polls/p1'), { voters: arrayUnion('sol') });
+    await assertFails(b.commit());
+    await assertSucceeds(vote('sol', 'p1', ['a'], true, 'x2'));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'polls/p1/votes/x2'), { picks: ['b'] }));
+    await assertFails(getDoc(doc(as('sol2'), 'pollBallots/p1_sol')));
+  });
+  it('hides results until you vote (live) or until it closes', async () => {
+    await seed('p1', { reveal: 'live' });
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'polls/p2'), poll({ reveal: 'closed' })));
+    await vote('sol', 'p1', ['a']);
+    await vote('sol', 'p2', ['a']);
+    await assertFails(getDocs(collection(as('sol2'), 'polls/p1/votes')));
+    await assertSucceeds(getDocs(collection(as('sol'), 'polls/p1/votes')));
+    await assertFails(getDocs(collection(as('sol'), 'polls/p2/votes')));
+    await assertFails(getDocs(collection(as('boss'), 'polls/p2/votes')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'polls/p2/votes/sol'))); // your own
+    await assertFails(updateDoc(doc(as('sol'), 'polls/p2'), { status: 'closed' }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'polls/p2'), { status: 'closed', closedAt: serverTimestamp() }));
+    await assertSucceeds(getDocs(collection(as('sol2'), 'polls/p2/votes')));
+    await assertFails(vote('sol2', 'p2', ['a'])); // closed
+  });
+  it('closes itself at the deadline', async () => {
+    await seed('p1', { closesAt: Timestamp.fromMillis(Date.now() - 1000) });
+    await assertFails(vote('sol', 'p1', ['a']));
+    await assertSucceeds(getDocs(collection(as('sol'), 'polls/p1/votes')));
+  });
+  it('lets the audience comment and leadership tidy up', async () => {
+    await seed('p1');
+    const c = { by: 'sol', name: 'Sol', text: 'The pier, obviously', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('sol'), 'polls/p1/comments/c1'), c));
+    await assertFails(setDoc(doc(as('sol'), 'polls/p1/comments/c2'), { ...c, text: 'x'.repeat(300) }));
+    await assertFails(setDoc(doc(as('assoc'), 'polls/p1/comments/c3'), { ...c, by: 'assoc' }));
+    await assertFails(deleteDoc(doc(as('sol2'), 'polls/p1/comments/c1')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'polls/p1/comments/c1')));
+    await assertFails(deleteDoc(doc(as('sol'), 'polls/p1')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'polls/p1')));
+  });
+  it('keeps templates to leadership', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'pollTemplates/t1'), { name: 'Dinner' }));
+    await assertFails(getDoc(doc(as('sol'), 'pollTemplates/t1')));
+  });
+});

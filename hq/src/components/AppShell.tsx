@@ -21,6 +21,8 @@ import { MonthlyAwarder } from '../lib/boards';
 import { useApplyPrefs } from '../lib/appearance';
 import { ShootingStars } from './ShootingStars';
 import { useAttention } from '../pages/admin/useAttention';
+import { PollsButton } from '../pages/polls/PollsBits';
+import { PollKeeper } from '../pages/polls/usePolls';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -192,6 +194,7 @@ function HeaderButtons() {
           {i.label}
         </NavLink>
       ))}
+      <PollsButton />
     </div>
   );
 }
@@ -216,6 +219,7 @@ export function AppShell() {
       <ShootingStars enabled />
       <MonthlyAwarder />
       <NoelDirectorySync />
+      <PollKeeper />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">

@@ -52,6 +52,7 @@ import type { Member, RepTransfer } from '../lib/types';
 import { Podium } from './HallOfFame';
 import { MoodPicker } from './Profile';
 import { MyProgress, NewlyPatched, PatchMoment } from './welcome/DashboardBits';
+import { OpenPolls } from './polls/PollsBits';
 import { useWelcomeAttention } from './welcome/useWelcome';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -634,6 +635,7 @@ export default function Dashboard() {
       <PatchMoment />
       <NewlyPatched />
       <WelcomeNote />
+      <OpenPolls />
       <div className="mb-6 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Hero />
         <Spotlight />

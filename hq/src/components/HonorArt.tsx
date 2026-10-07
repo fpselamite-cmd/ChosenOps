@@ -34,6 +34,7 @@ import {
   Target,
   Trophy,
   Utensils,
+  Vote,
   WashingMachine,
   Zap,
   type LucideIcon,
@@ -43,7 +44,7 @@ import { rarityOf, type Honor, type Rarity } from '../lib/honors';
 import type { Member } from '../lib/types';
 import { Avatar } from './Avatar';
 
-export const ICONS: Record<string, LucideIcon> = { Skull, Crown, Swords, Crosshair, Flag, Star, Package, Car, Sprout, FlaskConical, Box, Gem, WashingMachine, HandCoins, Utensils, CalendarDays, Flame, Landmark, Coins, Feather, Eye, Target, MessageCircle, Shield, Heart, Moon, Rose, Zap, Trophy, Ghost, Spade, Club, Diamond, Dices, Cherry };
+export const ICONS: Record<string, LucideIcon> = { Skull, Crown, Swords, Crosshair, Flag, Star, Package, Car, Sprout, FlaskConical, Box, Gem, WashingMachine, HandCoins, Utensils, CalendarDays, Flame, Landmark, Coins, Feather, Eye, Target, MessageCircle, Shield, Heart, Moon, Rose, Zap, Trophy, Ghost, Spade, Club, Diamond, Dices, Cherry, Vote };
 
 const vars = (r: Rarity, extra: CSSProperties = {}) => ({ '--rar': rarityOf(r).color, ...extra }) as CSSProperties;
 

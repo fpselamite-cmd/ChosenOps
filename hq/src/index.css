@@ -2122,3 +2122,46 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .hn-frost { background: linear-gradient(180deg, #ffffff 0%, var(--hue, #bae6fd) 45%, #38bdf8 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; filter: drop-shadow(0 0 4px rgba(186, 230, 253, 0.7)); }
 .hn-prism { background: linear-gradient(90deg, #f87171, #fbbf24, #4ade80, #38bdf8, #a78bfa, #f472b6, #f87171) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: honor-name-shine 4s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .hn-neon, .hn-prism { animation: none; } }
+
+/* ---------- Polls: ballot cards ---------- */
+.ballot { position: relative; padding: 14px 16px 12px; border: 1px solid color-mix(in oklab, var(--color-gold-400) 28%, transparent); background:
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(212, 175, 55, 0.035) 27px 28px),
+    linear-gradient(160deg, #15120b, #0b0a07 65%); box-shadow: inset 0 0 0 3px #0b0a07, inset 0 0 0 4px rgba(212, 175, 55, 0.14), 0 8px 24px rgba(0, 0, 0, 0.45); }
+.ballot::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--color-gold-400), transparent); opacity: 0.55; }
+.ballot-official { border-color: color-mix(in oklab, var(--color-gold-400) 60%, transparent); box-shadow: inset 0 0 0 3px #0b0a07, inset 0 0 0 4px rgba(212, 175, 55, 0.35), 0 0 26px rgba(212, 175, 55, 0.12), 0 8px 24px rgba(0, 0, 0, 0.5); }
+.ballot-closed { filter: saturate(0.85); }
+.ballot-compact { padding: 12px 12px 10px; }
+.ballot-q { margin-top: 6px; font: 700 1.15rem/1.25 var(--font-display); color: var(--color-gold-100); letter-spacing: 0.02em; }
+.ballot-compact .ballot-q { font-size: 1rem; }
+.poll-tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border: 1px solid rgba(212, 175, 55, 0.22); color: #a8a29e; font-family: var(--font-hud); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.ballot-opt { position: relative; display: flex; width: 100%; align-items: center; gap: 8px; overflow: hidden; padding: 7px 10px; border: 1px solid rgba(212, 175, 55, 0.18); background: rgba(0, 0, 0, 0.35); color: #e7e5e4; font-size: 0.875rem; transition: border-color 0.15s, background 0.15s, transform 0.1s; }
+.ballot-opt:not(.static):hover { border-color: rgba(212, 175, 55, 0.55); background: rgba(212, 175, 55, 0.06); }
+.ballot-opt:not(.static):active { transform: scale(0.99); }
+.ballot-opt.on { border-color: var(--color-gold-400); background: rgba(212, 175, 55, 0.1); color: var(--color-gold-100); }
+.ballot-opt.static { cursor: default; }
+.ballot-opt.win { border-color: color-mix(in oklab, var(--color-gold-400) 70%, transparent); color: var(--color-gold-100); }
+.ballot-bar { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.24)); border-right: 2px solid rgba(212, 175, 55, 0.55); animation: ballot-fill 0.9s cubic-bezier(.2, .8, .2, 1) both; transform-origin: left; }
+.ballot-opt.win .ballot-bar { background: linear-gradient(90deg, rgba(212, 175, 55, 0.16), rgba(212, 175, 55, 0.42)); border-right-color: var(--color-gold-200); }
+@keyframes ballot-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.ballot-box { position: relative; display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; border: 1.5px solid rgba(212, 175, 55, 0.6); border-radius: 999px; color: #0b0a07; }
+.ballot-box.sq { border-radius: 2px; }
+.ballot-opt.on .ballot-box, .ballot-opt.static .ballot-box:has(svg) { background: var(--color-gold-400); border-color: var(--color-gold-300); animation: ballot-tick 0.25s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes ballot-tick { from { transform: scale(0.4); } to { transform: scale(1); } }
+.ballot-flash { margin-top: 8px; color: var(--color-gold-200); font: 700 12px var(--font-hud); letter-spacing: 0.12em; text-transform: uppercase; animation: ballot-flash 3.5s ease both; }
+@keyframes ballot-flash { 0% { opacity: 0; transform: translateY(6px); } 10%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+/* The High Table's wax seal. */
+.poll-seal { position: absolute; top: -10px; right: 10px; display: grid; place-items: center; align-content: center; width: 56px; height: 56px; color: #f5d27a; background: radial-gradient(circle at 35% 30%, #b3262b, #7a1216 55%, #4a0a0d); border-radius: 46% 54% 50% 50% / 52% 48% 52% 48%; box-shadow: 0 0 0 3px rgba(122, 18, 22, 0.55), 0 4px 10px rgba(0, 0, 0, 0.6), inset 0 0 0 4px rgba(0, 0, 0, 0.18), inset 0 -3px 6px rgba(0, 0, 0, 0.35); transform: rotate(-8deg); }
+.poll-seal small { margin-top: 1px; font: 800 7px var(--font-hud); letter-spacing: 0.14em; }
+.poll-seal.stamped { animation: seal-stamp 0.7s cubic-bezier(.3, 1.5, .5, 1) both; }
+.poll-seal.failed { filter: grayscale(0.7) brightness(0.8); }
+@keyframes seal-stamp { 0% { opacity: 0; transform: rotate(-30deg) scale(2.4); } 60% { opacity: 1; transform: rotate(-6deg) scale(0.92); } 100% { transform: rotate(-8deg) scale(1); } }
+.poll-menu { position: absolute; right: 0; bottom: 100%; z-index: 10; display: flex; min-width: 190px; flex-direction: column; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.35); background: #0b0a07; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7); }
+.poll-menu button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; text-align: left; font-size: 12px; color: #e7e5e4; }
+.poll-menu button:hover { background: rgba(212, 175, 55, 0.1); }
+/* Header button. */
+.poll-badge { position: absolute; top: -4px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #dc2626; color: #fff; font: 700 10px/16px var(--font-hud); letter-spacing: 0; box-shadow: 0 0 0 2px #050505; animation: poll-pulse 2.4s ease-in-out infinite; }
+@keyframes poll-pulse { 0%, 100% { box-shadow: 0 0 0 2px #050505, 0 0 0 2px rgba(220, 38, 38, 0); } 50% { box-shadow: 0 0 0 2px #050505, 0 0 0 6px rgba(220, 38, 38, 0.25); } }
+.poll-drop { position: fixed; top: calc(env(safe-area-inset-top) + 58px); left: 16px; right: 16px; z-index: 40; max-height: calc(100dvh - 140px); overflow-y: auto; padding: 12px; border: 1px solid rgba(212, 175, 55, 0.35); background: #0b0a07; border-color: rgba(212, 175, 55, 0.5); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85), 0 0 0 100vmax rgba(0, 0, 0, 0.35); animation: poll-drop 0.18s ease-out both; text-transform: none; letter-spacing: normal; }
+@media (min-width: 640px) { .poll-drop { position: absolute; top: calc(100% + 10px); left: auto; right: -8px; width: 380px; max-height: 72vh; } }
+@keyframes poll-drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ballot-bar, .poll-seal, .poll-badge, .ballot-flash, .poll-drop { animation: none !important; } }

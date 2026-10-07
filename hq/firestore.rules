@@ -1152,6 +1152,69 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Polls ----------
+    // Leadership asks, the audience votes. A vote is pointed to by the voter's private ballot, so an
+    // anonymous one carries no name. Results open once you've voted (live) or when the poll closes.
+    function pollOf(pid) { return get(/databases/$(database)/documents/polls/$(pid)).data; }
+    function ballotPath(pid) { return /databases/$(database)/documents/pollBallots/$(pid + '_' + myId()); }
+    function inAudience(p) { return p.audience == 'all' || lead() || (p.audience == 'members' && me().rankId != 'associate'); }
+    function pollOpen(p) { return p.status == 'open' && (p.closesAt == null || request.time < p.closesAt); }
+    function pollShows(p) { return !pollOpen(p) || (p.reveal == 'live' && myId() in p.voters); }
+    function validPoll(d) {
+      return str(d.question, 140) && d.question.size() > 0 && str(d.note, 500)
+        && d.kind in ['single', 'multi', 'yesno', 'dates'] && d.options is list && d.options.size() >= 2 && d.options.size() <= 12
+        && d.ids is list && d.ids.size() == d.options.size()
+        && d.audience in ['all', 'members', 'table'] && d.anonymous is bool && d.reveal in ['live', 'closed'] && d.official is bool
+        && (d.closesAt == null || d.closesAt is timestamp);
+    }
+    function validPicks(p, picks) {
+      return picks is list && picks.size() >= 1 && picks.size() == picks.toSet().size() && picks.toSet().hasOnly(p.ids)
+        && (p.kind in ['multi', 'dates'] || picks.size() == 1);
+    }
+    match /polls/{pid} {
+      allow read: if active() && inAudience(resource.data);
+      allow create: if active() && lead() && validPoll(request.resource.data) && request.resource.data.by == myId()
+        && request.resource.data.status == 'open' && request.resource.data.voters.size() == 0;
+      // Leadership closes or reopens; a voter only adds themselves, alongside their ballot.
+      allow update: if active() && (
+        (lead() && onlyChanges(['status', 'closedAt', 'closesAt', 'logged']) && request.resource.data.status in ['open', 'closed'])
+        || (inAudience(resource.data) && pollOpen(resource.data) && onlyChanges(['voters']) && !(myId() in resource.data.voters)
+          && request.resource.data.voters.size() == resource.data.voters.size() + 1 && request.resource.data.voters.hasAll(resource.data.voters)
+          && myId() in request.resource.data.voters && !exists(ballotPath(pid)) && existsAfter(ballotPath(pid))));
+      allow delete: if active() && lead();
+
+      match /votes/{vid} {
+        allow read: if active() && (pollShows(pollOf(pid)) && inAudience(pollOf(pid))
+          || resource.data.get('memberId', '') == myId()
+          || (exists(ballotPath(pid)) && get(ballotPath(pid)).data.voteId == vid));
+        allow create: if active() && inAudience(pollOf(pid)) && pollOpen(pollOf(pid)) && !exists(ballotPath(pid))
+          && getAfter(ballotPath(pid)).data.voteId == vid && validPicks(pollOf(pid), request.resource.data.picks)
+          && (pollOf(pid).anonymous
+            ? request.resource.data.keys().hasOnly(['picks', 'at'])
+            : (vid == myId() && request.resource.data.memberId == myId() && request.resource.data.keys().hasOnly(['picks', 'at', 'memberId', 'name'])));
+        allow update: if active() && pollOpen(pollOf(pid)) && get(ballotPath(pid)).data.voteId == vid
+          && onlyChanges(['picks', 'at']) && validPicks(pollOf(pid), request.resource.data.picks);
+        // Only once the poll is closed (so leadership can clear a deleted poll without peeking).
+        allow delete: if active() && lead() && !pollOpen(pollOf(pid));
+      }
+      match /comments/{cid} {
+        allow read: if active() && inAudience(pollOf(pid));
+        allow create: if active() && inAudience(pollOf(pid)) && request.resource.data.by == myId() && str(request.resource.data.text, 280)
+          && request.resource.data.text.size() > 0 && str(request.resource.data.name, 60);
+        allow delete: if active() && (resource.data.by == myId() || lead());
+      }
+    }
+    match /pollBallots/{id} {
+      allow read: if active() && resource.data.memberId == myId();
+      allow create: if active() && request.resource.data.memberId == myId() && id == request.resource.data.pollId + '_' + myId()
+        && request.resource.data.voteId is string
+        && existsAfter(/databases/$(database)/documents/polls/$(request.resource.data.pollId)/votes/$(request.resource.data.voteId))
+        && myId() in getAfter(/databases/$(database)/documents/polls/$(request.resource.data.pollId)).data.voters;
+    }
+    match /pollTemplates/{id} {
+      allow read, write: if active() && lead();
+    }
+
     // ---------- Roles ----------
     match /hqRoles/{id} {
       allow read: if active();
