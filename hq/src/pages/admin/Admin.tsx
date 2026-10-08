@@ -30,7 +30,7 @@ export default function Admin() {
     { id: 'lists', label: 'Lists & prices', show: isAdmin || can('manageOps') },
     { id: 'activity', label: 'Activity', show: isAdmin },
     { id: 'settings', label: 'Gang settings', show: can('manageSettings') },
-    { id: 'integrations', label: 'Discord & NoelOps', show: can('manageSettings') },
+    { id: 'integrations', label: 'NoelOps', show: can('manageSettings') },
     { id: 'ranks', label: 'Ranks & permissions', show: can('manageRanks') },
     { id: 'access', label: 'Admin access', show: isOwner },
   ];

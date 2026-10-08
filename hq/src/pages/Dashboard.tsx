@@ -7,6 +7,7 @@ import {
   Gift,
   HelpCircle,
   LayoutDashboard,
+  Lock,
   Megaphone,
   Newspaper,
   Pencil,
@@ -16,7 +17,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AdminLock } from '../components/AdminLock';
 import { Avatar } from '../components/Avatar';
 import { RankBadge } from '../components/Badges';
@@ -633,6 +634,7 @@ export default function Dashboard() {
   const hour = Number(new Date().toLocaleString('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }));
   const greet = hour < 5 ? 'Late night' : hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
   const { isAssoc } = useWelcomeAccess();
+  const locked = !!(useLocation().state as { locked?: boolean } | null)?.locked;
   const footer = (
     <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-smoke/60">
       <span className="h-px w-16 bg-gradient-to-r from-transparent to-gold-700/40" />
@@ -646,6 +648,7 @@ export default function Dashboard() {
     return (
       <>
         <PageHeader icon={LayoutDashboard} kicker={`${settings.name} · ${settings.motto}`} title={`${greet}, ${me.name}`} actions={<StreakBadge />} />
+        {locked && <p className="hud mb-6 flex items-center gap-2 border-gold-600/50 p-3 text-sm text-gold-100"><Lock className="size-4 text-gold-400" /> That opens once you’re blooded in.</p>}
         <WelcomeNote />
         <div className="mx-auto max-w-2xl space-y-6">
           <MyProgress />

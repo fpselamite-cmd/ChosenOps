@@ -1,6 +1,8 @@
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc, type Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc, writeBatch, type Timestamp } from 'firebase/firestore';
+import { useMemo } from 'react';
+import { useHub } from '../hooks/useHub';
 import { Crosshair, Flag, FlaskConical, Handshake, MapPin, Skull, Sprout, Store, Warehouse, type LucideIcon } from 'lucide-react';
-import type { Audience, AudienceDraft } from './audience';
+import { useVisible, type Audience, type AudienceDraft } from './audience';
 import { db } from './firebase';
 
 export const PIN_TYPES: { id: string; label: string; color: string; icon: LucideIcon }[] = [
@@ -42,7 +44,33 @@ export interface Pin extends Audience {
 
 export type PinDraft = Pick<Pin, 'name' | 'type' | 'note' | 'x' | 'y' | 'postal' | 'photo' | 'access' | 'stashId'> & AudienceDraft;
 
+/** Grows, stash houses and labs live in their own collection that only Narco (and High Table) can read. */
+export const pinColl = (type: string) => (NARCO_PINS.has(type) ? 'narcoPins' : 'pins');
+
 export const addPin = (me: { id: string; name: string }, p: PinDraft) =>
-  addDoc(collection(db, 'pins'), { ...p, owner: me.id, ownerName: me.name, at: serverTimestamp() });
-export const savePin = (id: string, p: Partial<PinDraft>) => updateDoc(doc(db, 'pins', id), p);
-export const removePin = (id: string) => deleteDoc(doc(db, 'pins', id));
+  addDoc(collection(db, pinColl(p.type)), { ...p, owner: me.id, ownerName: me.name, at: serverTimestamp() });
+/** Saves a pin; changing it to or from a Narco type moves it to the other collection. */
+export async function savePin(pin: Pin, p: Partial<PinDraft>) {
+  const from = pinColl(pin.type);
+  const to = pinColl(p.type ?? pin.type);
+  if (from === to) return updateDoc(doc(db, from, pin.id), p);
+  const { id, ...rest } = { ...pin, ...p };
+  const b = writeBatch(db);
+  b.set(doc(db, to, id), rest);
+  b.delete(doc(db, from, id));
+  return b.commit();
+}
+export const removePin = (pin: Pin) => deleteDoc(doc(db, pinColl(pin.type), pin.id));
+
+/** Every pin I may see: the family's, plus the Narco ones if I'm Narco. */
+export function usePins() {
+  const { narco } = useHub();
+  const plain = useVisible<Pin>('pins');
+  const drugs = useVisible<Pin>('narcoPins', narco);
+  return useMemo(() => (plain && (!narco || drugs) ? [...plain.filter((p) => !NARCO_PINS.has(p.type)), ...(narco ? drugs! : [])] : null), [plain, drugs, narco]);
+}
+/** Moves a pin sitting in the wrong collection (from before the split). Used once by Narco members. */
+export const movePin = (from: 'pins' | 'narcoPins', p: Pin) => {
+  const { id, ...rest } = p;
+  return setDoc(doc(db, from === 'pins' ? 'narcoPins' : 'pins', id), rest).then(() => deleteDoc(doc(db, from, id)));
+};

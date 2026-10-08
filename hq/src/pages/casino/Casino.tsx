@@ -7,6 +7,7 @@ import { Field } from '../../components/Field';
 import { FancyName, Framed, HonorPic, RarityChip } from '../../components/HonorArt';
 import { PageHeader, Panel, Tabs } from '../../components/Page';
 import { useCollection } from '../../hooks/useCollection';
+import { useWelcomeAccess } from '../welcome/useWelcome';
 import { useHub } from '../../hooks/useHub';
 import { buyHonor, chipsFmt, grantChips, saveCasino, sendChips, weekKey, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
 import { db } from '../../lib/firebase';
@@ -59,6 +60,8 @@ function Shop() {
   const { me } = useHub();
   const { balance } = useChips();
   const { honors, has } = useHonors();
+  const { isAssoc } = useWelcomeAccess();
+  if (isAssoc) return <p className="text-sm text-smoke">The chip shop opens once you’re blooded in. Keep your chips: they’ll be here.</p>;
   const items = honors.filter((h) => (h.price ?? 0) > 0 && h.status === 'active').sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
   if (!items.length) return <p className="text-sm text-smoke">Nothing for sale yet. High Table can put any honor up for chips in the Forge.</p>;
   return (

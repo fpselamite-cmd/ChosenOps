@@ -91,7 +91,8 @@ service cloud.firestore {
     }
 
     match /members/{id} {
-      allow read: if active() || (bound() && myId() == id);
+      // Associates read only their own file; the names and ranks they need come from the directory.
+      allow read: if (active() && (id == myId() || blooded())) || (bound() && myId() == id);
       // Your own file by sign-in id, even before it exists (so the app can wait for it while signing up).
       allow get: if signedIn() && id == request.auth.uid && resource == null;
 
@@ -172,8 +173,22 @@ service cloud.firestore {
     }
 
     // Online check-ins and custom statuses. Each member writes only their own.
-    match /presence/{id} {
+    // The family directory: name, rank and avatar of everyone, mirrored from members. All an associate gets to see of others.
+    match /directory/{id} {
       allow read: if active();
+      // Anyone blooded can bring an entry up to date, but only ever to exactly what the member file says.
+      allow create, update: if blooded() && exists(/databases/$(database)/documents/members/$(id))
+        && request.resource.data.keys().hasOnly(['name', 'nameLower', 'status', 'rankId', 'avatar'])
+        && request.resource.data.name == get(/databases/$(database)/documents/members/$(id)).data.get('name', null)
+        && request.resource.data.nameLower == get(/databases/$(database)/documents/members/$(id)).data.get('nameLower', null)
+        && request.resource.data.status == get(/databases/$(database)/documents/members/$(id)).data.get('status', null)
+        && request.resource.data.rankId == get(/databases/$(database)/documents/members/$(id)).data.get('rankId', null)
+        && request.resource.data.avatar == get(/databases/$(database)/documents/members/$(id)).data.get('avatar', null);
+      allow delete: if blooded() && !exists(/databases/$(database)/documents/members/$(id));
+    }
+
+    match /presence/{id} {
+      allow read: if active() && (id == myId() || blooded());
       allow write: if active() && myId() == id
         && request.resource.data.keys().hasOnly(['at', 'status'])
         && request.resource.data.at == request.time
@@ -189,7 +204,7 @@ service cloud.firestore {
     }
 
     match /crews/{crewId} {
-      allow read: if active();
+      allow read: if blooded();
 
       function validCrew() {
         let d = request.resource.data;
@@ -233,7 +248,7 @@ service cloud.firestore {
       allow update: if can('manageSettings') && str(request.resource.data.name, 40) && str(request.resource.data.motto, 80);
     }
     match /settings/announcement {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if founding() || can('postAnnouncements');
       allow update: if can('postAnnouncements') && str(request.resource.data.text, 500)
         && request.resource.data.by == myId() && request.resource.data.at == request.time;
@@ -258,9 +273,16 @@ service cloud.firestore {
           || (v is string && v != 'rank' && exists(/databases/$(database)/documents/crews/$(v)) && crewPage(page, v)));
     }
     function opsWrite() { return opens('narcotics') || opens('stash') || opens('blackmarket'); }
+    // Narco (or High Table/leadership): the only ones who see or touch drug counts, grows, labs and drug pins.
+    function narco() { return (hasRoles() && 'narco' in roles().get('roles', [])) || lead(); }
+    // Drug fields can't ride along in a plain stock write.
+    function itemsOnly() {
+      return request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasOnly(['items', '_by', '_via']);
+    }
 
     match /locations/{locId} {
-      allow read: if active();
+      // Grows are Narco only. Everyone else lists with where('kind', '==', 'stash').
+      allow read: if blooded() && (narco() || resource.data.kind == 'stash');
       // Anyone working the ops runs timers, pot plans and the totals switch.
       allow update: if opsWrite()
         && onlyChanges(['startTime', 'alertSent', 'strainPots', 'pots', 'excludeTotals', '_by', '_via']);
@@ -276,6 +298,8 @@ service cloud.firestore {
         && request.resource.data.get('createdBy', null) == resource.data.get('createdBy', null)
         && request.resource.data.kind == 'stash' && str(request.resource.data.get('name', 'x'), 40);
       allow delete: if (can('manageOps') || lead()) && locId != 'main';
+      // Labelling an old record grow or stash (one-time tidy-up by Narco).
+      allow update: if narco() && resource.data.get('kind', null) == null && onlyChanges(['kind']) && request.resource.data.kind in ['stash', 'grow'];
     }
 
     // Taking from (or adding to) a stash house needs its take rank, unless you own it or lead.
@@ -285,34 +309,40 @@ service cloud.firestore {
         || myOrder() <= orderOf(get(l).data.takeRank)
         || myId() in get(l).data.get('owners', []) || lead() || isAdmin();
     }
+    // Items in each stash. Drug counts live apart in drugStock, which only Narco reads.
     match /stock/{locId} {
-      allow read: if active();
-      allow create, update: if opsWrite() && canTakeAt(locId);
+      allow read: if blooded();
+      allow create, update: if (itemsOnly() || narco()) && opsWrite() && canTakeAt(locId);
       allow delete: if can('manageOps') && locId != 'main';
+    }
+    match /drugStock/{locId} {
+      allow read: if narco();
+      allow create, update: if narco() && opsWrite() && canTakeAt(locId);
+      allow delete: if narco() && (can('manageOps') || lead()) && locId != 'main';
     }
 
     match /cooks/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if opens('narcotics');
     }
     match /runs/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if opens('narcotics');
     }
     match /supplies/lab {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if opens('narcotics');
     }
     match /yields/{strain} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if opens('narcotics');
     }
     match /history/{day} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if opsWrite();
     }
     match /activity/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if opsWrite() && request.resource.data.at == request.time
         && request.resource.data.keys().hasOnly(['who', 'kind', 'pre', 'hi', 'post', 'at', '_by', '_via']);
     }
@@ -328,7 +358,7 @@ service cloud.firestore {
         && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0;
     }
     match /settings/narcotics {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if can('manageOps');
     }
 
@@ -338,7 +368,7 @@ service cloud.firestore {
 
     // Character sheets: anyone in the family reads them; only the member writes their own.
     match /sheets/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow write: if active() && myId() == memberId
         && request.resource.data.keys().hasOnly(['basics', 'looks', 'city', 'story', 'traits', 'skills', 'customSkills', 'customFields', 'relations', 'song', 'wanted', 'star'])
         && request.resource.data.get('star', 'gold') in ['gold', 'white', 'ice', 'rose', 'ember', 'emerald', 'violet', 'crimson']
@@ -371,7 +401,7 @@ service cloud.firestore {
 
     // Daily login streaks. The member counts their own days; only an admin sets leave (LOA).
     match /streaks/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow create, update: if active() && myId() == memberId
         && request.resource.data.keys().hasOnly(['current', 'best', 'last', 'freezes', 'loaFrom', 'loaUntil', 'at'])
         && request.resource.data.current is int && request.resource.data.best is int
@@ -389,20 +419,20 @@ service cloud.firestore {
     }
     // Today's spotlight, when leadership picks someone.
     match /spotlight/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if can('manageMembers') && request.resource.data.keys().hasOnly(['memberId', 'why', 'day', 'by'])
         && str(request.resource.data.get('why', ''), 140);
     }
     // Family news for the briefing: who joined, who got promoted.
     match /news/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if (can('approveMembers') || can('manageMembers')) && request.resource.data.at == request.time
         && request.resource.data.kind in ['joined', 'promoted'];
     }
 
     // Hall of Fame: leadership's MVP of the month and legend plaques.
     match /monthMvp/{ym} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if (can('manageMembers') || can('hallOfFame')) && ym.matches('[0-9]{4}-[0-9]{2}')
         && request.resource.data.keys().hasOnly(['memberId', 'why', 'by']) && str(request.resource.data.why, 140);
     }
@@ -416,20 +446,20 @@ service cloud.firestore {
             && str(request.resource.data.epitaph, 200) && request.resource.data.day is string));
     }
     match /legends/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if (can('manageMembers') || can('hallOfFame')) && request.resource.data.at == request.time
         && str(request.resource.data.title, 60) && str(request.resource.data.text, 400);
       allow delete: if (can('manageMembers') || can('hallOfFame'));
     }
     // Paying respects to past members: one candle per member, and short memories.
     match /tributes/{memberId} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && request.resource.data.keys().hasOnly(['candles'])
         && request.resource.data.candles.keys().hasOnly([myId()]);
       allow update: if active() && onlyChanges(['candles'])
         && request.resource.data.candles.diff(resource.data.get('candles', {})).affectedKeys().hasOnly([myId()]);
       match /memories/{mid} {
-        allow read: if active();
+        allow read: if blooded();
         allow create: if active() && mine('by') && request.resource.data.at == request.time && str(request.resource.data.text, 140);
         allow delete: if active() && (wasMine('by') || can('manageMembers'));
       }
@@ -506,13 +536,13 @@ service cloud.firestore {
 
     // ── Keepsake cabinet and trophies (on profiles) ─────────────
     match /cabinets/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow write: if active() && myId() == memberId;
     }
     // Trophies come two ways: earned from achievements (the member's own page awards them once,
     // with a fixed id per achievement tier so they can't stack), or awarded by leadership.
     match /trophies/{id} {
-      allow read: if active();
+      allow read: if active() && (resource.data.memberId == myId() || blooded());
       allow create: if active() && request.resource.data.at == request.time && str(request.resource.data.title, 60)
         && ((request.resource.data.kind == 'award' && can('awardTrophies') && mine('by'))
           || (request.resource.data.kind == 'achievement' && mine('memberId') && request.resource.data.by == 'achievement'
@@ -529,14 +559,14 @@ service cloud.firestore {
     }
     // Each member's own work counters (harvests, presses, cooks, runs) for achievements.
     match /stats/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || memberId == 'familyRep' || blooded());
       allow write: if active() && (myId() == memberId || (isAdmin() && memberId != 'familyRep'));
     }
 
     // ── BlackMarket: drugs sell for dirty money ─────────────────
     match /sales/{id} {
       // Narco logs are public to the family (personal amounts are hidden on screen).
-      allow read: if active();
+      allow read: if blooded();
       allow create: if opens('blackmarket') && request.resource.data.at == request.time
         && (mine('sellerId') || can('money'))
         && request.resource.data.qty is int && request.resource.data.qty > 0;
@@ -596,12 +626,12 @@ service cloud.firestore {
       allow create, delete: if can('money');
     }
     match /wishes/{id} {
-      allow read: if active();
+      allow read: if active() && (resource.data.get('memberId', '') == myId() || blooded());
       allow create: if active() && mine('byId') && request.resource.data.status == 'open';
       allow update: if active();
     }
     match /settings/blackmarket {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if can('money');
     }
 
@@ -711,7 +741,7 @@ service cloud.firestore {
       return after.diff(before).affectedKeys().hasOnly([myId()]);
     }
     match /blacksites/{bid} {
-      allow read: if active();
+      allow read: if blooded();
       function validSite() {
         let d = request.resource.data;
         return str(d.zone, 60) && d.zone.size() > 0 && d.at is timestamp
@@ -755,7 +785,7 @@ service cloud.firestore {
 
       // Loot to share out: participants claim, the rest goes into the stash when the draw closes.
       match /loot/{lid} {
-        allow read: if active();
+        allow read: if blooded();
         allow create: if active() && site(bid).loggedBy == myId() && site(bid).lootStatus == 'open'
           && str(request.resource.data.label, 60) && request.resource.data.qty is int && request.resource.data.qty > 0
           && request.resource.data.claims is map && request.resource.data.claims.size() == 0;
@@ -778,7 +808,7 @@ service cloud.firestore {
       }
       // Loot screenshots, one per doc (they're big).
       match /photos/{pid} {
-        allow read: if active();
+        allow read: if blooded();
         allow create: if active() && (site(bid).loggedBy == myId() || myId() in site(bid).participants)
           && request.resource.data.by == myId() && str(request.resource.data.image, 400000);
         allow delete: if active() && (resource.data.by == myId() || site(bid).loggedBy == myId());
@@ -805,7 +835,7 @@ service cloud.firestore {
 
     // Blacksite locations. Anyone adds one by logging a fight there; leadership places, edits and merges them.
     match /blacksiteSpots/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && str(request.resource.data.name, 60) && request.resource.data.name.size() > 0 && request.resource.data.by == myId();
       allow update: if (lead() || can('manageOps')) && str(request.resource.data.name, 60) && str(request.resource.data.get('notes', ''), 1000);
       allow delete: if lead() || can('manageOps');
@@ -819,14 +849,14 @@ service cloud.firestore {
     }
     // A sale's dirty money per day, for the Dashboard's daily briefing.
     match /daily/{day} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if active() && day.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
         && request.resource.data.keys().hasOnly(['sales', '_by', '_via'])
         && (opens('blackmarket') || can('money'));
     }
 
     match /boards/{ym} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if active() && ym.matches('[0-9]{4}-[0-9]{2}')
         && request.resource.data.keys().hasOnly(['sales', 'bricks', 'awarded', '_by', '_via'])
         && boardChange('bricks').hasOnly([myId()])
@@ -842,10 +872,11 @@ service cloud.firestore {
     // personal: only the owner. gang: everyone. limited: the ranks listed (leadership is always
     // listed) and anyone in one of the crews listed (checked against their own crewIds).
     function canSeeIt(d) {
+      // Whole-family things are for soldiers and up; something shared to a rank on purpose reaches that rank (associates too).
       return d.get('owner', '') == myId()
-        || (active() && (d.get('scope', '') == 'gang'
-          || (d.get('scope', '') == 'limited'
-              && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))))));
+        || (blooded() && d.get('scope', '') == 'gang')
+        || (active() && d.get('scope', '') == 'limited'
+              && (me().rankId in d.get('ranks', []) || d.get('crewIds', []).hasAny(me().get('crewIds', []))));
     }
     // Admins count as leadership whatever their rank: admin is out-of-character, rank is in-character.
     function lead() { return isAdmin() || rankOf(me().rankId).get('leadership', false) == true || rankOf(me().rankId).order == 0
@@ -868,9 +899,31 @@ service cloud.firestore {
           // Only leadership puts down rank- or crew-limited locations.
           && (d.scope != 'limited' || lead());
       }
-      allow create: if active() && validPin();
-      allow update: if active() && validPin() && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
-      allow delete: if active() && (resource.data.owner == myId() || ((lead() || can('manageEvents')) && resource.data.scope != 'personal'));
+      allow create: if active() && validPin() && !(request.resource.data.type in ['grow', 'stash', 'lab']);
+      allow update: if active() && validPin() && !(request.resource.data.type in ['grow', 'stash', 'lab']) && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+      allow delete: if active() && ((narco() && resource.data.type in ['grow', 'stash', 'lab']) || resource.data.owner == myId() || ((lead() || can('manageEvents')) && resource.data.scope != 'personal'));
+    }
+    // Grows, stash houses and labs: Narco (and High Table) only.
+    match /narcoPins/{id} {
+      allow read: if narco() && canSeeIt(resource.data);
+      function validPin() {
+        let d = request.resource.data;
+        return validAudience(d) && str(d.name, 40) && d.name.size() > 0 && str(d.type, 20)
+          && d.x is number && d.x >= 0 && d.x <= 1 && d.y is number && d.y >= 0 && d.y <= 1
+          && (!('note' in d) || str(d.note, 300))
+          && str(d.get('postal', ''), 10) && str(d.get('access', ''), 300)
+          && (d.get('photo', null) == null || str(d.photo, 450000))
+          && (d.get('stashId', null) == null || str(d.stashId, 80))
+          // Only leadership puts down rank- or crew-limited locations.
+          && (d.scope != 'limited' || lead());
+      }
+      allow create: if narco() && validPin() && request.resource.data.type in ['grow', 'stash', 'lab'];
+      // Moving a drug pin over from the old shared collection, exactly as it was.
+      allow create: if lead() && exists(/databases/$(database)/documents/pins/$(id))
+        && request.resource.data == get(/databases/$(database)/documents/pins/$(id)).data
+        && request.resource.data.type in ['grow', 'stash', 'lab'];
+      allow update: if narco() && validPin() && request.resource.data.type in ['grow', 'stash', 'lab'] && (resource.data.owner == myId() || (lead() && resource.data.scope != 'personal'));
+      allow delete: if narco() && (resource.data.owner == myId() || ((lead() || can('manageEvents')) && resource.data.scope != 'personal'));
     }
 
     match /events/{id} {
@@ -924,7 +977,7 @@ service cloud.firestore {
       allow read, write: if active() && treasury();
     }
     match /savingsGoals/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && treasury();
     }
     match /spendRequests/{id} {
@@ -944,7 +997,7 @@ service cloud.firestore {
       allow create, update: if active() && (lead() || can('money') || can('confirmRep')) && week.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
     }
     match /duesPay/{id} {
-      allow read: if active();
+      allow read: if active() && (resource.data.memberId == myId() || blooded());
       allow create: if active() && mine('memberId') && request.resource.data.status == 'pending'
         && request.resource.data.cash in ['dirty', 'clean'] && request.resource.data.amount is int && request.resource.data.amount > 0
         && getAfter(/databases/$(database)/documents/myCash/$(request.resource.data.cashId)).data.memberId == myId();
@@ -957,34 +1010,34 @@ service cloud.firestore {
     // ---------- Rivals ----------
     // Case files are everyone's to read; High Table (leadership) keeps them.
     match /rivals/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && lead();
       match /members/{mid} {
-        allow read: if active();
+        allow read: if blooded();
         allow write: if active() && lead();
         // Anyone who spots them updates when and where they were last seen.
         allow update: if active() && onlyChanges(['lastSeenAt', 'lastSeenWhere']) && request.resource.data.lastSeenAt == request.time && str(request.resource.data.lastSeenWhere, 60);
       }
     }
     match /rivalIncidents/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
         && request.resource.data.kind in ['fight', 'robbery', 'turf', 'deal'] && str(request.resource.data.title, 80) && str(request.resource.data.notes, 1000);
       allow delete: if active() && (resource.data.by == myId() || lead());
     }
     match /rivalNotes/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time && str(request.resource.data.text, 500);
       allow delete: if active() && (resource.data.by == myId() || lead());
     }
     match /sightings/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
         && request.resource.data.memberIds is list && request.resource.data.memberIds.size() <= 12 && str(request.resource.data.note, 140);
       allow delete: if active() && (resource.data.by == myId() || lead());
     }
     match /bounties/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && lead() && request.resource.data.status == 'open' && request.resource.data.amount is int && request.resource.data.amount > 0;
       allow update: if active() && (
         // Anyone claims an open bounty for themselves, with proof.
@@ -993,7 +1046,7 @@ service cloud.firestore {
         || lead());
     }
     match /rivalBoard/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && lead();
     }
 
@@ -1089,16 +1142,16 @@ service cloud.firestore {
     // High Table keeps the catalog; the Archivist can propose new ones.
     function honor(hid) { return get(/databases/$(database)/documents/honors/$(hid)).data; }
     match /honors/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && lead();
       allow create: if active() && request.resource.data.status == 'proposed' && request.resource.data.rarity != 'mythic' && archivist();
     }
     match /settings/honors {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && lead();
     }
     match /honorsOwned/{id} {
-      allow read: if active();
+      allow read: if blooded();
       // Unlocking a milestone for yourself (the watcher does it), while it can be earned.
       allow create: if request.resource.data.by == 'milestone' && request.resource.data.seen == false && request.resource.data.at == request.time
         && active() && request.resource.data.memberId == myId() && id == myId() + '_' + request.resource.data.honorId
@@ -1120,7 +1173,7 @@ service cloud.firestore {
       allow delete: if resource.data.by != 'milestone' && active() && lead();
     }
     match /honorLoadouts/{mid} {
-      allow read: if active();
+      allow read: if blooded();
       allow write: if active() && mid == myId()
         && request.resource.data.keys().hasOnly(['title', 'frame', 'effect', 'nameHue', 'accentHue', 'trimHue', 'backdropHue', 'showcase'])
         && request.resource.data.get('showcase', []).size() <= 3;
@@ -1215,7 +1268,7 @@ service cloud.firestore {
     // ---------- Parties ----------
     // A note on someone's birthday or anniversary card: yours to write (not on your own card) or take back.
     match /partyNotes/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create, update: if active() && request.resource.data.by == myId() && id == request.resource.data.party + '_' + myId()
         && request.resource.data['for'] != myId() && request.resource.data.party.matches('(birthday|anniversary)_' + request.resource.data['for'] + '_.*')
         && str(request.resource.data.text, 200) && request.resource.data.text.size() > 0 && str(request.resource.data.name, 60) && str(request.resource.data.label, 60);
@@ -1227,7 +1280,7 @@ service cloud.firestore {
     // anonymous one carries no name. Results open once you've voted (live) or when the poll closes.
     function pollOf(pid) { return get(/databases/$(database)/documents/polls/$(pid)).data; }
     function ballotPath(pid) { return /databases/$(database)/documents/pollBallots/$(pid + '_' + myId()); }
-    function inAudience(p) { return p.audience == 'all' || lead() || (p.audience == 'members' && me().rankId != 'associate'); }
+    function inAudience(p) { return lead() || (blooded() && p.audience in ['all', 'members']); }
     function pollOpen(p) { return p.status == 'open' && (p.closesAt == null || request.time < p.closesAt); }
     function pollShows(p) { return !pollOpen(p) || (p.reveal == 'live' && myId() in p.voters); }
     function validPoll(d) {
@@ -1292,7 +1345,7 @@ service cloud.firestore {
         && (request.resource == null || (str(request.resource.data.name, 30) && request.resource.data.perms is map && request.resource.data.pages is map));
     }
     match /roleHolders/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow write: if active() && lead()
         && (request.resource == null || (request.resource.data.keys().hasOnly(['roles', 'perms', 'pages', 'lead'])
           && request.resource.data.roles is list && request.resource.data.roles.size() <= 20));
@@ -1328,7 +1381,7 @@ service cloud.firestore {
     }
     // BlackMarket price changes over time.
     match /priceLog/{id} {
-      allow read: if active();
+      allow read: if blooded();
       allow create: if active() && (can('money') || isAdmin()) && request.resource.data.by == myId()
         && request.resource.data.keys().hasOnly(['product', 'price', 'was', 'by', 'byName', 'at'])
         && request.resource.data.price is int && request.resource.data.at == request.time;
@@ -1393,7 +1446,7 @@ service cloud.firestore {
     }
     // Which kit each member has equipped.
     match /kitPicks/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow write: if active() && myId() == memberId
         && (request.resource == null || (request.resource.data.keys().hasOnly(['kit'])
           && (request.resource.data.kit == null || str(request.resource.data.kit, 40))));
@@ -1409,15 +1462,14 @@ service cloud.firestore {
       allow delete: if active() && myId() == memberId;
     }
 
-    // Discord webhooks. Members read them (their phones send the alerts); only leadership edits.
+    // Discord webhooks were removed from HQ. Whatever is still saved here stays locked away from everyone.
     match /hooks/discord {
-      allow read: if active();
-      allow write: if can('manageSettings');
+      allow read, write: if false;
     }
 
     // Family cards: custom card art the Boss (or a rank given 'familyCards') uploads for each member.
     match /familyCards/{memberId} {
-      allow read: if active();
+      allow read: if active() && (memberId == myId() || blooded());
       allow write: if can('familyCards')
         && (request.resource == null || (str(request.resource.data.image, 900000) && request.resource.data.by == myId()));
     }

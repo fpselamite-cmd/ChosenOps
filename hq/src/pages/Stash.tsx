@@ -591,7 +591,7 @@ function NewStash({ onClose, onMade }: { onClose: () => void; onMade: (key: stri
         await ops.applyDeltas(start.map((s) => ({ loc: key, field: 'meth' as const, item: s.item, delta: s.qty })));
         void logMoves(me, 'create', start.map((s) => ({ field: 'meth' as const, item: s.item, qty: s.qty, label: itemName(s.item) })), { to: key, toLabel: name });
       }
-      if (pin && at)
+      if (narco && pin && at)
         await addPin(me, {
           name: name.trim().slice(0, 40),
           type: 'stash',
@@ -680,9 +680,12 @@ function NewStash({ onClose, onMade }: { onClose: () => void; onMade: (key: stri
               </div>
             </>
           )}
-          <label className="flex items-center gap-2 text-sm text-ash">
-            <input type="checkbox" className="accent-gold-400" checked={pin} onChange={(e) => setPin(e.target.checked)} /> Drop a pin on the map too
-          </label>
+          {/* Stash pins are Narco-only on the map, so only Narco can drop one. */}
+          {narco && (
+            <label className="flex items-center gap-2 text-sm text-ash">
+              <input type="checkbox" className="accent-gold-400" checked={pin} onChange={(e) => setPin(e.target.checked)} /> Drop a pin on the map too
+            </label>
+          )}
           {pin && (
             <div className="relative cursor-crosshair overflow-hidden border border-line" onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
