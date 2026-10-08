@@ -2441,3 +2441,53 @@ html[data-sparkles='off'] .hud { background: linear-gradient(180deg, rgba(15, 15
   .card-table td.card-actions { display: flex; justify-content: flex-end; padding-top: 8px !important; }
   .card-table tr.assoc-final { border-color: rgb(var(--acc) / 0.5); }
 }
+
+/* ---------- Keepsake medals ---------- */
+.md { position: relative; display: inline-flex; flex-direction: column; align-items: center; flex-shrink: 0; isolation: isolate; vertical-align: middle; }
+.md-ribbon { display: block; margin-bottom: calc(var(--md) * -0.06); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.md-body { position: relative; display: block; transform-origin: 50% 0; transition: transform 0.35s cubic-bezier(.2, 1.4, .4, 1); }
+.md-svg { display: block; overflow: visible; }
+.md-icon { position: absolute; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; color: var(--rar-hi); filter: drop-shadow(0 -0.6px 0 rgba(0, 0, 0, 0.75)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.25)); pointer-events: none; }
+.md-seal .md-icon { color: rgba(0, 0, 0, 0.55); filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.28)); }
+.md-glint { transform: translateX(0) skewX(-18deg); opacity: 0; }
+.md.locked { filter: grayscale(1) brightness(0.42) contrast(0.9); }
+.md.locked .md-icon { color: #a8a29e; }
+/* rarity ladder: glow → glint → aura → sparks → prismatic */
+.md.rar-uncommon .md-svg { filter: drop-shadow(0 0 3px rgba(246, 200, 150, 0.25)); }
+.md.rar-rare .md-svg { filter: drop-shadow(0 0 5px rgba(200, 220, 255, 0.35)); }
+.md.rar-rare .md-glint, .md.rar-epic .md-glint, .md.rar-legendary .md-glint, .md.rar-mythic .md-glint { animation: md-glint 4.5s ease-in-out infinite; }
+.md.rar-epic .md-svg { filter: drop-shadow(0 0 7px rgba(212, 175, 55, 0.5)); animation: md-aura 2.8s ease-in-out infinite; }
+.md.rar-legendary .md-svg { filter: drop-shadow(0 0 9px rgba(245, 197, 66, 0.65)); animation: md-aura 2.2s ease-in-out infinite; }
+.md.rar-mythic .md-svg { animation: md-prism 6s linear infinite, md-aura 2s ease-in-out infinite; }
+.md-sparks { position: absolute; inset: -12%; pointer-events: none; animation: md-orbit 9s linear infinite; }
+.md-sparks i { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 99px; background: #fff7cf; box-shadow: 0 0 6px 2px rgba(255, 220, 120, 0.8); transform: rotate(var(--a)) translateY(calc(var(--md) * -0.6)); animation: md-spark 2.4s ease-in-out infinite; }
+.md.rar-mythic .md-sparks i { background: #fff; box-shadow: 0 0 8px 3px rgba(225, 29, 46, 0.7); }
+/* lively: a hung medal swings, any medal tilts toward you on hover */
+.md:hover .md-body { transform: perspective(300px) rotateY(16deg) rotateX(6deg) scale(1.06); }
+.md-hung .md-body { animation: md-swing 5s ease-in-out infinite; }
+.md-hung:hover .md-body { animation: none; }
+@keyframes md-glint { 0%, 55% { opacity: 0; transform: translateX(0) skewX(-18deg); } 60% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(190px) skewX(-18deg); } }
+@keyframes md-aura { 0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 210, 120, 0.35)); } 50% { filter: drop-shadow(0 0 13px rgba(255, 210, 120, 0.8)); } }
+@keyframes md-prism { from { filter: hue-rotate(0deg) drop-shadow(0 0 10px rgba(225, 29, 46, 0.6)); } to { filter: hue-rotate(360deg) drop-shadow(0 0 10px rgba(225, 29, 46, 0.6)); } }
+@keyframes md-orbit { to { transform: rotate(360deg); } }
+@keyframes md-spark { 0%, 100% { opacity: 0; } 40%, 60% { opacity: 1; } }
+@keyframes md-swing { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+/* phones: same art, calmer */
+@media (max-width: 639px) {
+  .md-sparks, .md-hung .md-body, .md.rar-epic .md-svg, .md.rar-legendary .md-svg { animation: none; }
+  .md-sparks { display: none; }
+  .md.rar-mythic .md-svg { animation: md-prism 10s linear infinite; }
+}
+html[data-motion='off'] .md *, html[data-motion='off'] .md-body { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .md *, .md-body { animation: none !important; } }
+
+/* ---------- Titles: engraved nameplates ---------- */
+.ht { position: relative; display: inline-block; padding: 2px 12px; border-radius: 3px; font: 700 0.72em var(--font-display, serif); letter-spacing: 0.12em; text-transform: uppercase; color: #2a2008; background: linear-gradient(180deg, #e8d9a8, #b8954a 55%, #8a6a2c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.6); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45); overflow: hidden; }
+.ht::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 5px 50%, rgba(0, 0, 0, 0.55) 0 1.4px, transparent 2px), radial-gradient(circle at calc(100% - 5px) 50%, rgba(0, 0, 0, 0.55) 0 1.4px, transparent 2px); pointer-events: none; }
+.ht.rar-common { color: #1c1e22; background: linear-gradient(180deg, #c9cdd2, #8a8f96 55%, #5d626a); }
+.ht.rar-uncommon { color: #2b1607; background: linear-gradient(180deg, #f2c08c, #b4733b 55%, #7a4a20); }
+.ht.rar-rare { color: #1b2230; background: linear-gradient(180deg, #ffffff, #c2ccd8 55%, #8792a1); }
+.ht.rar-epic { color: #2a1d02; background: linear-gradient(180deg, #fff3bf, #d4af37 55%, #8d6a1a); }
+.ht.rar-legendary { color: #3a0a0a; background: linear-gradient(180deg, #fff8d6, #efc23a 50%, #a77a14); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 0 0 10px rgba(245, 197, 66, 0.55); }
+.ht.rar-mythic { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); background: linear-gradient(110deg, #f472b6, #c4b5fd, #a5f3fc, #fde68a, #f472b6) 0 0 / 300% 100%; animation: ht-prism 5s linear infinite; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 12px rgba(225, 29, 46, 0.55); }
+@keyframes ht-prism { to { background-position: 300% 0; } }

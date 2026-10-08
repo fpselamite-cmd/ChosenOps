@@ -110,6 +110,10 @@ export interface Honor {
   chips?: number;
   icon?: string;
   shape?: (typeof BADGE_SHAPES)[number];
+  /** The medal it's struck as (round, star, crest, cross, coin, seal, card, pin). Mixed by id when unset. */
+  form?: string | null;
+  /** Its ribbon's two colors (defaults by rarity). */
+  ribbon?: [string, string] | null;
   theme?: FrameTheme;
   color?: string;
   effect?: NameEffect;
