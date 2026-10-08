@@ -1,1 +1,61 @@
-{ "classes": {}, "weapons": {} }
+{
+  "classes": {
+    "pistol": "pack/Pistol_1.glb",
+    "rifle": "pack/AssaultRifle2_1.glb",
+    "smg": "pack/SubmachineGun_1.glb",
+    "shotgun": "pack/Shotgun_1.glb",
+    "sniper": "pack/SniperRifle_1.glb"
+  },
+  "weapons": {
+    "g_50_pistol": "pack/Pistol_4.glb",
+    "g_combat_pistol": "pack/Pistol_5.glb",
+    "g_heavy_pistol": "pack/Pistol_3.glb",
+    "g_marksman_pistol": "pack/Pistol_6.glb",
+    "g_pistol_mk_i": "pack/Pistol_2.glb",
+    "g_sns_pistol": "pack/Pistol_1.glb",
+    "g_taser": "pack/Pistol_5.glb",
+    "g_vintage_pistol": "pack/Pistol_1.glb",
+    "g_double_action_revolver": "pack/Revolver_5.glb",
+    "g_navy_revolver": "pack/Revolver_1.glb",
+    "g_revolver": "pack/Revolver_2.glb",
+    "w_block_17_pistol": "pack/Pistol_5.glb",
+    "w_pn905_pistol": "pack/Pistol_2.glb",
+    "w_pnx45": "pack/Pistol_3.glb",
+    "w_44mag_s": "pack/Revolver_4.glb",
+    "w_44mag_b": "pack/Revolver_3.glb",
+
+    "g_advanced_rifle": "pack/Bullpup_2.glb",
+    "g_assault_rifle": "pack/AssaultRifle_2.glb",
+    "g_bullpup_rifle": "pack/Bullpup_3.glb",
+    "g_carbine_rifle": "pack/AssaultRifle2_1.glb",
+    "g_compact_rifle": "pack/AssaultRifle_4.glb",
+    "g_military_rifle": "pack/AssaultRifle_5.glb",
+    "g_special_carbine": "pack/AssaultRifle2_2.glb",
+    "w_mk18_rifle": "pack/AssaultRifle2_4.glb",
+    "w_star_sc_rifle": "pack/AssaultRifle_1.glb",
+    "w_star_17_rifle": "pack/AssaultRifle2_3.glb",
+    "w_mcx_spear": "pack/AssaultRifle2_2.glb",
+    "w_ak74_u": "pack/AssaultRifle_3.glb",
+
+    "g_assault_shotgun": "pack/Shotgun_ShortStock.glb",
+    "g_bullpup_shotgun": "pack/Bullpup_1.glb",
+    "g_combat_shotgun": "pack/Shotgun_1.glb",
+    "g_double_barrel_shotgun": "pack/Shotgun_SawedOff.glb",
+    "g_heavy_shotgun": "pack/Shotgun_4.glb",
+    "g_musket": "pack/Shotgun_2.glb",
+    "g_pump_shotgun": "pack/Shotgun_3.glb",
+    "g_pump_shotgun_mk_ii": "pack/Shotgun_ShortStock.glb",
+    "g_sawn_off_shotgun": "pack/Shotgun_SawedOff.glb",
+    "w_m590_shotgun": "pack/Shotgun_1.glb",
+    "w_m870": "pack/Shotgun_3.glb",
+
+    "g_assault_smg": "pack/SubmachineGun_5.glb",
+    "g_combat_pdw": "pack/SubmachineGun_2.glb",
+    "g_micro_smg": "pack/SubmachineGun_3.glb",
+    "g_smg": "pack/SubmachineGun_4.glb",
+    "w_kvr_smg": "pack/SubmachineGun_4.glb",
+    "w_ump45": "pack/SubmachineGun_1.glb",
+
+    "w_m700_rifle": "pack/SniperRifle_2.glb"
+  }
+}

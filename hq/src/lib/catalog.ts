@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useCollection } from '../hooks/useCollection';
+import { useCollection, useDoc } from '../hooks/useCollection';
 import { toCount } from '../noel/data';
 import { attachmentsFor, type ItemType } from './items';
 import { useLocker } from './locker';
@@ -7,6 +7,9 @@ import { useLocker } from './locker';
 /** The item catalog, and the weapons you can build. */
 export function useCatalog() {
   const types = useCollection<ItemType>('itemTypes');
+  // Which 3D model each gun shows, as leadership picked in Admin → Gun models.
+  const picks = useDoc<GunModels>('settings/gunModels');
+  const gunModels = picks?.weapons;
   return useMemo(() => {
     const list = types ?? [];
     const byId = new Map(list.map((t) => [t.id, t]));
@@ -14,10 +17,14 @@ export function useCatalog() {
     const weapons = list
       .filter((t) => t.category === 'gun' && !t.baseId && attachmentsFor(t.id, list).length > 0)
       .sort((a, b) => Number(!!a.base) - Number(!!b.base) || a.name.localeCompare(b.name, undefined, { numeric: true }));
-    return { ready: !!types, types: list, byId, weapons };
-  }, [types]);
+    return { ready: !!types, types: list, byId, weapons, gunModels: gunModels ?? {} };
+  }, [types, gunModels]);
 }
 export type Catalog = ReturnType<typeof useCatalog>;
+/** settings/gunModels: base gun id → model file ('' = the code-built gun). */
+export interface GunModels {
+  weapons?: Record<string, string>;
+}
 
 /** How many of each item I have, across all my storages. */
 export function useOwned() {
