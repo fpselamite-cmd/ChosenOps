@@ -1156,6 +1156,16 @@ service cloud.firestore {
       }
     }
 
+    // ---------- Radio ----------
+    // The channels in the header. Associates can only ever read the associate channel.
+    match /radio/{id} {
+      allow read: if active() && (id == 'associate' || me().rankId != 'associate');
+      allow write: if active() && id in ['associate', 'main', 'heist'] && (lead() || (id == 'associate' && handler()))
+        && request.resource.data.keys().hasOnly(['freq', 'password', 'note', 'active', 'byName', 'at'])
+        && str(request.resource.data.freq, 20) && str(request.resource.data.password, 40) && str(request.resource.data.get('note', ''), 100)
+        && request.resource.data.get('active', false) is bool;
+    }
+
     // ---------- Parties ----------
     // A note on someone's birthday or anniversary card: yours to write (not on your own card) or take back.
     match /partyNotes/{id} {

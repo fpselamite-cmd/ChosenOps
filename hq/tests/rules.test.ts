@@ -1376,3 +1376,26 @@ describe('welcome guide', () => {
     await assertFails(setDoc(doc(as('boss'), 'settings/welcome'), { ...base, canva: 'https://evil.example/x' }));
   });
 });
+
+describe('radio', () => {
+  const r = { freq: '601.11', password: 'x', note: '', byName: 'Boss', at: serverTimestamp() };
+  it('keeps the family and heist channels from associates', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'hqRanks/associate'), { name: 'Associate', order: 9, permissions: {} });
+      await setDoc(doc(db, 'members/assoc'), member('Assoc', 'associate'));
+      await setDoc(doc(db, 'radio/main'), { freq: '1', password: 'p' });
+      await setDoc(doc(db, 'radio/associate'), { freq: '2', password: 'p' });
+    });
+    await assertSucceeds(getDoc(doc(as('assoc'), 'radio/associate')));
+    await assertFails(getDoc(doc(as('assoc'), 'radio/main')));
+    await assertFails(getDoc(doc(as('assoc'), 'radio/heist')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'radio/main')));
+  });
+  it('lets leadership set channels, not members', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'radio/heist'), { ...r, active: true }));
+    await assertFails(setDoc(doc(as('sol'), 'radio/main'), r));
+    await assertFails(setDoc(doc(as('boss'), 'radio/other'), r));
+    await assertFails(setDoc(doc(as('boss'), 'radio/main'), { ...r, extra: 1 }));
+  });
+});

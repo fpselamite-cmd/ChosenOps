@@ -25,6 +25,7 @@ import { MonthlyAwarder } from '../lib/boards';
 import { useApplyPrefs } from '../lib/appearance';
 import { ShootingStars } from './ShootingStars';
 import { PollsButton } from '../pages/polls/PollsBits';
+import { RadioButton } from './RadioButton';
 import { PollKeeper } from '../pages/polls/usePolls';
 
 function useClock() {
@@ -274,6 +275,7 @@ function HeaderButtons() {
           {i.label}
         </NavLink>
       ))}
+      <RadioButton />
       <PollsButton />
     </div>
   );
