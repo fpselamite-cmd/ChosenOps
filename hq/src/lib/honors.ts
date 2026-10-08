@@ -79,10 +79,18 @@ export const STATS = [
   { id: 'asDriver', label: 'Heists as Driver', group: 'Heists' },
   { id: 'asHacker', label: 'Heists as Hacker', group: 'Heists' },
   { id: 'asGunman', label: 'Heists as Gunman', group: 'Heists' },
+  // A whole set collected (1 once it's complete).
+  { id: 'setWork', label: 'Work & sales set', group: 'Sets' },
+  { id: 'setFights', label: 'Fights set', group: 'Sets' },
+  { id: 'setFamily', label: 'Family life set', group: 'Sets' },
+  { id: 'setLore', label: 'Fun & lore set', group: 'Sets' },
+  { id: 'setCasino', label: 'Casino set', group: 'Sets' },
+  { id: 'setHeists', label: 'Heists set', group: 'Sets' },
+  { id: 'setRuns', label: 'Narco runs set', group: 'Sets' },
 ] as const;
 export type StatId = (typeof STATS)[number]['id'];
 /** Narcotics stats (coke runs, harvests, cooks, bricks, product sold): honors on them are Narco only. */
-export const NARCO_STATS = new Set<string>(['runs', 'harvests', 'cooks', 'pressed', 'sold', 'narcoRuns', 'runsClean', 'runsBusted', 'runsRobbed', 'bestHaul']);
+export const NARCO_STATS = new Set<string>(['runs', 'harvests', 'cooks', 'pressed', 'sold', 'narcoRuns', 'runsClean', 'runsBusted', 'runsRobbed', 'bestHaul', 'setRuns']);
 export const statsFor = (narco: boolean) => STATS.filter((s) => narco || !NARCO_STATS.has(s.id));
 export type HonorStats = Record<StatId, number>;
 
@@ -413,7 +421,29 @@ DEFAULT_HONORS.push(
   m('nr-cartel', 'title', 'Cartel Money', 'legendary', 'bestHaul', 500000, 'A single run worth half a million.', { secret: true }),
 );
 
-export const HONORS_VERSION = 7;
+/** The collection's sets: every milestone counted by one group of stats. Finishing one earns its Full Set medal and chips. */
+export const SETS: { id: StatId; group: string; label: string; icon: string }[] = [
+  { id: 'setFights', group: 'Fights', label: 'Fights', icon: 'Swords' },
+  { id: 'setHeists', group: 'Heists', label: 'Heists', icon: 'Gem' },
+  { id: 'setWork', group: 'Work & sales', label: 'Work & sales', icon: 'HandCoins' },
+  { id: 'setRuns', group: 'Narco runs', label: 'Narco runs', icon: 'Car' },
+  { id: 'setFamily', group: 'Family life', label: 'Family life', icon: 'Heart' },
+  { id: 'setLore', group: 'Fun & lore', label: 'Fun & lore', icon: 'Feather' },
+  { id: 'setCasino', group: 'Casino', label: 'Casino', icon: 'Dices' },
+];
+const GROUP_OF = new Map<string, string>(STATS.map((x) => [x.id, x.group]));
+export const groupOf = (stat?: string | null) => (stat ? GROUP_OF.get(stat) : undefined);
+/** The honors that make up a set (its Full Set medal not included). */
+export const setMembers = (honors: Honor[], group: string) => honors.filter((h) => h.source === 'milestone' && h.status === 'active' && groupOf(h.stat) === group);
+// Wave 6: a Full Set medal per set, worth 100 chips for every piece in it.
+DEFAULT_HONORS.push(
+  ...SETS.map((st) => {
+    const size = DEFAULT_HONORS.filter((h) => h.source === 'milestone' && groupOf(h.stat) === st.group).length;
+    return m(`set-${st.id}`, 'badge', `Full Set: ${st.label}`, 'legendary', st.id, 1, `Collected every ${st.label} honor.`, { icon: st.icon, form: 'star', chips: Math.max(500, size * 100) });
+  }),
+);
+
+export const HONORS_VERSION = 8;
 
 // ---------- writes ----------
 
