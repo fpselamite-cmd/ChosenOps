@@ -1,4 +1,5 @@
-import { Timestamp } from 'firebase/firestore';
+import { collection, query, Timestamp, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useHub } from '../hooks/useHub';
 import { useCollection } from '../hooks/useCollection';
@@ -111,8 +112,12 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
   // Without the Narco role (or High Table) none of the drug side loads: no drug counts, no grows,
   // no postals. Stashes still show, with the items in them.
   const { narco } = useHub();
-  const hqLocations = useCollection<OpsLocation>('locations');
+  // Grow records are Narco only in the database, so everyone else asks for stash houses alone.
+  const locQ = useMemo(() => (narco ? 'locations' : query(collection(db, 'locations'), where('kind', '==', 'stash'))), [narco]);
+  const hqLocations = useCollection<OpsLocation>(locQ);
   const hqStock = useCollection<StockDoc>('stock');
+  // Drug counts at HQ-only places sit apart from the items, readable by Narco only.
+  const hqDrugs = useCollection<StockDoc>('drugStock', narco);
   const nStock = useNoel<Record<string, NoelBucket>>('stock', narco);
   const nStashes = useNoel<Record<string, NoelStash>>('stashes');
   const nGrows = useNoel<Record<string, NoelGrow>>('locations', narco);
@@ -151,7 +156,11 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     // Places only the HQ has (items only, or drugs kept the old way).
     const hqOnly = (hqLocations ?? []).filter((l) => !noelIds.has(l.id) && !noelShaped(l.id));
     const all = [...fromNoel, ...hqOnly];
-    const shown = narco ? all : all.filter((l) => l.kind !== 'grow').map((l) => ({ ...l, postal: undefined }));
+    // Without Narco: no grows, no postals, and NoelOps stash houses only when they hold items (a drug-only one stays invisible).
+    const itemsAt = new Map((hqStock ?? []).map((x) => [x.id, Object.values(x.items ?? {}).some((v) => toCount(v) > 0)]));
+    const shown = narco
+      ? all
+      : all.filter((l) => l.kind !== 'grow' && (l.id === MAIN_STASH || !l.id.startsWith('noel_') || itemsAt.get(l.id))).map((l) => ({ ...l, postal: undefined }));
     const locations = shown.sort(
       (a, b) =>
         (a.id === MAIN_STASH ? -1 : b.id === MAIN_STASH ? 1 : 0) ||
@@ -162,6 +171,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     const locById = new Map(locations.map((l) => [l.id, l]));
 
     const hqStockById = new Map((hqStock ?? []).map((s) => [s.id, s]));
+    const drugsById = new Map((hqDrugs ?? []).map((s) => [s.id, s]));
     const stock = new Map<string, StockDoc>();
     for (const l of locations) {
       const hq = hqStockById.get(l.id);
@@ -169,7 +179,10 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         const key = l.id === MAIN_STASH ? NOEL_MAIN : l.id.startsWith('noel_') ? `%h${l.id.slice(5)}` : Object.keys(grows).find((k) => hqIdOf(k) === l.id);
         const drugs = key ? buckets[key] : undefined;
         stock.set(l.id, { ...(drugs ?? {}), id: l.id, items: hq?.items ?? {} });
-      } else if (hq) stock.set(l.id, narco ? hq : { id: hq.id, items: hq.items ?? {} } as StockDoc);
+      } else if (hq || drugsById.has(l.id)) {
+        const items = { id: l.id, items: hq?.items ?? {} } as StockDoc;
+        stock.set(l.id, narco ? { ...hq, ...drugsById.get(l.id), ...items } : items);
+      }
     }
 
     // Crews are gone from HQ, so every location shows.
@@ -180,7 +193,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     };
     const counted = locations.filter((l) => !l.excludeTotals).map((l) => stock.get(l.id));
     return {
-      ready: !!hqLocations && !!hqStock && (noelLoaded || noelDown),
+      ready: !!hqLocations && !!hqStock && (!narco || !!hqDrugs) && (noelLoaded || noelDown),
       noelDown,
       locations,
       locById,
@@ -205,7 +218,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         return l.kind === 'grow' ? `Postal ${l.postal ?? l.name}` : l.name;
       },
     };
-  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter, narco]);
+  }, [hqLocations, hqStock, hqDrugs, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter, narco]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

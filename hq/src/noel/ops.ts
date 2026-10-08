@@ -24,13 +24,15 @@ export interface Done {
 
 /** A stash's stock ('main') or any stock-shaped doc by path ('lockerStock/<member>__<storage>'). */
 const stockRef = (loc: string) => (loc.includes('/') ? doc(db, loc) : doc(db, 'stock', loc));
+/** Where one change lands: items in stock, drugs at a stash in drugStock (Narco only), lockers hold both. */
+const refOf = (d: { loc: string; item?: string }) => (d.loc.includes('/') || d.item ? stockRef(d.loc) : doc(db, 'drugStock', d.loc));
 export const lockerPath = (memberId: string, storageId: string) => `lockerStock/${memberId}__${storageId}`;
 
 type Delta = { loc: string; strain?: StrainId; field: BudField | RootField; delta: number; item?: string };
 
 /** Stock actions for the Stash, Locker, Blacksites and BlackMarket, signed with who did it and what opened the page. */
 export function useOps(page: PageId = 'stash') {
-  const { me, viaFor } = useHub();
+  const { me, viaFor, narco } = useHub();
   const via = viaFor(page);
 
   return useMemo(() => {
@@ -41,18 +43,20 @@ export function useOps(page: PageId = 'stash') {
 
     /** Firestore part: items everywhere, and drugs in lockers and HQ-only places. */
     async function applyHq(deltas: Delta[]): Promise<Delta[]> {
+      // Without Narco, drug changes are dropped: only Narco moves drugs.
+      deltas = deltas.filter((d) => narco || d.item || d.loc.includes('/'));
       if (!deltas.length) return [];
-      const locs = [...new Set(deltas.map((d) => d.loc))];
+      const refs = new Map(deltas.map((d) => [refOf(d).path, refOf(d)]));
       return runTransaction(db, async (tx) => {
         const snaps = new Map<string, StockDoc>();
-        for (const l of locs) {
-          const s = await tx.get(stockRef(l));
-          snaps.set(l, (s.exists() ? { id: l, ...s.data() } : { id: l }) as StockDoc);
+        for (const [path, ref] of refs) {
+          const s = await tx.get(ref);
+          snaps.set(path, (s.exists() ? { id: ref.id, ...s.data() } : { id: ref.id }) as StockDoc);
         }
         const applied: Delta[] = [];
         const writes = new Map<string, Record<string, unknown>>();
         for (const d of deltas) {
-          const cur = snaps.get(d.loc)!;
+          const cur = snaps.get(refOf(d).path)!;
           let have: number;
           if (d.item) have = toCount(cur.items?.[d.item]);
           else if (d.strain) have = budCell(cur, d.strain)[d.field as BudField];
@@ -64,14 +68,14 @@ export function useOps(page: PageId = 'stash') {
           if (d.item) cur.items = { ...(cur.items ?? {}), [d.item]: next };
           else if (d.strain) cur[d.strain] = { ...budCell(cur, d.strain), [d.field]: next };
           else cur[d.field] = next;
-          const w = writes.get(d.loc) ?? {};
+          const w = writes.get(refOf(d).path) ?? {};
           if (d.item) w.items = { ...((w.items as object) ?? {}), [d.item]: next };
           else if (d.strain) w[d.strain] = { ...((w[d.strain] as object) ?? {}), [d.field]: next };
           else w[d.field] = next;
-          writes.set(d.loc, w);
+          writes.set(refOf(d).path, w);
           applied.push({ ...d, delta });
         }
-        for (const [l, w] of writes) tx.set(stockRef(l), { ...w, ...sign, ...(l.startsWith('lockerStock/') ? { owner: me.id } : {}) }, { merge: true });
+        for (const [path, w] of writes) tx.set(refs.get(path)!, { ...w, ...sign, ...(path.startsWith('lockerStock/') ? { owner: me.id } : {}) }, { merge: true });
         return applied;
       });
     }
@@ -82,7 +86,7 @@ export function useOps(page: PageId = 'stash') {
      */
     async function applyDeltas(deltas: Delta[]): Promise<Delta[]> {
       const toNoel = (d: Delta) => !d.item && !!bucketOf(d.loc);
-      const noel = deltas.filter(toNoel);
+      const noel = narco ? deltas.filter(toNoel) : [];
       const hq = deltas.filter((d) => !toNoel(d));
       const [a, b] = await Promise.all([
         noel.length ? applyNoelDeltas(noel.map((d) => ({ bucket: bucketOf(d.loc)!, strain: d.strain, field: d.field, delta: d.delta }))) : Promise.resolve([]),
@@ -146,6 +150,7 @@ export function useOps(page: PageId = 'stash') {
         if (items.length) await applyDeltas(items);
         const b = writeBatch(db);
         b.delete(doc(db, 'stock', loc.id));
+        if (narco) b.delete(doc(db, 'drugStock', loc.id));
         b.delete(doc(db, 'locations', loc.id));
         await b.commit();
         log('locations');
@@ -157,7 +162,7 @@ export function useOps(page: PageId = 'stash') {
         return ref.id;
       },
     };
-  }, [me.id, me.name, via]);
+  }, [me.id, me.name, via, narco]);
 }
 
 export type Ops = ReturnType<typeof useOps>;

@@ -105,7 +105,7 @@ function MeRedirect() {
 /** Soldiers and up only: associates go back to the Dashboard. */
 function BloodedOnly({ children }: { children: ReactNode }) {
   const { isAssoc } = useWelcomeAccess();
-  return isAssoc ? <Navigate to="/" replace /> : children;
+  return isAssoc ? <Navigate to="/" replace state={{ locked: true }} /> : children;
 }
 
 /** Associates only ever see their own character page. */

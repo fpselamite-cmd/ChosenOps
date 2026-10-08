@@ -306,12 +306,45 @@ describe('ops: narcotics and stash', () => {
   });
 
   it('lets a rank with the page change stock', async () => {
-    await assertSucceeds(setDoc(doc(as('capo'), 'stock/main'), { meth: 3, ...sign('capo', 'rank') }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('capo'), 'stock/main'), { items: { pistol: 3 }, ...sign('capo', 'rank') }, { merge: true }));
   });
 
   it('lets a crew role open the page for a low rank', async () => {
     // sol is a Soldier (no Narcotics by rank) but is in the grow crew, whose role opens it
-    await assertSucceeds(setDoc(doc(as('sol'), 'stock/main'), { meth: 3, ...sign('sol', 'grow') }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'stock/main'), { items: { pistol: 3 }, ...sign('sol', 'grow') }, { merge: true }));
+  });
+
+  it('keeps drug counts to Narco: apart from items, unreadable and unwritable without the role', async () => {
+    // Drug fields can't ride in a plain stock write, even for someone the page opens for.
+    await assertFails(setDoc(doc(as('capo'), 'stock/main'), { meth: 3, ...sign('capo', 'rank') }, { merge: true }));
+    await assertFails(setDoc(doc(as('capo'), 'drugStock/main'), { meth: 3, ...sign('capo', 'rank') }, { merge: true }));
+    await assertFails(getDoc(doc(as('capo'), 'drugStock/main')));
+    // High Table (and the Narco role) can.
+    await assertSucceeds(setDoc(doc(as('boss'), 'drugStock/main'), { meth: 3, ...sign('boss', 'rank') }, { merge: true }));
+    await assertSucceeds(getDoc(doc(as('boss'), 'drugStock/main')));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders/capo'), { roles: ['narco'], perms: {}, pages: {}, lead: false }));
+    await assertSucceeds(getDoc(doc(as('capo'), 'drugStock/main')));
+    await assertSucceeds(setDoc(doc(as('capo'), 'stock/main'), { meth: 4, ...sign('capo', 'rank') }, { merge: true }));
+    // Grows are Narco only too; others list stash houses.
+    await assertFails(getDoc(doc(as('sol'), 'locations/g1')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'locations/main')));
+    await assertSucceeds(getDocs(query(collection(as('sol'), 'locations'), where('kind', '==', 'stash'))));
+    await assertFails(getDocs(collection(as('sol'), 'locations')));
+    await assertSucceeds(getDoc(doc(as('capo'), 'locations/g1')));
+  });
+
+  it('keeps grow, stash and lab pins to Narco', async () => {
+    const pin = (uid: string, type: string) => ({ name: 'Spot', type, x: 0.5, y: 0.5, scope: 'gang', ranks: [], crewIds: [], owner: uid, ownerName: uid, at: serverTimestamp() });
+    await assertFails(setDoc(doc(as('sol'), 'pins/a'), pin('sol', 'grow')));
+    await assertFails(setDoc(doc(as('sol'), 'narcoPins/a'), pin('sol', 'grow')));
+    await assertSucceeds(setDoc(doc(as('sol'), 'pins/b'), pin('sol', 'meet')));
+    await assertSucceeds(setDoc(doc(as('boss'), 'narcoPins/c'), pin('boss', 'grow')));
+    await assertFails(getDoc(doc(as('sol'), 'narcoPins/c')));
+    await assertSucceeds(getDoc(doc(as('boss'), 'narcoPins/c')));
+    // An old drug pin in the shared collection: High Table moves it over exactly as it was.
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'pins/old'), { ...pin('sol', 'stash'), at: null }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'narcoPins/old'), { ...pin('sol', 'stash'), at: null }));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'pins/old')));
   });
 
   it('rejects false claims about what opened the page', async () => {
@@ -720,11 +753,10 @@ describe('gear & loadouts', () => {
 });
 
 describe('discord hooks', () => {
-  it('only Gang settings holders edit the webhooks', async () => {
-    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'hqRanks/underboss'), { 'permissions.manageSettings': true }));
-    await assertSucceeds(setDoc(doc(as('ub'), 'hooks/discord'), { blacksites: { url: '' } }));
-    await assertFails(setDoc(doc(as('sol'), 'hooks/discord'), { blacksites: { url: 'x' } }));
-    await assertSucceeds(getDoc(doc(as('sol'), 'hooks/discord')));
+  it('stay locked away from everyone now that Discord is gone', async () => {
+    await assertFails(setDoc(doc(as('boss'), 'hooks/discord'), { blacksites: { url: '' } }));
+    await assertFails(getDoc(doc(as('boss'), 'hooks/discord')));
+    await assertFails(getDoc(doc(as('sol'), 'hooks/discord')));
   });
 });
 
@@ -1301,7 +1333,7 @@ describe('polls', () => {
     await assertSucceeds(getDoc(doc(as('sol'), 'polls/p1')));
     await assertFails(getDoc(doc(as('assoc'), 'polls/p1')));
     await assertFails(getDoc(doc(as('sol'), 'polls/p2')));
-    await assertSucceeds(getDocs(query(collection(as('assoc'), 'polls'), where('audience', '==', 'all'))));
+    await assertFails(getDocs(query(collection(as('assoc'), 'polls'), where('audience', '==', 'all'))));
     await assertSucceeds(getDocs(query(collection(as('sol'), 'polls'), where('audience', 'in', ['all', 'members']))));
     await assertSucceeds(getDocs(collection(as('boss'), 'polls')));
     await assertFails(vote('assoc', 'p1', ['a']));
@@ -1451,5 +1483,37 @@ describe('heists', () => {
     await assertSucceeds(updateDoc(doc(as('boss'), 'heists/h1/loot/l1'), { qty: 3, assigned: { sol: 2 } }));
     await assertFails(updateDoc(doc(as('sol'), 'heists/h1/loot/l1'), { 'collected.sol': 3 }));
     await assertSucceeds(updateDoc(doc(as('sol'), 'heists/h1/loot/l1'), { 'collected.sol': 2 }));
+  });
+});
+
+describe('associate lockdown', () => {
+  const mkAssoc = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'members/assoc'), member('Assoc', 'associate')));
+  it('lets associates read their own file and the directory, not the family', async () => {
+    await mkAssoc();
+    await assertSucceeds(getDoc(doc(as('assoc'), 'members/assoc')));
+    await assertFails(getDoc(doc(as('assoc'), 'members/sol')));
+    await assertFails(getDocs(collection(as('assoc'), 'members')));
+    // The directory mirrors members exactly; only soldiers and up keep it in step.
+    await assertFails(setDoc(doc(as('sol'), 'directory/sol'), { name: 'Sol', nameLower: 'sol', status: 'active', rankId: 'boss', avatar: null }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'directory/sol'), { name: 'Sol', nameLower: 'sol', status: 'active', rankId: 'soldier', avatar: null }));
+    await assertFails(setDoc(doc(as('assoc'), 'directory/assoc'), { name: 'Assoc', nameLower: 'assoc', status: 'active', rankId: 'associate', avatar: null }));
+    await assertSucceeds(getDocs(collection(as('assoc'), 'directory')));
+  });
+  it('blocks associates from gang business but keeps their pages working', async () => {
+    await mkAssoc();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'blacksites/b1'), { zone: 'Docks' });
+      await setDoc(doc(db, 'sheets/sol'), { story: {} });
+      await setDoc(doc(db, 'sheets/assoc'), { story: {} });
+      await setDoc(doc(db, 'honors/h1'), { name: 'X' });
+      await setDoc(doc(db, 'petty/sol'), { rep: 5 });
+      await setDoc(doc(db, 'events/e1'), { title: 'Sit-down', scope: 'gang', ranks: [], crewIds: [], owner: 'boss' });
+      await setDoc(doc(db, 'events/e2'), { title: 'Associate meet', scope: 'limited', ranks: ['associate'], crewIds: [], owner: 'boss' });
+    });
+    for (const p of ['blacksites/b1', 'sheets/sol', 'honors/h1', 'events/e1', 'presence/sol', 'stock/main', 'rivals/r1', 'hooks/discord']) await assertFails(getDoc(doc(as('assoc'), p)));
+    for (const p of ['sheets/assoc', 'petty/sol', 'events/e2', 'hqRanks/soldier', 'settings/gang']) await assertSucceeds(getDoc(doc(as('assoc'), p)));
+    await assertSucceeds(getDoc(doc(as('sol'), 'blacksites/b1')));
+    await assertSucceeds(getDoc(doc(as('sol'), 'events/e1')));
   });
 });

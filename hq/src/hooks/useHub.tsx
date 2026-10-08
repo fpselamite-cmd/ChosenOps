@@ -72,18 +72,26 @@ interface Hub {
 }
 
 const Ctx = createContext<Hub | null>(null);
+const EMPTY: Presence[] = [];
 
 export function HubProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
-  const members = useCollection<Member>('members');
+  // Associates can't read the family's files: they get the directory (names, ranks, avatars) and their own file.
+  const assoc = !!me && me.rankId === 'associate' && !me.admin;
+  const fullMembers = useCollection<Member>('members', !!me && !assoc);
+  const directory = useCollection<Member>('directory', assoc);
+  const members = useMemo(() => (assoc ? directory && me ? [...directory.filter((m) => m.id !== me.id), me] : null : fullMembers), [assoc, directory, fullMembers, me]);
   const ranks = useCollection<Rank>('hqRanks');
-  const presenceRows = useCollection<Presence>('presence');
+  const presenceAll = useCollection<Presence>('presence', !!me && !assoc);
+  const presenceRows = assoc ? EMPTY : presenceAll;
   const settings = useDoc<GangSettings>('settings/gang');
   const announcement = useDoc<Announcement>('settings/announcement');
   const familyRep = useDoc<FamilyRep>('stats/familyRep');
   const defaults = useDoc<Defaults>('settings/defaults');
   const roleRows = useCollection<Role>('hqRoles');
-  const holderRows = useCollection<RoleHolder>('roleHolders');
+  const holderAll = useCollection<RoleHolder>('roleHolders', !!me && !assoc);
+  const myHolder = useDoc<RoleHolder>(`roleHolders/${me?.id ?? 'x'}`, assoc);
+  const holderRows = useMemo(() => (assoc ? (myHolder === undefined ? null : myHolder ? [myHolder] : []) : holderAll), [assoc, myHolder, holderAll]);
   const [preview, setPreviewState] = useState<Preview | null>(null);
   const setPreview = (p: Preview | null) => {
     // Writes stop the moment a preview starts, before anything renders as them.

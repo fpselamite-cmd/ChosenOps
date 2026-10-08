@@ -8,7 +8,7 @@ import { PageHeader, Panel } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft, type Scope } from '../lib/audience';
 import { ago, NIGHT } from '../lib/format';
-import { addPin, pinShows, pinType, pinTypesFor, removePin, savePin, type Pin } from '../lib/pins';
+import { addPin, pinType, pinTypesFor, removePin, savePin, usePins, type Pin } from '../lib/pins';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
 import { spotOf, type Blacksite, type Spot } from '../lib/blacksites';
@@ -48,7 +48,7 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
     if (!name.trim()) return;
     setBusy(true);
     const data = { name: name.trim().slice(0, 40), type, note: note.trim().slice(0, 300), postal: postal.trim().slice(0, 10), access: access.trim().slice(0, 300), photo, stashId: type === 'stash' ? stashId : null, ...aud };
-    if (pin) await savePin(pin.id, data);
+    if (pin) await savePin(pin, data);
     else await addPin(me, { ...data, x: at!.x, y: at!.y });
     onClose();
   }
@@ -226,8 +226,7 @@ function MapPage() {
   const LAYERS = layersFor(narco);
   const lead = useLead();
   // Grows, stash houses and labs never reach anyone without the Narco role.
-  const allPins = useVisible<Pin>('pins');
-  const pins = useMemo(() => allPins && allPins.filter((p) => pinShows(p, narco)), [allPins, narco]);
+  const pins = usePins();
   const rivals = useCollection<Rival>('rivals') ?? [];
   const sightings = useCollection<Sighting>('sightings') ?? [];
   const [src, setSrc] = useState(MAP_SRC);
@@ -256,10 +255,10 @@ function MapPage() {
   const shown = useMemo(
     () =>
       (pins ?? [])
-        .filter((p) => pinShows(p, narco) && !hidden.has(p.type) && (scope === 'all' || p.scope === scope))
+        .filter((p) => !hidden.has(p.type) && (scope === 'all' || p.scope === scope))
         .filter((p) => !search || `${p.name} ${p.note ?? ''} ${p.postal ?? ''}`.toLowerCase().includes(search.toLowerCase().replace(/^postal\s*/, '')))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [pins, hidden, scope, search, narco],
+    [pins, hidden, scope, search],
   );
   const sel = (pins ?? []).find((p) => p.id === selected);
   // Opened from an event or a banner: ?pin=<id> centers on it.
@@ -374,7 +373,7 @@ function MapPage() {
       setNewAt(at);
       setMode('look');
     } else if (mode === 'move' && sel) {
-      savePin(sel.id, at);
+      savePin(sel, at);
       setMode('look');
     } else setSelected(null);
   }
@@ -517,7 +516,7 @@ function MapPage() {
                       className="btn-danger btn-sm"
                       onClick={async () => {
                         if (confirm(`Remove the pin “${sel.name}”?`)) {
-                          await removePin(sel.id);
+                          await removePin(sel);
                           setSelected(null);
                         }
                       }}

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Panel } from '../../components/Page';
 import { ago } from '../../lib/format';
 import { NOELOPS_URL, noelDb, noelRef, useNoel } from '../../lib/noelops';
-import DiscordTab from './DiscordTab';
 
 /** Is the live NoelOps link up, can we read it, and when did anything last happen there? */
 function NoelStatus() {
@@ -59,10 +58,7 @@ function NoelStatus() {
 
 export default function IntegrationsTab() {
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-      <div>
-        <DiscordTab />
-      </div>
+    <div className="max-w-2xl">
       <NoelStatus />
     </div>
   );

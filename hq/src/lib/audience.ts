@@ -38,7 +38,7 @@ export function audienceLabel(a: Pick<Audience, 'scope' | 'minRank'>, rankById: 
 }
 
 /** Everything in a collection I'm allowed to see: shared, mine and my rank's. */
-export function useVisible<T extends { id: string }>(coll: string) {
+export function useVisible<T extends { id: string }>(coll: string, enabled = true) {
   const { me } = useHub();
   const qs = useMemo(() => {
     const c = collection(db, coll);
@@ -48,9 +48,9 @@ export function useVisible<T extends { id: string }>(coll: string) {
       rank: me.rankId ? query(c, where('scope', '==', 'limited'), where('ranks', 'array-contains', me.rankId)) : null,
     };
   }, [coll, me.id, me.rankId]);
-  const gang = useCollection<T>(qs.gang);
-  const mine = useCollection<T>(qs.mine);
-  const rank = useCollection<T>(qs.rank ?? 'x', !!qs.rank);
+  const gang = useCollection<T>(qs.gang, enabled);
+  const mine = useCollection<T>(qs.mine, enabled);
+  const rank = useCollection<T>(qs.rank ?? 'x', enabled && !!qs.rank);
   return useMemo(() => {
     if (!gang || !mine || (qs.rank && !rank)) return null;
     const all = new Map<string, T>();

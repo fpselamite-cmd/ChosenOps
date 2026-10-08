@@ -28,6 +28,8 @@ import { PollsButton } from '../pages/polls/PollsBits';
 import { RadioButton } from './RadioButton';
 import { PollKeeper } from '../pages/polls/usePolls';
 import { HeistCall } from '../pages/Heists';
+import { NarcoMove } from '../noel/NarcoMove';
+import { DirectorySync } from './DirectorySync';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -306,6 +308,8 @@ export function AppShell() {
       <PollKeeper />
       <EnsureNarcoRole />
       <HeistCall />
+      <NarcoMove />
+      <DirectorySync />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">

@@ -879,6 +879,7 @@ export default function Profile() {
   const [params, setParams] = useSearchParams();
   const { equipped } = useHonors();
   const worn = equipped(id);
+  const viewerAssoc = useWelcomeAccess().isAssoc;
 
   if (!m) return <Navigate to="/family" replace />;
   const mine = m.id === me.id;
@@ -888,7 +889,8 @@ export default function Profile() {
   const status = presence.get(m.id)?.status;
   const edit = !!draft;
   const asked = params.get('view');
-  const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' || asked === 'honors' ? asked : 'sheet';
+  // Honors open once they're blooded in.
+  const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' || (asked === 'honors' && !viewerAssoc) ? asked : 'sheet';
   const s: Omit<Sheet, 'id'> = draft ?? sheet ?? {};
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const setIn = (k: 'basics' | 'looks' | 'city' | 'story', key: string, v: string) => setDraft((d) => (d ? { ...d, [k]: { ...(d[k] ?? {}), [key]: v } } : d));
@@ -1079,7 +1081,7 @@ export default function Profile() {
               onChange={(v) => setParams(v === 'sheet' ? {} : { view: v }, { replace: true })}
               tabs={[
                 { id: 'sheet', label: 'Sheet' },
-                { id: 'honors', label: 'Honorwall' },
+                ...(viewerAssoc ? [] : [{ id: 'honors', label: 'Honorwall' }]),
                 { id: 'trophies', label: 'Trophy Wall' },
                 { id: 'journal', label: 'Journal' },
               ]}
