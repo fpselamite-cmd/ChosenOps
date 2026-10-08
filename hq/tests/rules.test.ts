@@ -774,25 +774,26 @@ describe('owners and admins', () => {
     };
     await assertFails(claim('sol', 'wrong'));
     await assertSucceeds(claim('sol', 'open sesame'));
-    // Now an admin: can do officer things, but not touch the Boss.
+    // Now an admin: admin is separate from rank, so even a Soldier admin can act on the Boss.
     await assertSucceeds(setDoc(doc(as('sol'), 'crews/new'), { name: 'New', tag: 'NEW', color: '#fff', leaderId: null, memberIds: [] }));
-    await assertFails(updateDoc(doc(as('sol'), 'members/boss'), { status: 'suspended' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/boss'), { status: 'suspended' }));
   });
-  it('lets an admin step down from the top rank, never up into it; owners can fill it', async () => {
+  it('lets an admin pick any rank for themselves, the top one included; non-admins cannot', async () => {
     await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/boss'), { admin: true }));
     await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/sol'), { admin: true }));
-    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
     await assertSucceeds(updateDoc(doc(as('boss'), 'members/boss'), { rankId: 'soldier' }));
+    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'nope' }));
     await assertFails(updateDoc(doc(as('capo'), 'members/sol'), { rankId: 'boss' }));
     await assertSucceeds(updateDoc(doc(as('sol2'), 'members/boss'), { rankId: 'boss' }));
     await assertFails(updateDoc(doc(as('sol2'), 'members/capo'), { rankId: 'nope' }));
   });
-  it('lets admins delete members, but not themselves, the top rank or an owner', async () => {
+  it('lets admins delete members of any rank, but not themselves or an owner', async () => {
     await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/capo'), { admin: true }));
     await assertFails(deleteDoc(doc(as('sol'), 'members/newbie')));
     await assertFails(deleteDoc(doc(as('capo'), 'members/capo')));
-    await assertFails(deleteDoc(doc(as('capo'), 'members/boss')));
     await assertFails(deleteDoc(doc(as('capo'), 'members/sol2')));
+    await assertSucceeds(deleteDoc(doc(as('capo'), 'members/boss')));
     await assertSucceeds(deleteDoc(doc(as('capo'), 'members/sol')));
     await assertSucceeds(deleteDoc(doc(as('capo'), 'petty/sol')));
     await assertFails(deleteDoc(doc(as('ub'), 'petty/sol')));
@@ -926,12 +927,12 @@ describe('personal cash', () => {
 
 describe('admin', () => {
   const makeAdmin = (id: string) => env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members', id), { admin: true }));
-  it('treats an admin of any rank as leadership, and lets them pick their own rank (not the top)', async () => {
+  it('treats an admin of any rank as leadership, and lets them pick their own rank (any)', async () => {
     await assertFails(setDoc(doc(as('sol'), 'settings/pettyGoal'), { title: 'Q', target: 100, by: '2026-12-01' }));
     await makeAdmin('sol');
     await assertSucceeds(setDoc(doc(as('sol'), 'settings/pettyGoal'), { title: 'Q', target: 100, by: '2026-12-01' }));
     await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'capo', reportsTo: 'boss' }));
-    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'members/sol'), { rankId: 'boss' }));
     await assertFails(updateDoc(doc(as('sol2'), 'members/sol2'), { rankId: 'capo' }));
   });
   it('keeps the feed to admins; anyone writes their own line', async () => {
@@ -970,13 +971,14 @@ describe('admin', () => {
     await assertSucceeds(rename(as('capo')));
     await assertFails(updateDoc(doc(as('capo'), 'members/sol2'), { name: 'X', nameLower: 'y' }));
   });
-  it('lets admins edit lists and defaults; admins delete accounts below the top rank', async () => {
+  it('lets admins edit lists and defaults; admins can delete any account but an owner', async () => {
     await assertFails(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [] }));
     await makeAdmin('sol');
     await assertSucceeds(setDoc(doc(as('sol'), 'settings/lists'), { crimes: [{ id: 'heist', name: 'Heist', icon: 'gem' }] }));
     await assertSucceeds(setDoc(doc(as('sol'), 'settings/defaults'), { callInCost: 200 }));
-    await assertFails(deleteDoc(doc(as('sol'), 'members/boss')));
     await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'meta/owners'), { ids: ['boss'] }));
+    await assertFails(deleteDoc(doc(as('sol'), 'members/boss'))); // an owner
+    await assertSucceeds(getDoc(doc(as('sol'), 'meta/owners'))); // admins can see who the owners are
     await assertSucceeds(getDocs(query(collection(as('boss'), 'sales'), where('sellerId', '==', 'sol2'))));
     await assertSucceeds(deleteDoc(doc(as('boss'), 'members/sol2')));
   });
@@ -1397,5 +1399,14 @@ describe('radio', () => {
     await assertFails(setDoc(doc(as('sol'), 'radio/main'), r));
     await assertFails(setDoc(doc(as('boss'), 'radio/other'), r));
     await assertFails(setDoc(doc(as('boss'), 'radio/main'), { ...r, extra: 1 }));
+  });
+});
+
+describe('admin is separate from rank', () => {
+  it('lets a Soldier admin edit and reorder any rank', async () => {
+    await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'members/sol'), { admin: true }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'hqRanks/underboss'), { name: 'Underboss 2' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'hqRanks/capo'), { order: 1 }));
+    await assertFails(updateDoc(doc(as('sol2'), 'hqRanks/capo'), { name: 'x' }));
   });
 });

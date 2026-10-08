@@ -7,7 +7,7 @@ import { setCallInCost } from '../lib/blacksites';
 import { setCityClock } from '../lib/format';
 import { setReadOnly } from '../lib/guard/state';
 import { NARCO_ROLE, type Role, type RoleHolder } from '../lib/roles';
-import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
+import { outranks, pageOpen, rankCan } from '../lib/permissions';
 import { NARCO_MOODS, type Announcement, type FamilyRep, type GangSettings, type Member, type PageId, type Permission, type Presence, type Rank } from '../lib/types';
 import { useAuth } from './useAuth';
 import { useCollection, useDoc } from './useCollection';
@@ -41,7 +41,7 @@ interface Hub {
   can: (p: Permission) => boolean;
   /** Whether my rank or one of my roles opens this page. */
   canSee: (page: PageId) => boolean;
-  /** Admin access (the admin password, or given by an owner): every power except acting on the top rank. */
+  /** Admin access (the admin password, or given by an owner): every power, whatever their rank or roles. */
   isAdmin: boolean;
   /** Leadership powers: a leadership rank, the top rank, or admin (admin is out-of-character, so any rank). */
   isLead: boolean;
@@ -202,7 +202,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
       preview: realAdmin ? preview : null,
       setPreview,
       realMe,
-      actsOn: (rank) => (liveMe.admin === true ? rankOrder(rank) > 0 : outranks(myRank, rank)),
+      // Admin is separate from rank: an admin acts on every rank, the top one included.
+      actsOn: (rank) => (liveMe.admin === true ? true : outranks(myRank, rank)),
     };
   }, [me, members, ranks, presenceRows, settings, announcement, familyRep, owner, defaults, preview, roleRows, holderRows]);
 
