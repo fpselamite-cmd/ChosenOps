@@ -304,11 +304,11 @@ function DangerZone({ m, onDone, startDelete }: { m: Member; onDone: () => void;
   );
 }
 
-/** Who you can delete: never yourself, the top rank, or an HQ owner; owners and admins only. */
+/** Who you can delete: never yourself or an HQ owner (owners can delete anyone else); owners and admins only. */
 export function useCanDelete() {
-  const { isAdmin, isOwner, me, rankById } = useHub();
-  const owners = useDoc<{ ids?: string[] }>('meta/owners', isOwner);
-  return (m: Member) => m.id !== me.id && (isOwner || (isAdmin && (rankById.get(m.rankId ?? '')?.order ?? 99) > 0 && !(owners?.ids ?? []).includes(m.id)));
+  const { isAdmin, isOwner, me } = useHub();
+  const owners = useDoc<{ ids?: string[] }>('meta/owners', isOwner || isAdmin);
+  return (m: Member) => m.id !== me.id && (isOwner || (isAdmin && owners !== undefined && !(owners?.ids ?? []).includes(m.id)));
 }
 
 function MemberTools({ m, onClose, startDelete }: { m: Member; onClose: () => void; startDelete?: boolean }) {
@@ -389,10 +389,10 @@ export default function MembersTab() {
               const rank = rankById.get(m.rankId ?? '');
               const self = m.id === me.id;
               // Admin is out-of-character: an admin may set their own in-character rank (not the top one).
-              const manage = can('manageMembers') && (self ? isAdmin && rank?.order !== 0 : actsOn(rank));
-              // Rank alone: an admin can set their own (even stepping off the top rank); owners can set anyone's, top rank included.
+              // Admin is separate from rank: admins (and owners) manage everyone, themselves included, into any rank.
+              const manage = can('manageMembers') && (self ? isAdmin : actsOn(rank));
               const rankable = manage || isOwner || (self && isAdmin);
-              const choices = isOwner ? ranks : [...(rank && !grantable.includes(rank) ? [rank] : []), ...grantable];
+              const choices = isOwner || isAdmin ? ranks : [...(rank && !grantable.includes(rank) ? [rank] : []), ...grantable];
               return (
                 <tr key={m.id} className={m.status === 'suspended' ? 'opacity-50' : ''}>
                   <td className="px-4 py-2.5">
@@ -412,7 +412,6 @@ export default function MembersTab() {
                         className="input py-1"
                         value={m.rankId ?? ''}
                         onChange={(e) => {
-                          if (self && rank?.order === 0 && !isOwner && !confirm(`Step down from ${rank.name}? Only an HQ owner can put someone back at the top rank.`)) return;
                           const up = (rankById.get(e.target.value)?.order ?? 99) < (rankById.get(m.rankId ?? '')?.order ?? 99);
                           void setRank(m.id, e.target.value, up && !self).then(() => log(`${up ? 'Promoted' : 'Moved'} ${m.name} to ${rankById.get(e.target.value)?.name}`, m.id));
                         }}

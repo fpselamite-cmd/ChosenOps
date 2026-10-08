@@ -43,11 +43,14 @@ service cloud.firestore {
     function hasRoles() { return exists(/databases/$(database)/documents/roleHolders/$(myId())); }
     function roles() { return get(/databases/$(database)/documents/roleHolders/$(myId())).data; }
     function roleCan(p) { return hasRoles() && roles().get('perms', {}).get(p, false) == true; }
+    // Admin is out-of-character and separate from rank and roles: an admin has every power, whatever rank they hold.
     function can(p) {
-      let r = rankOf(me().rankId);
-      return active() && (isAdmin() || r.order == 0 || r.permissions.get(p, false) == true || roleCan(p));
+      return active() && (isAdmin() || rankOf(me().rankId).order == 0 || rankOf(me().rankId).permissions.get(p, false) == true || roleCan(p));
     }
-    function below(rankId) { return orderOf(rankId) > (isAdmin() ? 0 : myOrder()); }
+    // A rank you can act on: one strictly below yours. Admins act on every rank, the top one included.
+    function below(rankId) {
+      return (isAdmin() && (rankId == null || exists(/databases/$(database)/documents/hqRanks/$(rankId)))) || orderOf(rankId) > myOrder();
+    }
 
     function onlyChanges(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
@@ -125,9 +128,9 @@ service cloud.firestore {
       // An owner granting or taking it away:
       allow update: if request.resource.data.get('admin', false) != resource.data.get('admin', false) && onlyChanges(['admin']) && request.resource.data.admin is bool && active() && isOwner();
 
-      // An admin setting their own in-character rank, even stepping down from the top rank (never up into it).
+      // An admin setting their own in-character rank, any rank (admin is separate from rank).
       allow update: if id == myId() && onlyChanges(['rankId']) && resource.data.status == 'active' && request.resource.data.rankId is string
-        && active() && isAdmin() && orderOf(request.resource.data.rankId) > 0;
+        && active() && isAdmin() && exists(/databases/$(database)/documents/hqRanks/$(request.resource.data.rankId));
       // An owner setting anyone's rank, the top rank included, so that seat can always be filled.
       allow update: if onlyChanges(['rankId']) && resource.data.status == 'active' && request.resource.data.rankId is string
         && active() && isOwner() && exists(/databases/$(database)/documents/hqRanks/$(request.resource.data.rankId));
@@ -163,7 +166,7 @@ service cloud.firestore {
     // Owners only: wiping a test account or the old half of a merged one.
     match /members/{id} {
       allow delete: if active() && isOwner() && id != myId();
-      // Admins too, but never themselves, the top rank, or an owner.
+      // Admins too, any rank, but never themselves or an owner.
       allow delete: if active() && id != myId() && isAdmin() && below(resource.data.rankId)
         && (!exists(/databases/$(database)/documents/meta/owners) || !(id in get(/databases/$(database)/documents/meta/owners).data.get('ids', [])));
     }
@@ -180,8 +183,8 @@ service cloud.firestore {
     match /hqRanks/{rankId} {
       allow read: if active();
       allow create: if (founding() && request.resource.data.order is int)
-        || (can('manageRanks') && request.resource.data.order > myOrder());
-      allow update: if can('manageRanks') && below(rankId) && request.resource.data.order > myOrder();
+        || (can('manageRanks') && (isAdmin() || request.resource.data.order > myOrder()));
+      allow update: if can('manageRanks') && below(rankId) && (isAdmin() || request.resource.data.order > myOrder());
       allow delete: if can('manageRanks') && below(rankId);
     }
 
@@ -204,9 +207,9 @@ service cloud.firestore {
         && myId() in request.resource.data.memberIds;
     }
 
-    // Who owns the HQ. Written only from GitHub; an owner can see their own entry, nobody else.
+    // Who owns the HQ. Written only from GitHub; owners and admins can read it (admins, to know who's off-limits).
     match /meta/owners {
-      allow get: if signedIn() && myId() in resource.data.get('ids', []);
+      allow get: if signedIn() && (myId() in resource.data.get('ids', []) || (active() && isAdmin()));
       allow write: if false;
     }
     // The admin password, stored as a hash. Nobody reads it; only owners set it.
