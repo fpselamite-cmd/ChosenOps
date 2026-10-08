@@ -2221,3 +2221,10 @@ html[data-motion='off'] .vault.opening * { animation-duration: 0.01s !important;
 .rr-lead { --rr: #6b4a0c; --rr-hi: #fff3c4; background: linear-gradient(180deg, #d9b350, #9a7418 55%, #5a4108); }
 .rr-honor { --rr: #1d4f73; --rr-hi: #e0f2fe; background: linear-gradient(180deg, #4aa3d8, #1f5f8b 55%, #143b57); filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.45)); }
 @media (prefers-reduced-motion: reduce) { .seal-gem .g-glint, .rank-seal.t-diamond::after { animation: none; } }
+
+/* ---------- Menu: associates' Welcome on top, the phone bar's raised Dashboard ---------- */
+.nav-welcome { border: 1px solid rgb(var(--acc) / 0.35); background: linear-gradient(90deg, rgb(var(--acc) / 0.12), transparent); box-shadow: 0 0 14px rgb(var(--acc) / 0.15); }
+.phone-home { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 6px; color: var(--color-gold-300); }
+.phone-home-btn { display: grid; place-items: center; width: 56px; height: 56px; margin-top: -22px; border-radius: 999px; color: #0b0a07; background: radial-gradient(circle at 35% 30%, var(--color-gold-200), var(--color-gold-500) 60%, var(--color-gold-700)); box-shadow: 0 0 0 4px #050505, 0 0 0 5px rgb(var(--acc) / 0.5), 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 18px rgb(var(--acc) / 0.35); transition: transform 0.15s; }
+.phone-home:active .phone-home-btn { transform: scale(0.94); }
+.phone-home.on .phone-home-btn { box-shadow: 0 0 0 4px #050505, 0 0 0 5px var(--color-gold-200), 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 26px rgb(var(--acc) / 0.6); }

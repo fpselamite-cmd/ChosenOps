@@ -8,9 +8,11 @@ export interface Prefs {
   wheel?: 'on' | 'off';
   text?: 'normal' | 'large';
   shooting?: 'on' | 'off';
+  /** The phone bar's three picks (menu paths), two left of the Dashboard and one right. */
+  bar?: string[];
 }
 
-export const DEFAULT_PREFS: Required<Prefs> = { accent: 'gold', sky: 'stars', motion: 'on', wheel: 'on', text: 'normal', shooting: 'on' };
+export const DEFAULT_PREFS: Required<Omit<Prefs, 'bar'>> = { accent: 'gold', sky: 'stars', motion: 'on', wheel: 'on', text: 'normal', shooting: 'on' };
 
 /** `unlock` = best login streak (days in a row) needed to pick it. */
 export const ACCENTS: { id: NonNullable<Prefs['accent']>; label: string; swatch: string; unlock?: number }[] = [

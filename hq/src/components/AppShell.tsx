@@ -1,4 +1,4 @@
-import { ExternalLink, Eye, LogOut, Menu, Palette, X } from 'lucide-react';
+import { ChevronDown, ExternalLink, Eye, LayoutDashboard, LogOut, Menu, Palette, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
@@ -7,7 +7,8 @@ import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
 import { TZ, TZ_LABEL } from '../lib/format';
 import { useWelcomeAccess, useWelcomeAttention } from '../pages/welcome/useWelcome';
-import { HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
+import { HEADER_NAV, themeFor, WELCOME_TOP, type NavItem } from '../lib/nav';
+import { useNav, usePhoneBar } from '../hooks/useNav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
 import { StreakKeeper } from './Streak';
@@ -110,29 +111,102 @@ function NavLinkItem({ item, onClick, badge }: { item: NavItem; onClick?: () => 
   );
 }
 
-/** Menu groups with only the pages this person can open. */
-function useNav() {
-  const { canSee, me } = useHub();
-  const { open: welcome, isAssoc } = useWelcomeAccess();
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.page || canSee(i.page)) && (!i.welcome || welcome) && (!i.archives || !isAssoc)).map((i) => (i.me ? { ...i, to: `/members/${me.id}` } : i)) })).filter((g) => g.items.length);
+const FOLD_KEY = 'chosenops.menuFolded';
+function useFolded() {
+  const [folded, setFolded] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FOLD_KEY) ?? '[]') as string[];
+    } catch {
+      return [];
+    }
+  });
+  const toggle = (g: string) =>
+    setFolded((f) => {
+      const next = f.includes(g) ? f.filter((x) => x !== g) : [...f, g];
+      try {
+        localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+      } catch {
+        // Private mode: it just won't be remembered.
+      }
+      return next;
+    });
+  return { folded, toggle };
 }
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const nav = useNav();
+  const { isAssoc } = useWelcomeAccess();
+  const { pathname } = useLocation();
+  const { folded, toggle } = useFolded();
   const wl = useWelcomeAttention();
   const liveTables = (useCollection<{ id: string; status: string }>('casinoTables') ?? []).filter((t) => t.status === 'open').length;
+  const badgeFor = (i: NavItem) => (i.to === '/welcome' ? wl.total + wl.door : i.to === '/casino' ? liveTables : undefined);
   return (
-    <nav className="flex flex-col gap-5">
-      {nav.map((g) => (
-        <div key={g.group}>
-          <p className="label mb-1 px-3 text-[10px] text-gold-700">{g.group}</p>
-          <div className="flex flex-col">
-            {g.items.map((i) => (
-              <NavLinkItem key={i.to} item={i} onClick={onNavigate} badge={i.welcome ? wl.total + wl.door : i.to === '/casino' ? liveTables : undefined} />
-            ))}
-          </div>
+    <nav className="flex flex-col gap-4">
+      {/* Associates: the Welcome page on its own, above everything, until they're blooded in. */}
+      {isAssoc && (
+        <div className="nav-welcome">
+          <NavLinkItem item={WELCOME_TOP} onClick={onNavigate} badge={badgeFor(WELCOME_TOP)} />
         </div>
-      ))}
+      )}
+      {nav.map((g) => {
+        // A folded group still opens up while you're on one of its pages.
+        const here = g.items.some((i) => (i.to === '/' ? pathname === '/' : pathname.startsWith(i.to)));
+        const shut = folded.includes(g.group) && !here;
+        const waiting = shut ? g.items.reduce((t, i) => t + (badgeFor(i) ?? 0), 0) : 0;
+        return (
+          <div key={g.group}>
+            <button type="button" onClick={() => toggle(g.group)} className="group mb-1 flex w-full items-center gap-1.5 px-3 text-left" aria-expanded={!shut}>
+              <span className="label text-[10px] text-gold-700 group-hover:text-gold-500">{g.group}</span>
+              {!!waiting && <span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" aria-label={`${waiting} waiting`} />}
+              <ChevronDown className={`ml-auto size-3 text-gold-700 transition group-hover:text-gold-500 ${shut ? '-rotate-90' : ''}`} />
+            </button>
+            {!shut && (
+              <div className="flex flex-col">
+                {g.items.map((i) => (
+                  <NavLinkItem key={i.to} item={i} onClick={onNavigate} badge={badgeFor(i)} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+function BarLink({ i }: { i: NavItem }) {
+  const cls = 'flex min-w-0 flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold tracking-wide';
+  return i.href ? (
+    <a href={i.href} target="_blank" rel="noopener" className={`${cls} text-smoke`}>
+      <i.icon className="size-5" />
+      <span className="max-w-full truncate px-0.5">{i.label}</span>
+    </a>
+  ) : (
+    <NavLink to={i.to} className={({ isActive }) => `${cls} ${isActive ? 'text-gold-200' : 'text-smoke'}`}>
+      <i.icon className="size-5" />
+      <span className="max-w-full truncate px-0.5">{i.label}</span>
+    </NavLink>
+  );
+}
+
+function PhoneBar({ onMenu }: { onMenu: () => void }) {
+  const { picks } = usePhoneBar();
+  return (
+    <nav className="phone-bar fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-end border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      {picks[0] ? <BarLink i={picks[0]} /> : <span />}
+      {picks[1] ? <BarLink i={picks[1]} /> : <span />}
+      <NavLink to="/" end className={({ isActive }) => `phone-home ${isActive ? 'on' : ''}`} aria-label="Dashboard">
+        <span className="phone-home-btn">
+          <LayoutDashboard className="size-6" />
+        </span>
+        <span className="font-hud text-[10px] font-bold tracking-wide">Dashboard</span>
+      </NavLink>
+      {picks[2] ? <BarLink i={picks[2]} /> : <span />}
+      <button onClick={onMenu} className="flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold text-smoke">
+        <Menu className="size-5" />
+        Menu
+      </button>
     </nav>
   );
 }
@@ -197,9 +271,6 @@ export function AppShell() {
   const { pathname } = useLocation();
   useEffect(() => window.scrollTo(0, 0), [pathname]);
 
-  // Phone bottom bar: Dashboard plus the first three other pages this person can open.
-  const all = useNav().flatMap((g) => g.items);
-  const mobileItems = [all[0]!, ...all.slice(1, 4)];
 
   return (
     <div className="min-h-dvh lg:pl-64">
@@ -249,33 +320,8 @@ export function AppShell() {
         <div id="modal-root" />
       </div>
 
-      {/* Phone bottom bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-        {mobileItems.map((i) =>
-          i.href ? (
-            <a key={i.to} href={i.href} target="_blank" rel="noopener" className="flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold tracking-wide text-smoke">
-              <i.icon className="size-5" />
-              {i.label}
-            </a>
-          ) : (
-          <NavLink
-            key={i.to}
-            to={i.to}
-            end={i.to === '/'}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold tracking-wide ${isActive ? 'text-gold-200' : 'text-smoke'}`
-            }
-          >
-            <i.icon className="size-5" />
-            {i.label}
-          </NavLink>
-          ),
-        )}
-        <button onClick={() => setDrawer(true)} className="flex flex-col items-center gap-0.5 py-2 font-hud text-[11px] font-semibold text-smoke">
-          <Menu className="size-5" />
-          More
-        </button>
-      </nav>
+      {/* Phone bottom bar: two picks, the Dashboard in the middle, one pick, then the menu. */}
+      <PhoneBar onMenu={() => setDrawer(true)} />
 
       {/* Phone menu drawer */}
       {drawer && (

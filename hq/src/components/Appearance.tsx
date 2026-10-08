@@ -10,6 +10,7 @@ import { setStar, type Sheet } from '../lib/sheet';
 import { STARS } from '../lib/stars';
 import { useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { barKey, usePhoneBar } from '../hooks/useNav';
 import { ACCENTS, applyPrefs, DEFAULT_PREFS, SKIES, type Prefs } from '../lib/appearance';
 import { db } from '../lib/firebase';
 import { Panel } from './Page';
@@ -119,6 +120,43 @@ function HueColors() {
   );
 }
 
+/** The phone bar: pick the two pages left of the Dashboard and the one to its right. */
+function PhoneBarPicker({ save }: { save: (bar: string[]) => void }) {
+  const { pool, picks } = usePhoneBar();
+  const keys = picks.map(barKey);
+  const slots = ['Left', 'Left of Dashboard', 'Right of Dashboard'];
+  return (
+    <div className="pt-3">
+      <p className="label mb-2">Phone bottom bar</p>
+      <div className="grid grid-cols-3 gap-2">
+        {slots.map((label, n) => (
+          <label key={label} className="block text-[11px] text-smoke">
+            {label}
+            <select
+              className="input mt-1 !px-2 !py-1.5 text-xs"
+              value={keys[n] ?? ''}
+              onChange={(e) => {
+                const next = [...keys];
+                const was = next.indexOf(e.target.value);
+                if (was >= 0) next[was] = next[n]!; // picking one that's already on the bar swaps them
+                next[n] = e.target.value;
+                save(next);
+              }}
+            >
+              {pool.map((i) => (
+                <option key={barKey(i)} value={barKey(i)}>
+                  {i.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] text-smoke">The Dashboard sits in the middle and the menu on the far right.</p>
+    </div>
+  );
+}
+
 /** Your own look: accent, sky, motion, text size. Only you see it. */
 export function Appearance({ bare }: { bare?: boolean } = {}) {
   const { me } = useHub();
@@ -216,6 +254,7 @@ export function Appearance({ bare }: { bare?: boolean } = {}) {
         <Toggle on={p.shooting === 'on'} onChange={(v) => set({ shooting: v ? 'on' : 'off' })} label="Shooting stars" hint="One streaks across the sky now and then." />
         <Toggle on={p.wheel === 'on'} onChange={(v) => set({ wheel: v ? 'on' : 'off' })} label="Zodiac wheel" hint="The seal turning slowly behind the page." />
         <Toggle on={p.text === 'large'} onChange={(v) => set({ text: v ? 'large' : 'normal' })} label="Bigger text" hint="Everything a little larger." />
+        <PhoneBarPicker save={(bar) => set({ bar })} />
       </div>
       <HueColors />
     </div>
