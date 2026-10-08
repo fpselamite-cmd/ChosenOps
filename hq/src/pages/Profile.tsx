@@ -54,6 +54,7 @@ import { db } from '../lib/firebase';
 import { ago, fmtDate } from '../lib/format';
 import { squareImage } from '../lib/image';
 import { setPresenceStatus, updateProfile } from '../lib/members';
+import { noelNameOf } from '../lib/noelAccess';
 import { NOELOPS_URL, noelStatKey, useNoel, type NoelCrewMember } from '../lib/noelops';
 import {
   addEntry,
@@ -236,7 +237,7 @@ function useStats(m: Member) {
 
 function StatBlock({ m }: { m: Member }) {
   const { narco } = useHub();
-  const noel = useNoelOpsStats(m.name, narco);
+  const noel = useNoelOpsStats(noelNameOf(m), narco);
   const stats = { ...useStats(m), ...(narco && { NoelOps: noel }) };
   const links: Record<string, ReactNode> = {
     Heists: (

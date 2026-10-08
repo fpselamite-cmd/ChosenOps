@@ -1,4 +1,6 @@
 import { get, onValue, ref, runTransaction, update } from 'firebase/database';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { noelDb } from './noelops';
 import { rankCan } from './permissions';
 import { NARCO_ROLE, type RoleHolder } from './roles';
@@ -13,6 +15,9 @@ import type { Member, Rank } from './types';
  * Associates aren't on the list. `ops` lets someone with Manage ops add and rename stash houses.
  */
 export type AccessLevel = 'member' | 'edit' | 'manage';
+/** The name someone goes by inside NoelOps: the one leadership linked, or their HQ name. */
+export const noelNameOf = (m: Pick<Member, 'name' | 'noelName'>) => m.noelName?.trim() || m.name;
+
 export interface AccessEntry {
   /** HQ member id */
   m: string;
@@ -40,7 +45,7 @@ export function wantedAccess(members: Member[], rankById: Map<string, Rank>, hol
   const out: Record<string, AccessEntry> = {};
   for (const m of members) {
     const a = accessFor(m, rankById.get(m.rankId ?? ''), holderOf.get(m.id));
-    if (a) out[m.authUid || m.id] = { m: m.id, n: m.name, ...a };
+    if (a) out[m.authUid || m.id] = { m: m.id, n: noelNameOf(m), ...a };
   }
   return out;
 }
@@ -92,3 +97,6 @@ export async function sendQueued(id: string) {
   if (!url || !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(url)) return;
   await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: (msg as Outgoing).body }).catch(() => {});
 }
+
+/** Leadership: link a member to the name they use in NoelOps (empty clears it). */
+export const setNoelName = (memberId: string, name: string) => updateDoc(doc(db, 'members', memberId), { noelName: name.trim().slice(0, 30) || null });

@@ -135,6 +135,9 @@ service cloud.firestore {
       // An owner setting anyone's rank, the top rank included, so that seat can always be filled.
       allow update: if onlyChanges(['rankId']) && resource.data.status == 'active' && request.resource.data.rankId is string
         && active() && isOwner() && exists(/databases/$(database)/documents/hqRanks/$(request.resource.data.rankId));
+      // Leadership linking a member to the name they use in NoelOps (often just a first name).
+      allow update: if onlyChanges(['noelName']) && active() && lead()
+        && (request.resource.data.noelName == null || (str(request.resource.data.noelName, 30) && request.resource.data.noelName.size() >= 1));
       // An admin fixing someone's display name.
       allow update: if request.resource.data.name != resource.data.name && isAdmin() && onlyChanges(['name', 'nameLower'])
         && str(request.resource.data.name, 30) && request.resource.data.name.size() >= 2

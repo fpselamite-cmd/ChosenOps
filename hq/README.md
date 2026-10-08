@@ -67,7 +67,8 @@ npm run test:rules   # security rule tests
   (HQ or NoelOps) sends them.
 - **Moving NoelOps** (once): 1) in the **old** NoelOps Firebase project (console → Realtime Database → Rules), paste
   `{ "rules": { "noelops": { ".read": true, ".write": false } } }` and Publish, so nothing changes during the move;
-  2) Actions → **Move NoelOps**, dry run first (it lists NoelOps crew who won't get in), then for real;
+  2) Actions → **Move NoelOps**, dry run first (it lists NoelOps crew who aren't linked yet: link them in Admin →
+  NoelOps → **NoelOps names**, by the name they use in NoelOps, and give them the Narco role), then for real;
   3) after two weeks, lock the old database completely: `{ "rules": { ".read": false, ".write": false } }`.
 - **NoelOps backups**: Actions → **NoelOps backup** runs nightly and saves an encrypted copy to the `noelops-backups`
   branch. It needs a `NOELOPS_BACKUP_KEY` repo secret (a long random password; keep a copy somewhere safe, without it

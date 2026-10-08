@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useHub } from '../hooks/useHub';
 import { thumbnail } from '../lib/image';
+import { noelNameOf } from '../lib/noelAccess';
 import { fingerprint, noelDirectoryChanges, updateNoelDirectory, useNoel, type NoelHqMember } from '../lib/noelops';
 
 const thumbs = new Map<string, string | null>();
@@ -31,7 +32,7 @@ export function NoelDirectorySync() {
           avatar = thumbs.get(v) ?? null;
         }
         if (stopped) return;
-        want[m.id] = { name: m.name, rank: rankById.get(m.rankId ?? '')?.name ?? '', avatar, v };
+        want[m.id] = { name: noelNameOf(m), rank: rankById.get(m.rankId ?? '')?.name ?? '', avatar, v };
       }
       const changes = noelDirectoryChanges(have ?? {}, want);
       if (Object.keys(changes).length) updateNoelDirectory(changes).catch(() => {});
