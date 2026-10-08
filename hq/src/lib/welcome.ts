@@ -55,6 +55,8 @@ export interface WelcomeSettings {
   sections: WSection[];
   /** A Canva design shown on the Guide tab: its view-only embed link. Canva keeps it current. */
   canva?: string;
+  /** What associates sign under at the end of the Guide. */
+  pledge?: string;
   /** Which version of the standard checklist the list was last set from. */
   checklistV?: number;
 }
@@ -89,11 +91,23 @@ export function stepsFromText(text: string, keep: WStep[] = []): WStep[] {
     });
 }
 
+export interface GuideSig {
+  name: string;
+  img: string;
+  pledge: string;
+  at: Timestamp;
+}
+export const DEFAULT_PLEDGE = "I've gone through the guide, and I'll be held to the family's rules.";
+/** Did they put their signature on the guide (or accept the current rules the old way)? */
+export const guideDone = (ob: Pick<Onboarding, 'guideSig' | 'rulesAccepted'> | null | undefined, rulesVersion: number) => !!ob?.guideSig || (ob?.rulesAccepted ?? 0) >= rulesVersion;
+
 /** Each associate's file. Their own to accept the rules; handlers recommend; High Table promotes. */
 export interface Onboarding {
   id: string;
   rulesAccepted?: number;
   rulesAt?: Timestamp;
+  /** Signed at the end of the Guide: typed name plus a drawn signature (a small PNG). Counts as accepting the rules, for good. */
+  guideSig?: GuideSig | null;
   recommended?: { by: string; byName: string; note: string; at: Timestamp } | null;
   graduatedAt?: Timestamp | null;
   /** They've seen their blooded-in moment. */
@@ -154,6 +168,10 @@ type Me = { id: string; name: string };
 const stamp = (me: Me) => ({ by: me.id, byName: me.name, at: serverTimestamp() });
 
 export const saveWelcome = (s: WelcomeSettings) => setDoc(doc(db, 'settings', 'welcome'), s);
+/** Signing the Guide ticks "Go through the guide and accept the rules". It can't be redone; a WC clears it. */
+export const signGuide = (me: Me, version: number, name: string, img: string, pledge: string) =>
+  setDoc(doc(db, 'onboarding', me.id), { guideSig: { name: name.trim().slice(0, 60), img, pledge: pledge.slice(0, 300), at: serverTimestamp() }, rulesAccepted: version, rulesAt: serverTimestamp() }, { merge: true });
+export const clearGuideSig = (memberId: string) => setDoc(doc(db, 'onboarding', memberId), { guideSig: null, rulesAccepted: 0 }, { merge: true });
 export const acceptRules = (me: Me, version: number) => setDoc(doc(db, 'onboarding', me.id), { rulesAccepted: version, rulesAt: serverTimestamp() }, { merge: true });
 
 export const stampId = (memberId: string, stepId: string) => `${memberId}_${stepId}`;

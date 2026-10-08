@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Award, ChevronDown, Flag, HandHeart, Plus, ScrollText, Sparkles, ThumbsUp, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Award, ChevronDown, Flag, HandHeart, Plus, Sparkles, ThumbsUp, Trash2, X } from 'lucide-react';
 import { collection, query, where } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -12,7 +12,8 @@ import { db } from '../../lib/firebase';
 import { ago } from '../../lib/format';
 import type { Member } from '../../lib/types';
 import {
-  acceptRules,
+  clearGuideSig,
+  DEFAULT_PLEDGE,
   addHandlerNote,
   promote,
   recommend,
@@ -27,12 +28,14 @@ import {
   stepsFromText,
   withdraw,
   type HandlerNote,
+  type Onboarding,
   type Vouch,
   type WelcomeNote,
   type WelcomeSettings,
   type WStep,
 } from '../../lib/welcome';
 import PendingTab from '../admin/PendingTab';
+import { GuideContract, SignedCopy } from './GuideSign';
 import { Road, stopsOf } from './Road';
 import { useAssociate, useAssociates, useWelcomeAccess, useWelcomeSettings } from './useWelcome';
 
@@ -137,25 +140,17 @@ function MyRoad() {
 function Guide({ w }: { w: WelcomeSettings }) {
   const { me } = useHub();
   const { isAssoc, isHandler } = useWelcomeAccess();
-  const ob = useDoc<{ rulesAccepted?: number }>(`onboarding/${me.id}`);
-  const accepted = (ob?.rulesAccepted ?? 0) >= w.rulesVersion;
+  const ob = useDoc<Onboarding>(`onboarding/${me.id}`);
   return (
     <div className="space-y-5">
-      {isAssoc && ob?.rulesAccepted && !accepted && <p className="hud border-yellow-400/50 p-3 text-sm text-yellow-200">The guide changed since you accepted it. Go through it again and accept below.</p>}
       {w.canva ? (
         <CanvaGuide src={w.canva} />
       ) : (
         <p className="hud p-6 text-center text-sm text-smoke">{isHandler ? 'No guide yet. Paste the Canva embed link in Setup.' : 'The guide isn’t up yet. Ask your handler.'}</p>
       )}
-      {isAssoc && (
-        <div className="hud flex flex-wrap items-center gap-3 p-4">
-          <ScrollText className="size-5 text-gold-300" />
-          <p className="flex-1 text-sm">{accepted ? 'You’ve gone through the guide and accepted the rules.' : 'Gone through the whole guide? Accepting means you’ll be held to it.'}</p>
-          {!accepted && (
-            <button className="btn-gold" onClick={() => acceptRules(me, w.rulesVersion)}>
-              I accept the rules
-            </button>
-          )}
+      {isAssoc && ob !== undefined && (
+        <div className="mx-auto max-w-2xl">
+          <GuideContract w={w} sig={ob?.guideSig} />
         </div>
       )}
     </div>
@@ -235,9 +230,19 @@ function AssociateFile({ m, fights }: { m: Member; fights: Blacksite[] }) {
                 </div>
                 <div>
                   <dt className="label text-[9px]">Rules</dt>
-                  <dd className={p.rules ? 'text-ok' : 'text-smoke'}>{p.rules ? 'Accepted' : 'Not yet'}</dd>
+                  <dd className={p.rules ? 'text-ok' : 'text-smoke'}>{ob?.guideSig ? 'Signed' : p.rules ? 'Accepted' : 'Not yet'}</dd>
                 </div>
               </dl>
+              {ob?.guideSig && (
+                <div className="mt-3 space-y-1.5">
+                  <SignedCopy sig={ob.guideSig} small />
+                  {isHandler && (
+                    <button className="text-xs text-smoke hover:text-red-300" onClick={() => confirm(`Clear ${m.name}'s signature? They'll need to sign the Guide again.`) && clearGuideSig(m.id)}>
+                      Clear the signature
+                    </button>
+                  )}
+                </div>
+              )}
               <Link to={`/members/${m.id}`} className="mt-3 inline-block text-xs text-gold-400 hover:text-gold-200">
                 Open their profile →
               </Link>
@@ -374,7 +379,7 @@ function Associates() {
 function Setup({ w }: { w: WelcomeSettings }) {
   const [steps, setSteps] = useState<WStep[]>(w.steps);
   const [rep, setRep] = useState(w.repTarget);
-  const [again, setAgain] = useState(false);
+  const [pledge, setPledge] = useState(w.pledge ?? '');
   const [paste, setPaste] = useState('');
   const [saved, setSaved] = useState(false);
   const [canva, setCanva] = useState(w.canva ?? '');
@@ -441,10 +446,11 @@ function Setup({ w }: { w: WelcomeSettings }) {
         {canvaOk === 'edit' && <p className="mt-2 text-sm text-red-300">That’s an edit link: anyone who sees the page could change your design. Use the embed link instead (Share → More → Embed).</p>}
         {canvaOk === null && <p className="mt-2 text-sm text-red-300">That doesn’t look like a Canva design link.</p>}
         {canvaOk && canvaOk !== 'edit' && <p className="mt-2 text-xs text-ok">Looks good. Save to show it on the Guide tab.</p>}
-        <label className="mt-3 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
-          Big change: associates must go through the guide and accept again
-        </label>
+        <div className="mt-4">
+          <Field label="What associates sign under" hint="Shown above the signature at the end of the Guide. A signature stays signed even if you change this later.">
+            <textarea className="input min-h-16 text-sm" value={pledge} maxLength={300} placeholder={DEFAULT_PLEDGE} onChange={(e) => setPledge(e.target.value)} />
+          </Field>
+        </div>
       </Panel>
       <div className="flex items-center justify-end gap-3 xl:col-span-2">
         {saved && <span className="text-sm text-ok">Saved</span>}
@@ -458,9 +464,9 @@ function Setup({ w }: { w: WelcomeSettings }) {
               checklistV: w.checklistV ?? CHECKLIST_VERSION,
               sections: w.sections,
               repTarget: rep,
-              rulesVersion: w.rulesVersion + (again ? 1 : 0),
+              rulesVersion: w.rulesVersion,
+              pledge: pledge.trim(),
             });
-            setAgain(false);
             setSaved(true);
             setTimeout(() => setSaved(false), 2500);
           }}

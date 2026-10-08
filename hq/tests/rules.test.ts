@@ -1116,6 +1116,17 @@ describe('welcome center', () => {
     await assertFails(deleteDoc(doc(as('sol'), 'welcomeStamps/sol_t1')));
     await assertSucceeds(setDoc(doc(as('sol2'), 'onboarding/sol'), { recommended: { by: 'sol2', byName: 'Sol2', note: '', at: serverTimestamp() } }, { merge: true }));
   });
+  it('associates sign the Guide once; a handler clears it', async () => {
+    await mkHandler();
+    const sig = (img = 'data:image/png;base64,AAAA') => ({ guideSig: { name: 'Sol', img, pledge: 'I will', at: serverTimestamp() }, rulesAccepted: 1, rulesAt: serverTimestamp() });
+    await assertFails(setDoc(doc(as('sol'), 'onboarding/sol'), sig('javascript:alert(1)'), { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'onboarding/sol'), { guideSig: { name: '', img: 'data:image/png;base64,AAAA', pledge: '', at: serverTimestamp() } }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'onboarding/sol'), sig(), { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'onboarding/sol'), sig('data:image/png;base64,BBBB'), { merge: true }));
+    await assertFails(setDoc(doc(as('sol'), 'onboarding/sol'), { guideSig: null }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('sol2'), 'onboarding/sol'), { guideSig: null, rulesAccepted: 0 }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as('sol'), 'onboarding/sol'), sig(), { merge: true }));
+  });
   it('keeps handler notes private; anyone vouches; only High Table patches in', async () => {
     await mkHandler();
     await assertFails(setDoc(doc(as('capo'), 'handlerNotes/h1'), { memberId: 'sol', text: 'x', by: 'capo', byName: 'Capo', at: serverTimestamp() }));
