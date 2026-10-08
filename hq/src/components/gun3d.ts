@@ -152,6 +152,15 @@ function makeMats() {
     lens: () => new THREE.MeshStandardMaterial({ color: '#fff6dd', emissive: '#fff1c4', emissiveIntensity: 1.4 }),
     red: () => new THREE.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff1a1a', emissiveIntensity: 2 }),
     brass: () => new THREE.MeshStandardMaterial({ color: '#c99a3c', metalness: 1, roughness: 0.3 }),
+    /** Furniture (grips, handguards): wood if it says wood, black polymer if it says syn/tex/plastic, else the gun's own. */
+    furniture: (name: string | undefined, fallback: 'poly' | 'wood') => {
+      if (name && !/wood/i.test(name) && /syn|tex|plastic|polymer/i.test(name) && !('color' in finishOf(name))) return poly();
+      const f = finishOf(name);
+      if ('wood' in f) return wood();
+      if ('metal' in f) return steel(f.color, 0.22);
+      if ('color' in f) return poly(f.color);
+      return fallback === 'wood' ? wood() : poly();
+    },
     /** A part in the colour its name says, else black polymer. */
     of: (name: string | undefined, fallback: 'poly' | 'steel' | 'wood' = 'poly') => {
       const f = finishOf(name);
@@ -201,10 +210,11 @@ const has = (re: RegExp, s?: string) => !!s && re.test(s.toLowerCase());
 // ---------- the parts ----------
 
 /** Sights sit on top of the gun at (x, y). */
+const IRONS = /iron|sights?( up| down)?$|sight w-shroud/;
 function sight(name: string, x: number, y: number, m: Mats, small = false) {
   const g = new THREE.Group();
   const body = m.of(name);
-  if (has(/iron|sights?( up| down)?$/, name)) {
+  if (has(IRONS, name)) {
     g.add(at(box(1.4, 2.2, 1.6, body, 0.2), x - 8, y + 1.1), at(box(1, 2.6, 1, body, 0.2), x + 14, y + 1.3));
     return g;
   }
@@ -314,10 +324,12 @@ function magazine(name: string | undefined, kind: 'curved' | 'straight' | 'pisto
   return g;
 }
 
+/** Laser boxes (PEQ, DBAL, LA5…) rather than flashlights. */
+const isLaser = (name: string) => has(/peq|atpial|dbal|laser|las\b|las\/|go2|po5|2irs|ls221|cqb|la5/, name);
 function light(name: string, x: number, y: number, z: number, m: Mats) {
   const g = new THREE.Group();
   const mat = m.of(name);
-  if (has(/peq|atpial|dbal|laser|las\b|las\/|go2|po5|2irs|ls221|cqb/, name)) {
+  if (isLaser(name)) {
     g.add(at(box(7, 2.8, 3.2, mat, 0.5), x, y));
     g.add(at(new THREE.Mesh(new THREE.CircleGeometry(0.55, 18).rotateY(Math.PI / 2), m.red()), x + 3.55, y + 0.5, 0.7), at(new THREE.Mesh(new THREE.CircleGeometry(0.75, 18).rotateY(Math.PI / 2), m.lens()), x + 3.55, y - 0.4, -0.6));
     return g;
@@ -330,7 +342,7 @@ function light(name: string, x: number, y: number, z: number, m: Mats) {
 function foregrip(name: string, x: number, y: number, m: Mats) {
   const g = new THREE.Group();
   const mat = m.of(name);
-  if (has(/angl|afg/, name))
+  if (has(/angl|afg|kag|ldag|rk-1/, name))
     g.add(
       prism(
         [
@@ -436,10 +448,29 @@ function kindOfGun(spec: GunSpec): Kind {
   return 'rifle';
 }
 
+/**
+ * What a part in the "grip" slot really is. Handgrips (a revolver's grips, a shotgun's pistol grip, an AK's
+ * RTM Pillau) replace the gun's own grip; AK handguards (B-11, Izmash, CAA) replace the forend; the rest
+ * (vertical, angled and stubby grips) are foregrips under the front.
+ */
+export function gripKind(name: string, kind: string): 'hand' | 'guard' | 'fore' {
+  if (kind === 'pistol' || kind === 'revolver') return 'hand';
+  if (has(/handguard|xrsu|b-11/, name)) return 'guard';
+  if (has(/pistol grip|pillau|^m590|wood grip|syn grip|tex .*grip|stock grip/, name)) return 'hand';
+  return 'fore';
+}
+
 /** One slot's pieces, tagged so a tap on them picks the slot and the bench can light them up. */
 function tagged(slot: string, fitted: boolean, ...objs: THREE.Object3D[]) {
   const g = new THREE.Group();
   g.userData = { slot, fitted };
+  objs.forEach((o) => g.add(o));
+  return g;
+}
+/** A fitted part that replaces a piece the gun already has (a handgrip, a handguard): a real model keeps its own. */
+function builtIn(slot: string, fitted: boolean, ...objs: THREE.Object3D[]) {
+  const g = new THREE.Group();
+  g.userData = { slot, fitted, builtIn: true };
   objs.forEach((o) => g.add(o));
   return g;
 }
@@ -464,6 +495,7 @@ function longGun(spec: GunSpec, kind: Kind, m: Mats) {
   const g = new THREE.Group();
   const frameMat = m.of(p.frame, wooden && kind !== 'rifle' ? 'steel' : 'steel');
   const furniture = (name?: string) => (wooden && !name ? m.wood() : m.of(name));
+  const gk = p.grip ? gripKind(p.grip, kind) : null;
 
   // Receiver: upper and lower.
   const upper = at(box(D.rl, 5, 4.6, m.steel('#26282c'), 0.6), x0 + D.rl / 2, 1.5);
@@ -490,9 +522,9 @@ function longGun(spec: GunSpec, kind: Kind, m: Mats) {
   // Pistol grip and trigger guard.
   const gx = bullpup ? x1 - 10 : x0 + 6;
   g.add(
-    tagged(
-      'grip-rear',
-      false,
+    (gk === 'hand' ? builtIn : tagged)(
+      gk === 'hand' ? 'grip' : 'grip-rear',
+      gk === 'hand',
       prism(
         [
           [gx, -5],
@@ -502,7 +534,7 @@ function longGun(spec: GunSpec, kind: Kind, m: Mats) {
           [gx - 4.4, -13.2],
         ],
         3.4,
-        p.grip && has(/pistol grip|wood grip|syn grip/, p.grip) ? m.of(p.grip) : furniture(),
+        gk === 'hand' ? m.furniture(p.grip, wooden ? 'wood' : 'poly') : furniture(),
         0.45,
       ),
       at(box(9, 0.5, 1.1, m.steel(), 0.15), gx + 7.5, -7.6),
@@ -520,9 +552,10 @@ function longGun(spec: GunSpec, kind: Kind, m: Mats) {
   // Handguard / forend.
   if (kind === 'rifle' || kind === 'smg') {
     const len = hgEnd - x1;
-    const hg = [at(box(len, 4.4, 4.4, m.of(p.handguard ?? p.rail, wooden ? 'wood' : 'poly'), 0.7), x1 + len / 2, 1.2)];
+    const hg = [at(box(len, 4.4, 4.4, m.furniture(p.handguard ?? (gk === 'guard' ? p.grip : p.rail), wooden ? 'wood' : 'poly'), 0.7), x1 + len / 2, 1.2)];
     if (p.handguard || p.rail) for (let x = x1 + 2; x < hgEnd - 2; x += 3) hg.push(at(box(1.6, 1, 0.2, m.dark(), 0.05), x, 1.2, 2.25));
-    g.add(tagged('handguard', !!p.handguard, ...hg));
+    // An AK handguard picked in the grip slot is this forend.
+    g.add(gk === 'guard' && !p.handguard ? builtIn('grip', true, ...hg) : tagged('handguard', !!p.handguard, ...hg));
   } else if (kind === 'shotgun' || kind === 'double') {
     // Tube mag under the barrel and a pump.
     if (kind === 'shotgun') {
@@ -569,9 +602,13 @@ function longGun(spec: GunSpec, kind: Kind, m: Mats) {
 
   // Light / laser and foregrip, under or beside the front.
   const fx = kind === 'rifle' || kind === 'smg' ? hgEnd - 6 : x1 + 14;
-  if (p.light) g.add(tagged('light', true, has(/peq|atpial|dbal|laser|las|go2|po5|2irs/, p.light) ? light(p.light, fx - 1, 5.4 + 1.4, 0, m) : light(p.light, fx - 2, 1.2, 3.4, m)));
-  if (p.grip && !has(/pistol grip|wood grip|syn grip/, p.grip)) g.add(tagged('grip', true, foregrip(p.grip, fx - 8, kind === 'rifle' || kind === 'smg' ? -1 : -2.4, m)));
-  else if (kind === 'sniper' && p.grip) g.add(tagged('grip', true, foregrip(p.grip, fx, -2.4, m)));
+  // Lasers sit on the top rail; lights on the side we're looking at, or the far side for a right-side mount (RSM).
+  const side = p.light && has(/rsm|right/, p.light) ? -3.4 : 3.4;
+  // On the top rail if it runs that far forward, else on the handguard (rifles, SMGs) or the barrel (shotguns, snipers).
+  const longRail = (p.handguard || p.rail) && (kind === 'rifle' || kind === 'smg');
+  const laserY = longRail ? 5.4 + 1.4 : kind === 'rifle' || kind === 'smg' ? 3.4 + 1.4 : 1.6 + D.br + 1.4;
+  if (p.light) g.add(tagged('light', true, isLaser(p.light) ? light(p.light, fx - 1, laserY, 0, m) : light(p.light, fx - 2, 1.2, side, m)));
+  if (p.grip && gk === 'fore') g.add(tagged('grip', true, foregrip(p.grip, kind === 'sniper' ? fx : fx - 8, kind === 'rifle' || kind === 'smg' ? -1 : -2.4, m)));
   if (p.slide) g.add(tagged('slide', true, at(box(5, 1.2, 1.4, m.of(p.slide, 'steel'), 0.2), x0 + 10, 3.4, 2.3)));
   return g;
 }
@@ -625,7 +662,26 @@ function pistol(spec: GunSpec, m: Mats) {
     const s = m.of(p.stock);
     g.add(tagged('stock', true, at(rod(0.5, 14, m.steel()), -14, -4), at(box(1.4, 9, 2.8, s, 0.4), -14, -4.6), at(box(3, 3, 2.6, s, 0.4), -0.6, -4)));
   }
-  if (p.grip) g.add(tagged('grip', true, foregrip(p.grip, L - 4, -1.6, m)));
+  // A pistol's grip slot is its grip panels.
+  if (p.grip)
+    g.add(
+      builtIn(
+        'grip',
+        true,
+        prism(
+          [
+            [1.2, -1.6],
+            [5.6, -1.6],
+            [3.6, -11],
+            [-0.6, -11.2],
+            [-1, -10],
+          ],
+          3.1,
+          m.furniture(p.grip, 'wood'),
+          0.45,
+        ),
+      ),
+    );
   return g;
 }
 
@@ -660,9 +716,12 @@ function revolver(spec: GunSpec, m: Mats) {
       at(box(4.4, 0.45, 0.9, frame, 0.15), 7.4, -3.4),
     ),
   );
-  // Grip panels.
+  // Grip panels: the revolver's grip slot.
   g.add(
-    prism(
+    builtIn(
+      'grip',
+      !!p.grip,
+      prism(
       [
         [-0.4, -1.4],
         [4, -1.4],
@@ -671,8 +730,9 @@ function revolver(spec: GunSpec, m: Mats) {
         [-3.3, -9.4],
       ],
       3.4,
-      p.grip ? m.of(p.grip, 'wood') : m.wood(),
-      0.5,
+        p.grip ? m.furniture(p.grip, 'wood') : m.wood(),
+        0.5,
+      ),
     ),
   );
   // The cylinder: flat or round, with flutes.
@@ -694,8 +754,7 @@ function revolver(spec: GunSpec, m: Mats) {
   else g.add(tagged('sight', false, at(box(0.6, 1.2, 0.6, m.steel(), 0.1), 12 + BL, 3.8)));
   if (p.muzzle) g.add(tagged('muzzle', true, muzzle(p.muzzle, 13.6 + BL, 1.6, 0.95, m)));
   if (p.light) g.add(tagged('light', true, light(p.light, 13 + BL - 6, -0.8, 0, m)));
-  if (p.grip) g.add(tagged('grip', true, foregrip(p.grip, 13 + BL - 4, 0.2, m)));
-  if (p.stock) g.add(tagged('stock', true, at(rod(0.5, 14, m.steel()), -17, -3), at(box(1.4, 9, 2.8, m.of(p.stock), 0.4), -17, -3.6)));
+  if (p.stock) g.add(tagged('stock', true, at(rod(0.5, 14, m.steel()), -17, -3), at(box(1.4, 9, 2.8, m.of(p.stock), 0.4), -17, -3.6), at(box(7, 2.6, 2.4, m.of(p.stock), 0.4), -6.8, -3)));
   return g;
 }
 
@@ -756,18 +815,20 @@ function modelFor(spec: GunSpec): Promise<THREE.Object3D | null> {
  * The pack's models come in flat, chalky colours; give them the same gunmetal, polymer and walnut as the
  * code-built parts (by the pack's material names). A fitted frame in a colour ("Tan", "Olive"…) recolours the polymer.
  */
-function restyle(spec: GunSpec) {
+function restyle(spec: GunSpec, handgun: boolean) {
   const m = makeMats();
   const frame = finishOf(spec.parts.frame);
   const tint = 'color' in frame && !('metal' in frame) ? frame.color : null;
+  // On a handgun the pack's wood is only the grip panels, so a fitted grip ("Tex Syn Grip", "Wood Grip") sets them.
+  const grip = handgun && spec.parts.grip ? m.furniture(spec.parts.grip, 'wood') : null;
   const cache = new Map<string, THREE.Material>();
   const make = (name: string): THREE.Material => {
     const solidWood = (c: string) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.04, roughness: 0.5 });
     switch (name) {
       case 'Wood':
-        return solidWood('#5a2f16');
+        return grip && !(grip as THREE.MeshStandardMaterial).map ? grip : solidWood('#5a2f16');
       case 'DarkWood':
-        return solidWood('#3e200e');
+        return grip && !(grip as THREE.MeshStandardMaterial).map ? grip : solidWood('#3e200e');
       case 'Metal':
         return m.steel('#2c2f34', 0.38);
       case 'DarkMetal':
@@ -825,6 +886,12 @@ async function withModel(spec: GunSpec, holder: THREE.Group) {
   if (!model) return holder;
   const gun = holder.children[0]!;
   const handgun = holder.userData.kind === 'pistol' || holder.userData.kind === 'revolver';
+  // Models with a scope of their own (the pack's sniper rifles) use it for whatever sight is fitted, instead of stacking a second.
+  let ownOptic = false;
+  model.traverse((o) => {
+    const mats = (o as THREE.Mesh).material;
+    if ((Array.isArray(mats) ? mats : mats ? [mats] : []).some((mt) => mt.name === 'Glass')) ownOptic = true;
+  });
   holder.updateMatrixWorld(true);
   const inv = gun.matrixWorld.clone().invert();
   const bodyParts: THREE.Object3D[] = [];
@@ -833,7 +900,9 @@ async function withModel(spec: GunSpec, holder: THREE.Group) {
   for (const c of gun.children) {
     const slot = c.userData.slot as string | undefined;
     if (slot === 'barrel') barrel = c;
-    if (handgun && slot && HANDGUN_EXTRAS.has(slot) && c.userData.fitted) addOns.push(c);
+    // A handgrip or handguard, or plain iron sights: the model's own grip, forend or irons stand in.
+    if (c.userData.builtIn || (slot === 'sight' && (ownOptic || has(IRONS, spec.parts.sight ?? '')))) bodyParts.push(c);
+    else if (handgun && slot && HANDGUN_EXTRAS.has(slot) && c.userData.fitted) addOns.push(c);
     else if (!slot || BUILT_IN.has(slot)) bodyParts.push(c);
     else if (c.userData.fitted) addOns.push(c);
     else c.visible = false; // the stock iron sights and flash hider: the model has its own
@@ -853,7 +922,8 @@ async function withModel(spec: GunSpec, holder: THREE.Group) {
   }
   // The pack is drawn to one scale, so size from it: an SMG stays shorter than a rifle, a snub nose than a long barrel.
   const want = handgun ? Math.min(60, Math.max(40, have.x * 27)) : Math.min(105, Math.max(62, have.x * 16));
-  model.scale.multiplyScalar(want / holder.scale.x / Math.max(have.x, 0.001));
+  const perPack = want / holder.scale.x / Math.max(have.x, 0.001);
+  model.scale.multiplyScalar(perPack);
   model.updateMatrixWorld(true);
   let pts = pointsIn(model, inv);
   let mb = new THREE.Box3().setFromPoints(pts);
@@ -868,38 +938,107 @@ async function withModel(spec: GunSpec, holder: THREE.Group) {
   model.updateMatrixWorld(true);
   pts = pointsIn(model, inv);
   mb = new THREE.Box3().setFromPoints(pts);
-  const slice = (a: number, b: number) => pts.filter((v) => v.x >= a && v.x <= b);
-  const top = (a: number, b: number) => slice(a, b).reduce((y, v) => Math.max(y, v.y), -Infinity);
-  const bottom = (a: number, b: number) => slice(a, b).reduce((y, v) => Math.min(y, v.y), Infinity);
+  // Find the model's real surfaces with rays (its corners are too far apart to sample): down onto the top,
+  // up onto the underside, forward onto the back. Everything here is in the gun's own space.
+  const ray = new THREE.Raycaster();
+  const surfaces: THREE.Object3D[] = [model];
+  const cast = (from: THREE.Vector3, dir: THREE.Vector3) => {
+    gun.updateMatrixWorld(true);
+    ray.set(gun.localToWorld(from.clone()), dir);
+    const hit = ray.intersectObjects(surfaces, true)[0];
+    return hit ? gun.worldToLocal(hit.point.clone()) : null;
+  };
+  const zs = [-0.25, 0, 0.25].map((f) => (mb.min.z + mb.max.z) / 2 + f * (mb.max.z - mb.min.z));
+  const across = (a: number, b: number) => [0, 0.25, 0.5, 0.75, 1].map((f) => a + (b - a) * f);
+  const top = (a: number, b: number) => {
+    let y = -Infinity;
+    for (const x of across(a, b)) for (const z of zs) y = Math.max(y, cast(new THREE.Vector3(x, mb.max.y + 50, z), new THREE.Vector3(0, -1, 0))?.y ?? -Infinity);
+    return y;
+  };
+  const bottom = (a: number, b: number) => {
+    let y = Infinity;
+    for (const x of across(a, b)) for (const z of zs) y = Math.min(y, cast(new THREE.Vector3(x, mb.min.y - 50, z), new THREE.Vector3(0, 1, 0))?.y ?? Infinity);
+    return y;
+  };
 
-  // Add-ons keep their place along the gun and their size relative to it.
+  // Add-ons keep their place along the gun and their size relative to it, then settle onto the model:
+  // rails first (a sight can sit on one), sights and lasers on top, foregrips and handgun lights underneath
+  // (forward of the magazine), muzzle devices on the muzzle, a handgun's stock behind it.
   const r = (mb.max.x - mb.min.x) / Math.max(body.max.x - body.min.x, 0.001);
+  // Sizes: the code-built parts are drawn about 21 units to a pack unit on long guns (13 on handguns), so this
+  // keeps a grip grip-sized on a short carbine instead of shrinking it with the gun.
+  const size = perPack / (handgun ? 13 : 21);
+  const H = Math.max(1, codeBore - mb.min.y);
+  // Optics go over the receiver, just behind the magazine well (the deepest point mid-gun); on a bullpup, mid-gun.
+  const midPts = pts.filter((v) => v.x > mb.min.x + L * 0.25 && v.x < mb.min.x + L * 0.8);
+  const low = midPts.reduce((y, v) => Math.min(y, v.y), Infinity);
+  const deep = midPts.filter((v) => v.y < low + (codeBore - low) * 0.35);
+  const magX = deep.length ? Math.min(...deep.map((v) => v.x)) + (Math.max(...deep.map((v) => v.x)) - Math.min(...deep.map((v) => v.x))) / 2 : mb.min.x + L / 2;
+  const sightX = /bullpup|advanced/i.test(spec.name) ? mb.min.x + L * 0.5 : magX - L * 0.02;
+  const rearAt = (y0: number, y1: number) => {
+    let x = Infinity;
+    for (const y of across(y0, y1)) for (const z of zs) x = Math.min(x, cast(new THREE.Vector3(mb.min.x - 50, y, z), new THREE.Vector3(1, 0, 0))?.x ?? Infinity);
+    return x;
+  };
+  const rank: Record<string, number> = { rail: 0, sight: 2 };
+  addOns.sort((a, b) => (rank[a.userData.slot as string] ?? 1) - (rank[b.userData.slot as string] ?? 1));
   for (const c of addOns) {
     const slot = c.userData.slot as string;
     const before = boxIn([c], inv).getCenter(new THREE.Vector3());
-    c.scale.multiplyScalar(r);
+    const wasAbove = boxIn([c], inv).min.y > codeBore;
+    c.scale.multiplyScalar(size);
     c.updateMatrixWorld(true);
     const after = boxIn([c], inv).getCenter(new THREE.Vector3());
     c.position.x += mb.min.x + (before.x - body.min.x) * r - after.x;
     c.position.y += codeBore + (before.y - codeBore) * r - after.y;
     c.updateMatrixWorld(true);
-    const b = boxIn([c], inv);
-    const mid = (b.min.x + b.max.x) / 2;
+    let b = boxIn([c], inv);
+    let mid = (b.min.x + b.max.x) / 2;
     const span = Math.max(1, (b.max.x - b.min.x) * 0.5);
-    if (slot === 'muzzle') {
-      c.position.x += mb.max.x - b.min.x - 0.2;
-    } else if (slot === 'sight') {
-      // Sit on the top of whatever's under the middle of the sight (rail, receiver or slide).
+    const onTop = () => {
       const t = top(mid - span / 2, mid + span / 2);
       if (Number.isFinite(t)) c.position.y += t - b.min.y - 0.1;
-    } else if (slot === 'grip') {
+    };
+    const underneath = () => {
+      // Slide forward past the magazine (anything hanging well below the bore) to the forend.
+      const clear = (x: number) => bottom(x - span / 2, x + span / 2) >= codeBore - H * 0.45;
+      let x = mid;
+      while (x < mb.max.x - span && !clear(x)) x += L * 0.02;
+      if (clear(x)) {
+        c.position.x += x - mid;
+        mid = x;
+        c.updateMatrixWorld(true);
+        b = boxIn([c], inv);
+      }
       const u = bottom(mid - span / 2, mid + span / 2);
       if (Number.isFinite(u)) c.position.y += u - b.max.y + 0.3;
-    } else if (slot === 'stock') {
-      c.position.x += mb.min.x - b.max.x + 1;
+    };
+    if (slot === 'muzzle') c.position.x += mb.max.x - b.min.x - 0.2;
+    else if (slot === 'rail') {
+      if (!has(/cage|shroud/, spec.parts.rail ?? '')) onTop();
+    } else if (slot === 'sight') {
+      if (!handgun) {
+        c.position.x += sightX - mid;
+        mid = sightX;
+        c.updateMatrixWorld(true);
+        b = boxIn([c], inv);
+      }
+      onTop();
     }
+    else if (slot === 'grip') underneath();
+    else if (slot === 'light') {
+      if (wasAbove) onTop();
+      else if (handgun) underneath();
+    } else if (slot === 'stock') {
+      // Butt the stock's front against the back of the frame at the stock's own height.
+      const back = rearAt(b.max.y - (b.max.y - b.min.y) * 0.35, b.max.y);
+      c.position.x += (Number.isFinite(back) ? back : mb.min.x) - b.max.x + 0.4;
+    }
+    c.updateMatrixWorld(true);
+    // What's fitted on top becomes part of the top for what comes next.
+    if (slot === 'rail') surfaces.push(c);
   }
-  const finish = restyle(spec);
+  const finish = restyle(spec, handgun);
   model.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
