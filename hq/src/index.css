@@ -2542,3 +2542,18 @@ html[data-motion='off'] .md *, html[data-motion='off'] .md-body { animation: non
 @keyframes unlock-burst { 0% { opacity: 0; transform: scale(0.3); } 30% { opacity: 1; } 100% { opacity: 0.55; transform: scale(1); } }
 @keyframes unlock-rays-in { to { opacity: 0.7; } }
 @media (prefers-reduced-motion: reduce) { .honor-toast.unlock *, .honor-toast.unlock { animation-duration: 0.01s !important; animation-delay: 0s !important; } }
+
+/* ---------- Trophies: lit metal, a passing glint, a lively tilt ---------- */
+.tr { position: relative; display: inline-block; transition: transform 0.35s cubic-bezier(.2, 1.4, .4, 1); }
+.tr svg { display: block; overflow: visible; }
+.tr:hover { transform: perspective(320px) rotateY(-14deg) scale(1.05); }
+.tr-t3 svg { filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.3)); }
+.tr-t4 svg { filter: drop-shadow(0 0 9px rgba(212, 175, 55, 0.5)); }
+.tr-glint { animation: tr-glint 5s ease-in-out infinite; }
+.tr-t4 .tr-glint { animation-duration: 3.6s; }
+.tr-star { transform-box: fill-box; transform-origin: center; animation: tr-twinkle 2.2s ease-in-out infinite; }
+@keyframes tr-glint { 0%, 60% { transform: translateX(0); } 100% { transform: translateX(160px); } }
+@keyframes tr-twinkle { 0%, 100% { opacity: 0.3; transform: scale(0.6); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (max-width: 639px) { .tr-glint, .tr-star { animation: none; } }
+html[data-motion='off'] .tr *, html[data-motion='off'] .tr { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .tr * { animation: none !important; } }
