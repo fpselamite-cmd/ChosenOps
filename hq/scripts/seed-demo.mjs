@@ -791,6 +791,10 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await pn(`birthday_${ids['Kira Lane']}_${etNow.year}`, 'Kira Lane', 'birthday', 'Birthday', 'Dani Cruz', 'HBD! Best driver we got 🎂', 2);
   await pn(`anniversary_${ids['Rocco Vale']}_${etNow.year}-${etNow.month}-${etNow.day}`, 'Rocco Vale', 'anniversary', '1 year in the family', 'Don Vito', 'A year already. Proud to have you, Hammer.', 1);
   await pn(`birthday_${ids['Tommy Reyes']}_${+etNow.year - 1}`, 'Tommy Reyes', 'birthday', 'Birthday', 'Kira Lane', 'Happy birthday Tank!', 24 * 200);
+  // Radio channels (demo values only; the real ones are set in the app).
+  await setDoc(doc(db, 'radio', 'associate'), { freq: '555.12', password: 'demo-assoc', note: 'Stay on this until you are blooded in.', byName: 'Kira Lane', at: Timestamp.now() });
+  await setDoc(doc(db, 'radio', 'main'), { freq: '777.07', password: 'demo-family', note: '', byName: 'Don Vito', at: Timestamp.now() });
+  await setDoc(doc(db, 'radio', 'heist'), { freq: '913.13', password: 'demo-heist', note: 'Fleeca job tonight. Stay off it otherwise.', active: true, byName: 'Don Vito', at: Timestamp.now() });
   // Polls: a dinner spot, a scheduling poll, a sealed motion still open, and a closed official one.
   const opt = (...l) => ({ options: l.map((label, i) => ({ id: String.fromCharCode(97 + i), label })), ids: l.map((_, i) => String.fromCharCode(97 + i)) });
   const poll = (id, p, back) => setDoc(doc(db, 'polls', id), { note: '', audience: 'members', anonymous: false, reveal: 'live', official: false, closesAt: null, status: 'open', voters: [], logged: false, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), ...p });

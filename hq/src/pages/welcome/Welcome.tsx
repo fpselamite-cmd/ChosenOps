@@ -30,14 +30,13 @@ import {
   type Vouch,
   type WelcomeNote,
   type WelcomeSettings,
-  type WSection,
   type WStep,
 } from '../../lib/welcome';
 import PendingTab from '../admin/PendingTab';
 import { Road, stopsOf } from './Road';
 import { useAssociate, useAssociates, useWelcomeAccess, useWelcomeSettings } from './useWelcome';
 
-type View = 'road' | 'associates' | 'door' | 'guide' | 'rules' | 'setup';
+type View = 'road' | 'associates' | 'door' | 'guide' | 'setup';
 
 /** The Welcome Committee: everyone holding the role. */
 function useHandlers(): Member[] {
@@ -134,23 +133,24 @@ function MyRoad() {
   );
 }
 
-function Rules({ w }: { w: WelcomeSettings }) {
+/** The guide (the Canva slideshow), and accepting it as the rules. */
+function Guide({ w }: { w: WelcomeSettings }) {
   const { me } = useHub();
-  const { isAssoc } = useWelcomeAccess();
+  const { isAssoc, isHandler } = useWelcomeAccess();
   const ob = useDoc<{ rulesAccepted?: number }>(`onboarding/${me.id}`);
   const accepted = (ob?.rulesAccepted ?? 0) >= w.rulesVersion;
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {isAssoc && ob?.rulesAccepted && !accepted && <p className="hud border-yellow-400/50 p-3 text-sm text-yellow-200">The rules changed since you accepted them. Read them again and accept below.</p>}
-      {w.sections.map((s, i) => (
-        <Panel key={i} title={s.title}>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-ash">{s.body}</p>
-        </Panel>
-      ))}
+    <div className="space-y-5">
+      {isAssoc && ob?.rulesAccepted && !accepted && <p className="hud border-yellow-400/50 p-3 text-sm text-yellow-200">The guide changed since you accepted it. Go through it again and accept below.</p>}
+      {w.canva ? (
+        <CanvaGuide src={w.canva} />
+      ) : (
+        <p className="hud p-6 text-center text-sm text-smoke">{isHandler ? 'No guide yet. Paste the Canva embed link in Setup.' : 'The guide isn’t up yet. Ask your handler.'}</p>
+      )}
       {isAssoc && (
         <div className="hud flex flex-wrap items-center gap-3 p-4">
           <ScrollText className="size-5 text-gold-300" />
-          <p className="flex-1 text-sm">{accepted ? 'You’ve accepted the rules.' : 'Read all of it? Accepting means you’ll be held to it.'}</p>
+          <p className="flex-1 text-sm">{accepted ? 'You’ve gone through the guide and accepted the rules.' : 'Gone through the whole guide? Accepting means you’ll be held to it.'}</p>
           {!accepted && (
             <button className="btn-gold" onClick={() => acceptRules(me, w.rulesVersion)}>
               I accept the rules
@@ -373,7 +373,6 @@ function Associates() {
 
 function Setup({ w }: { w: WelcomeSettings }) {
   const [steps, setSteps] = useState<WStep[]>(w.steps);
-  const [sections, setSections] = useState<WSection[]>(w.sections);
   const [rep, setRep] = useState(w.repTarget);
   const [again, setAgain] = useState(false);
   const [paste, setPaste] = useState('');
@@ -428,28 +427,6 @@ function Setup({ w }: { w: WelcomeSettings }) {
           </Field>
         </div>
       </Panel>
-      <Panel title="Rules & info">
-        <div className="space-y-4">
-          {sections.map((s, i) => (
-            <div key={i} className="space-y-1.5 border border-line-soft p-3">
-              <div className="flex gap-2">
-                <input className="input py-1 text-sm font-bold" value={s.title} maxLength={60} onChange={(e) => setSections(sections.map((x, k) => (k === i ? { ...x, title: e.target.value } : x)))} />
-                <button className="text-smoke hover:text-red-300" onClick={() => setSections(sections.filter((_, k) => k !== i))} aria-label="Remove">
-                  <Trash2 className="size-3.5" />
-                </button>
-              </div>
-              <textarea className="input min-h-32 text-sm" value={s.body} maxLength={6000} onChange={(e) => setSections(sections.map((x, k) => (k === i ? { ...x, body: e.target.value } : x)))} />
-            </div>
-          ))}
-          <button className="btn-ghost btn-sm" onClick={() => setSections([...sections, { title: 'New section', body: '' }])} disabled={sections.length >= 20}>
-            <Plus className="size-3.5" /> Add a section
-          </button>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
-            Big change: associates must accept the rules again
-          </label>
-        </div>
-      </Panel>
       <Panel title="Guide · a Canva design" className="xl:col-span-2">
         <Field
           label="Canva embed link"
@@ -464,6 +441,10 @@ function Setup({ w }: { w: WelcomeSettings }) {
         {canvaOk === 'edit' && <p className="mt-2 text-sm text-red-300">That’s an edit link: anyone who sees the page could change your design. Use the embed link instead (Share → More → Embed).</p>}
         {canvaOk === null && <p className="mt-2 text-sm text-red-300">That doesn’t look like a Canva design link.</p>}
         {canvaOk && canvaOk !== 'edit' && <p className="mt-2 text-xs text-ok">Looks good. Save to show it on the Guide tab.</p>}
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={again} onChange={(e) => setAgain(e.target.checked)} />
+          Big change: associates must go through the guide and accept again
+        </label>
       </Panel>
       <div className="flex items-center justify-end gap-3 xl:col-span-2">
         {saved && <span className="text-sm text-ok">Saved</span>}
@@ -475,7 +456,7 @@ function Setup({ w }: { w: WelcomeSettings }) {
               canva: canvaOk || '',
               steps: steps.filter((s) => s.title.trim()).map((s) => ({ id: s.id, title: s.title.trim(), ...(s.detail?.trim() ? { detail: s.detail.trim() } : {}), ...(s.final ? { final: true } : {}) })),
               checklistV: w.checklistV ?? CHECKLIST_VERSION,
-              sections: sections.filter((s) => s.title.trim() || s.body.trim()),
+              sections: w.sections,
               repTarget: rep,
               rulesVersion: w.rulesVersion + (again ? 1 : 0),
             });
@@ -529,11 +510,12 @@ export default function Welcome() {
     ...(access.isAssoc ? [{ id: 'road' as View, label: 'My road' }] : []),
     ...(access.isHandler ? [{ id: 'associates' as View, label: `Associates · ${assoc.length}` }] : []),
     ...(access.canDoor ? [{ id: 'door' as View, label: `At the door${door ? ` · ${door}` : ''}` }] : []),
-    ...(w.canva ? [{ id: 'guide' as View, label: 'Guide' }] : []),
-    { id: 'rules', label: 'Rules & info' },
+    { id: 'guide', label: 'Guide' },
     ...(access.isHandler ? [{ id: 'setup' as View, label: 'Setup' }] : []),
   ];
-  const view = tabs.find((t) => t.id === params.get('tab'))?.id ?? tabs[0]!.id;
+  // Old "rules" links land on the guide, which replaced it.
+  const asked = params.get('tab') === 'rules' ? 'guide' : params.get('tab');
+  const view = tabs.find((t) => t.id === asked)?.id ?? tabs[0]!.id;
   return (
     <>
       <PageHeader
@@ -548,8 +530,7 @@ export default function Welcome() {
       {view === 'road' && <MyRoad />}
       {view === 'associates' && <Associates />}
       {view === 'door' && <PendingTab />}
-      {view === 'guide' && w.canva && <CanvaGuide src={w.canva} />}
-      {view === 'rules' && <Rules w={w} />}
+      {view === 'guide' && <Guide w={w} />}
       {view === 'setup' && <Setup key={JSON.stringify(w)} w={w} />}
     </>
   );

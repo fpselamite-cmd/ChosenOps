@@ -27,7 +27,7 @@ interface Stop {
 /** The milestones in order; the first one not done is where they are now. */
 export function stopsOf(w: WelcomeSettings, p: Progress, ob: Onboarding | null | undefined, memberId: string): Stop[] {
   const raw: (Omit<Stop, 'state'> & { done: boolean; waiting?: boolean })[] = [
-    { id: 'rules', label: 'The rules', sub: p.rules ? 'Accepted' : 'Read and accept', done: p.rules, to: '/welcome?tab=rules' },
+    { id: 'rules', label: 'The guide', sub: p.rules ? 'Accepted' : 'Go through and accept', done: p.rules, to: '/welcome?tab=guide' },
     { id: 'sheet', label: 'Character sheet', sub: p.sheet ? 'Filled in' : 'Fill it in', done: p.sheet, to: `/members/${memberId}` },
     { id: 'tasks', label: 'Operations', sub: `${p.tasksDone} of ${w.steps.length} signed off`, done: p.tasksDone >= w.steps.length, waiting: p.pending > 0 },
     ...(w.repTarget ? [{ id: 'rep', label: `${w.repTarget.toLocaleString()} rep`, sub: `${Math.min(p.rep, w.repTarget).toLocaleString()} / ${w.repTarget.toLocaleString()}`, done: p.repDone, to: '/petty-crime' }] : []),
@@ -294,7 +294,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
           </div>
           <ul className="hud divide-y divide-line-soft">
             {[
-              { id: 'rules', title: 'Read and accept the rules', done: p.rules, to: '/welcome?tab=rules' },
+              { id: 'rules', title: 'Go through the guide and accept the rules', done: p.rules, to: '/welcome?tab=guide' },
               { id: 'sheet', title: 'Fill in your character sheet', done: p.sheet, to: `/members/${memberId}` },
               ...(w.repTarget ? [{ id: 'rep', title: `Earn ${w.repTarget.toLocaleString()} rep (${Math.min(p.rep, w.repTarget).toLocaleString()} so far)`, done: p.repDone, to: '/petty-crime' }] : []),
               { id: 'rec', title: ob?.recommended ? `Recommended to High Table by ${ob.recommended.byName}` : 'Get recommended to High Table', done: !!ob?.recommended },
