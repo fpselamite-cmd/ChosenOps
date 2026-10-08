@@ -65,7 +65,7 @@ export function Panel({
   );
 }
 
-/** Big number tile for dashboards and crew stats. */
+/** Big number tile for dashboards and stats. */
 export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
   return (
     <div className="hud px-4 py-3">

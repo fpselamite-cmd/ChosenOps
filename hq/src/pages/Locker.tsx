@@ -227,7 +227,7 @@ function TakeDialog({ locker, onClose }: { locker: LockerApi; onClose: () => voi
             toast.done({ text: `Signed out ${got} × ${t.label} from ${locLabel(from)}.` });
             onClose();
           } catch {
-            setError('You can only take from stashes your rank or crew lets you work.');
+            setError('You can only take from stashes your rank or role lets you work.');
           }
         }}
       >

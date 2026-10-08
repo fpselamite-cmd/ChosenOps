@@ -87,7 +87,7 @@ function NoFileYet() {
   );
 }
 
-/** Sends people back to the Dashboard if their rank and crews don't open this page. */
+/** Sends people back to the Dashboard if their rank and roles don't open this page. */
 /** Old Narcotics links: NoelOps runs the grows and cooks now, so open it in a new tab. */
 function OpenNoelOps() {
   useEffect(() => {
@@ -166,7 +166,6 @@ function MemberRoutes() {
           }
         />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
-        <Route path="crews" element={<Navigate to="/family" replace />} />
         <Route path="locker" element={<Locker />} />
         <Route path="members/:id" element={<Profile />} />
         <Route path="family" element={<Gate page="family"><Family /></Gate>} />

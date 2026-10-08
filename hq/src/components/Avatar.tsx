@@ -13,7 +13,7 @@ export function Avatar({
   member?: Pick<Member, 'name' | 'avatar'> | null;
   size?: keyof typeof SIZES;
   online?: boolean;
-  /** Crew color ring. */
+  /** A colored ring around the picture. */
   ring?: string;
 }) {
   const name = member?.name ?? '?';

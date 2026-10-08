@@ -61,7 +61,7 @@ function useItems() {
 // ---------- log / edit ----------
 
 function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void }) {
-  const { me, roster, crews, memberById } = useHub();
+  const { me, roster, memberById } = useHub();
   const { storage, locLabel } = useNarcotics();
   const { types, byId } = useItems();
   const pins = (useVisible<Pin>('pins') ?? []).filter((p) => p.type === 'blacksite');
@@ -225,11 +225,6 @@ function LogDialog({ site, onClose }: { site?: Blacksite; onClose: () => void })
                   ))}
                 </select>
               )}
-              {crews.map((c) => (
-                <button key={c.id} type="button" className="chip px-2 py-1 text-[11px]" style={{ border: `1px solid ${c.color}66`, color: c.color }} onClick={() => setWho(new Set([...who, ...c.memberIds]))}>
-                  + {c.name}
-                </button>
-              ))}
             </span>
           </div>
           <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto border border-line-soft p-2">

@@ -1,7 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useCollection } from '../hooks/useCollection';
-import { useHub } from '../hooks/useHub';
 import { NOEL_MAIN, hqIdOf, setKnownBuckets, useNoel, type NoelBucket, type NoelGrow, type NoelStash } from '../lib/noelops';
 import { BRICK_SIZE, BUD_FIELDS, MAIN_STASH, ROOT_FIELDS, STRAINS, budCell, toCount, type BudCell, type OpsLocation, type RootField, type StockDoc, type StrainId } from './data';
 
@@ -108,7 +107,6 @@ function noelPlaces(main: { name?: string; excludeTotals?: boolean } | null | un
 }
 
 export function NarcoticsProvider({ children }: { children: ReactNode }) {
-  const { myCrews } = useHub();
   const hqLocations = useCollection<OpsLocation>('locations');
   const hqStock = useCollection<StockDoc>('stock');
   const nStock = useNoel<Record<string, NoelBucket>>('stock');
@@ -168,8 +166,8 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
       } else if (hq) stock.set(l.id, hq);
     }
 
-    const mine = new Set(myCrews.map((c) => c.id));
-    const visible = (l: OpsLocation) => crewFilter === 'all' || !mine.size || !l.crewId || mine.has(l.crewId);
+    // Crews are gone from HQ, so every location shows.
+    const visible = (l: OpsLocation) => !!l;
     const hasStock = (id: string) => {
       const t = sumStock([stock.get(id)]);
       return t.bricks + t.trimmed + t.untrimmed + t.coca + t.cokeSmall + t.cokeLarge + t.meth > 0 || Object.values(stock.get(id)?.items ?? {}).some((v) => toCount(v));
@@ -201,7 +199,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         return l.kind === 'grow' ? `Postal ${l.postal ?? l.name}` : l.name;
       },
     };
-  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter, myCrews]);
+  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -21,9 +21,9 @@ const RANKS = [
   ['associate', 'Associate', false, {}],
 ];
 const ALL = { approveMembers: true, manageMembers: true, resetPins: true, manageCrews: true, manageRanks: true, manageSettings: true, postAnnouncements: true, confirmRep: true, manageOps: true, money: true, awardTrophies: true, familyCards: true, washMoney: true };
-const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'crews', 'family', 'map', 'calendar'];
+const PAGE_IDS = ['narcotics', 'stash', 'blackmarket', 'blacksites', 'gear', 'pettycrime', 'family', 'map', 'calendar'];
 const pages = (ids) => Object.fromEntries(ids.map((p) => [p, true]));
-const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'crews', 'family']);
+const BASIC = pages(['blacksites', 'gear', 'pettycrime', 'family']);
 
 // [name, rank, reportsTo, online status or null, alias]
 const PEOPLE = [
@@ -97,23 +97,11 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
   await setDoc(doc(db, 'names', 'fresh_face'), { uid: ids['Fresh Face'], v: 0 });
 
-  const crew = (id, name, tag, color, leader, members, motto, unlocks) =>
-    setDoc(doc(db, 'crews', id), {
-      name, tag, color, motto, emblem: null, leaderId: ids[leader], memberIds: members.map((m) => ids[m]), pages: pages(unlocks), createdAt: Timestamp.now(),
-    });
-  await crew('grow', 'Green Room', 'GRN', '#27ae60', 'Marco Gallo', ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], 'Patience pays.', ['narcotics', 'map']);
-  await crew('hit', 'Hit Squad', 'HIT', '#c0392b', 'Rocco Vale', ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], 'Hold the hill.', ['map', 'calendar', 'stash']);
-  await crew('cook', 'Blue Kitchen', 'BLU', '#2e86de', 'Nico Bruno', ['Nico Bruno', 'Jax Holt', 'Mia Santos'], 'Purity first.', ['narcotics']);
-  await crew('money', 'Counting Room', 'CNT', '#d4af37', 'Lena Russo', ['Lena Russo', 'Mia Santos', 'Don Vito'], '', ['blackmarket']);
-
-  // Crew lists on member files (the app keeps these in sync), birthdays and a couple of old hands.
-  const CREWS = { grow: ['Marco Gallo', 'Ghost', 'Jax Holt', 'Kira Lane'], hit: ['Rocco Vale', 'Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Nico Bruno'], cook: ['Nico Bruno', 'Jax Holt', 'Mia Santos'], money: ['Lena Russo', 'Mia Santos', 'Don Vito'] };
+  // Birthdays and a couple of old hands.
   const BDAYS = { 'Don Vito': '10-18', 'Rocco Vale': '10-09', 'Kira Lane': '10-24', 'Ghost': '11-02', 'Lena Russo': '03-14' };
   const etParts = (ms) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(ms).map((x) => [x.type, +x.value || x.value]));
   for (const [name] of PEOPLE) {
-    const patch = { crewIds: Object.entries(CREWS).filter(([, l]) => l.includes(name)).map(([c]) => c).sort() };
-    if (BDAYS[name]) patch.birthday = BDAYS[name];
-    await setDoc(doc(db, 'members', ids[name]), patch, { merge: true });
+    if (BDAYS[name]) await setDoc(doc(db, 'members', ids[name]), { birthday: BDAYS[name] }, { merge: true });
   }
   const t0 = etParts(now);
   await setDoc(doc(db, 'members', ids['Don Vito']), { admin: true, joinedAt: Timestamp.fromMillis(Date.UTC(t0.year - 2, 9, 12, 16)) }, { merge: true });
@@ -159,9 +147,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   const loc = (id, data) => setDoc(doc(db, 'locations', id), { crewId: null, excludeTotals: false, ...data, ...sign });
   // Stash houses and grows live in NoelOps; the HQ keeps its extras (crew, postal) and the items.
   await loc('main', { kind: 'stash', name: 'Main Stash', postal: '8021', order: 0 });
-  await loc('noel_basement', { kind: 'stash', name: "Tempest's Basement", postal: '9359', crewId: 'cook' });
-  await loc('noel_lockup', { kind: 'stash', name: 'Docks Lockup', postal: '10060', crewId: 'hit' });
-  for (const g of ['g7078', 'g9182', 'g9043']) await loc(g, { kind: 'grow', name: g, crewId: 'grow' });
+  await loc('noel_basement', { kind: 'stash', name: "Tempest's Basement", postal: '9359' });
+  await loc('noel_lockup', { kind: 'stash', name: 'Docks Lockup', postal: '10060' });
+  for (const g of ['g7078', 'g9182', 'g9043']) await loc(g, { kind: 'grow', name: g });
   const bud = (bricks, trimmed, untrimmed) => ({ bricks, trimmed, untrimmed });
   await setDoc(doc(db, 'stock', 'main'), {
     items: { g_50_pistol: 6, g_carbine_rifle: 3, w_mk18_rifle: 2, w_m700_rifle: 1, a_block_17_pistol__b17_20rd_extended: 8, a_mk18_rifle__mk18_ta02_acog: 4, ammo_5_56x45mm_box: 6, ammo_5_56x45mm_rnd: 1200, ammo_9x19mm_box: 10, ammo_12_gauge_box: 4, ar_class_iii_armor: 10, ar_armor_plate: 24, s_weapon_repair_kit: 5, m_knife: 3, lockpick: 15 },
@@ -355,13 +343,13 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await pin('p1', 'Marco Gallo', 'Leon VW grow', 'grow', 0.52, 0.71, 'gang', { postal: '7078', note: 'Knock twice.' });
   await pin('p2', 'Marco Gallo', 'Leon JT grow', 'grow', 0.61, 0.66, 'gang', { postal: '9182' });
   await pin('p3', 'Don Vito', 'Main Stash', 'stash', 0.44, 0.78, 'limited', { ranks: [...LEAD, 'caporegime', 'lieutenant'], minRank: 'lieutenant', note: 'Lieutenant and up only.', postal: '8021', access: 'Keypad 4471 · back door key with Lena', stashId: 'main', at: Timestamp.fromMillis(now - 3 * D) });
-  await pin('p4', 'Nico Bruno', 'Blue Kitchen lab', 'lab', 0.70, 0.40, 'limited', { ranks: LEAD, crewIds: ['cook'], note: 'Cook crew + leadership.' });
+  await pin('p4', 'Nico Bruno', 'Blue Kitchen lab', 'lab', 0.70, 0.40, 'limited', { ranks: LEAD, note: 'Leadership only.' });
   await pin('p5', 'Rocco Vale', 'Docks blacksite', 'blacksite', 0.38, 0.88, 'gang', { note: 'King of the Hill zone. Friday 9PM.' });
   await pin('p6', 'Rocco Vale', 'Ballas block', 'rival', 0.56, 0.84, 'gang', { note: 'Stay off after dark.' });
   await pin('p7', 'Don Vito', 'Our corner', 'turf', 0.48, 0.74, 'gang');
   await pin('p8', 'Don Vito', 'Pier meet', 'meet', 0.31, 0.80, 'gang', { note: 'Buyers meet here.' });
   await pin('p9', 'Don Vito', 'My safehouse', 'other', 0.66, 0.22, 'personal', { note: 'Only I see this one.' });
-  await pin('p10', 'Lena Russo', 'Laundromat', 'shop', 0.53, 0.77, 'limited', { ranks: LEAD, crewIds: ['money'], note: 'Washes at 50%.' });
+  await pin('p10', 'Lena Russo', 'Laundromat', 'shop', 0.53, 0.77, 'limited', { ranks: LEAD, note: 'Washes at 50%.' });
 
   // Calendar
   const at = (daysFromNow, h, m = 0) => { const p = etParts(now + daysFromNow * D); return Timestamp.fromMillis(Date.UTC(p.year, p.month - 1, p.day, h + 4, m)); };
@@ -370,11 +358,11 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await ev('e1', 'Don Vito', 'Family sit-down', 'meeting', at(-6, 20), 60, 'weekly', 'gang', { place: 'The Yacht', note: 'Weekly. Bring numbers.', rsvp: { [ids['Don Vito']]: 'yes', [ids['Sal Moretti']]: 'yes', [ids['Lena Russo']]: 'yes', [ids['Rocco Vale']]: 'maybe', [ids['Ghost']]: 'no' } });
   await ev('e2', 'Rocco Vale', 'Docks blacksite', 'blacksite', at(3, 21), 120, 'none', 'gang', { place: 'Docks blacksite', pinId: 'spot:sp_docks', note: 'Hit Squad leads, everyone else on standby. Bring armor.', rsvp: { [ids['Rocco Vale']]: 'yes', [ids['Dani Cruz']]: 'yes', [ids['Tommy Reyes']]: 'yes', [ids['Kira Lane']]: 'maybe' } });
   await ev('e3', 'Don Vito', 'Leadership: territory talk', 'meeting', at(1, 19), 60, 'none', 'limited', { ranks: LEAD, note: 'Leadership only.' });
-  await ev('e4', 'Marco Gallo', 'Coca leaves harvest', 'op', at(-2, 18), 60, 'weekly', 'limited', { ranks: LEAD, crewIds: ['grow'] });
+  await ev('e4', 'Marco Gallo', 'Coca leaves harvest', 'op', at(-2, 18), 60, 'weekly', 'limited', { ranks: LEAD });
   await ev('e5', 'Lena Russo', 'Payout day', 'other', at(-5, 17), 30, 'biweekly', 'gang', { place: 'Laundromat' });
   await ev('e8', 'Don Vito', 'Buyer meet', 'meeting', at(2, 22), 30, 'none', 'gang', { place: 'Pier meet', pinId: 'p8' });
   await ev('e9', 'Sal Moretti', 'Quick sit-down', 'meeting', Timestamp.fromMillis(now + 40 * 60_000), 30, 'none', 'gang', { place: 'Pier meet', pinId: 'p8', rsvp: { [ids['Sal Moretti']]: 'yes', [ids['Don Vito']]: 'yes', [ids['Rocco Vale']]: 'maybe' } });
-  await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD, crewIds: ['hit'] });
+  await ev('e6', 'Kira Lane', 'Fleeca job', 'heist', at(8, 22), 90, 'none', 'limited', { ranks: LEAD });
   await ev('e7', 'Mia Santos', 'Rooftop party', 'party', at(10, 23), 240, 'none', 'gang', { place: 'Vinewood rooftop' });
 
   // Blacksites
@@ -839,4 +827,4 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   });
 });
 await env.cleanup();
-console.log(`Seeded ${PEOPLE.length + 1} members and 4 crews. Sign in as "Don Vito" / ${PIN}.`);
+console.log(`Seeded ${PEOPLE.length + 1} members. Sign in as "Don Vito" / ${PIN}.`);

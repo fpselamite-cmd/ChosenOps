@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { useHub } from '../hooks/useHub';
 import { ago } from '../lib/format';
 import { Avatar } from './Avatar';
-import { CrewChip, RankBadge } from './Badges';
+import { RankBadge } from './Badges';
 import { Modal } from './Modal';
 
 /** Header pill: who's on right now. Opens the full list. */
 export function WhoIsOnline() {
-  const { roster, isOnline, presence, rankById, crewsOf } = useHub();
+  const { roster, isOnline, presence, rankById } = useHub();
   const [open, setOpen] = useState(false);
   const online = roster.filter((m) => isOnline(m.id));
   const offline = roster.filter((m) => !isOnline(m.id));
@@ -52,9 +52,6 @@ export function WhoIsOnline() {
                           </span>
                         </span>
                         <span className="flex flex-wrap justify-end gap-1">
-                          {crewsOf(m.id).slice(0, 2).map((c) => (
-                            <CrewChip key={c.id} crew={c} link={false} />
-                          ))}
                           <RankBadge rank={rankById.get(m.rankId ?? '')} />
                         </span>
                       </Link>

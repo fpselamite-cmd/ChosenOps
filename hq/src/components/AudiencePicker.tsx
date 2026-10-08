@@ -2,9 +2,9 @@ import { Lock, ShieldHalf, Users } from 'lucide-react';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, ranksFrom, type AudienceDraft, type Scope } from '../lib/audience';
 
-/** Just me / the family / limited to ranks and crews. `limited` can be switched off (non-leadership on the map). */
+/** Just me / the family / limited to ranks. `limited` can be switched off (non-leadership on the map). */
 export function AudiencePicker({ value, onChange, limited = true }: { value: AudienceDraft; onChange: (v: AudienceDraft) => void; limited?: boolean }) {
-  const { ranks, crews, rankById, crewById } = useHub();
+  const { ranks, rankById } = useHub();
   const set = (patch: Partial<AudienceDraft>) => {
     const next = { ...value, ...patch };
     next.ranks = next.scope === 'limited' ? ranksFrom(ranks, next.minRank) : [];
@@ -43,30 +43,9 @@ export function AudiencePicker({ value, onChange, limited = true }: { value: Aud
               ))}
             </select>
           </label>
-          {crews.length > 0 && (
-            <div>
-              <span className="label">Plus these crews</span>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {crews.map((c) => {
-                  const on = value.crewIds.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => set({ crewIds: on ? value.crewIds.filter((x) => x !== c.id) : [...value.crewIds, c.id].slice(0, 10) })}
-                      className="chip px-2.5 py-1 text-xs"
-                      style={on ? { background: c.color, color: '#0a0a0b' } : { border: `1px solid ${c.color}66`, color: c.color }}
-                    >
-                      {c.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       )}
-      <p className="text-xs text-smoke">Who sees it: {audienceLabel(value, rankById, crewById)}</p>
+      <p className="text-xs text-smoke">Who sees it: {audienceLabel(value, rankById)}</p>
     </div>
   );
 }

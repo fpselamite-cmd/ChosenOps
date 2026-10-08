@@ -3,7 +3,7 @@ import { db } from './firebase';
 
 /**
  * A member's character sheet: everything they write about their character.
- * Rank, crews, join date and the game numbers aren't here; the app keeps those.
+ * Rank, join date and the game numbers aren't here; the app keeps those.
  */
 export interface Sheet {
   id: string;

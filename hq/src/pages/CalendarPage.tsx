@@ -60,7 +60,7 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
   const pins = useVisible<Pin>('pins') ?? [];
   const spots = (useCollection<Spot>('blacksiteSpots') ?? []).filter((x) => x.x != null);
   const [note, setNote] = useState(event?.note ?? '');
-  const [aud, setAud] = useState<AudienceDraft>(event ? { scope: event.scope, ranks: event.ranks, crewIds: event.crewIds, minRank: event.minRank ?? null } : { ...GANG });
+  const [aud, setAud] = useState<AudienceDraft>(event ? { scope: event.scope, ranks: event.ranks, crewIds: [], minRank: event.minRank ?? null } : { ...GANG });
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -177,7 +177,7 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
 }
 
 function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void }) {
-  const { me, isLead, can, memberById, rankById, crewById } = useHub();
+  const { me, isLead, can, memberById, rankById } = useHub();
   const e = o.event;
   const lead = isLead || can('manageEvents');
   const canEdit = e && (e.owner === me.id || (lead && e.scope !== 'personal'));
@@ -222,7 +222,7 @@ function EventCard({ o, onEdit }: { o: Occurrence; onEdit: (e: CalEvent) => void
                 {REPEATS.find((r) => r.id === e.repeat)?.label}
               </span>
             )}
-            {e && <span>{audienceLabel(e, rankById, crewById)}</span>}
+            {e && <span>{audienceLabel(e, rankById)}</span>}
           </p>
         </div>
         {canEdit && (

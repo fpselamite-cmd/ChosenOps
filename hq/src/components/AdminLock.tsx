@@ -18,7 +18,12 @@ import { ErrorText, Field } from './Field';
 import { Modal } from './Modal';
 
 /** The quiet gold lock in the footers. No label: only people who know what it is use it. */
-export function AdminLock({ signedIn }: { signedIn?: { id: string; admin?: boolean } }) {
+/**
+ * The little lock in the footer: the only way into Admin. Anyone whose rank or roles let them run
+ * part of Admin gets an Open Admin button; full admin access still needs the admin password.
+ * `badge` is how many things in Admin are waiting.
+ */
+export function AdminLock({ signedIn, canOpen, badge = 0 }: { signedIn?: { id: string; admin?: boolean }; canOpen?: boolean; badge?: number }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
@@ -94,10 +99,14 @@ export function AdminLock({ signedIn }: { signedIn?: { id: string; admin?: boole
       <button
         type="button"
         onClick={() => (setOpen(true), setDone(false), setError(null))}
-        className="inline-grid size-6 place-items-center rounded-full text-gold-600/70 transition hover:text-gold-300 hover:drop-shadow-[0_0_6px_rgb(var(--acc-hi)/0.8)]"
-        aria-label="Lock"
+        className="relative inline-grid size-6 place-items-center rounded-full text-gold-600/70 transition hover:text-gold-300 hover:drop-shadow-[0_0_6px_rgb(var(--acc-hi)/0.8)]"
+        aria-label={badge ? `Admin · ${badge} waiting` : 'Lock'}
+        title={canOpen || signedIn?.admin ? 'Admin' : undefined}
       >
         <Lock className="size-3" />
+        {!!badge && (
+          <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-red-500/90 px-1 text-center font-mono text-[9px] leading-4 font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.6)]">{badge}</span>
+        )}
       </button>
       {open && (
         <Modal title="Admin" onClose={() => setOpen(false)}>
@@ -128,6 +137,15 @@ export function AdminLock({ signedIn }: { signedIn?: { id: string; admin?: boole
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-4">
+              {signedIn && canOpen && (
+                <div className="space-y-3 border-b border-line-soft pb-4">
+                  <p className="text-sm text-ash">Your rank lets you run parts of Admin.{badge ? ` ${badge} thing${badge === 1 ? ' is' : 's are'} waiting.` : ''}</p>
+                  <Link to="/admin" className="btn-gold" onClick={() => setOpen(false)}>
+                    Open Admin
+                  </Link>
+                  <p className="text-xs text-smoke">Full admin access needs the admin password:</p>
+                </div>
+              )}
               {!signedIn && (
                 <>
                   <Field label="Name">
