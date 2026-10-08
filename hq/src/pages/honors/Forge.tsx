@@ -1,11 +1,12 @@
 import { Timestamp } from 'firebase/firestore';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, Plus, Star, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Field } from '../../components/Field';
-import { HonorPic, ICONS, RarityChip } from '../../components/HonorArt';
+import { Badge, HonorPic, ICONS, RarityChip } from '../../components/HonorArt';
+import { FORM_LABEL, formFor, Medal, MEDAL_FORMS, METALS } from '../../components/Medal';
 import { Modal } from '../../components/Modal';
 import { useHub } from '../../hooks/useHub';
-import { approveHonor, BADGE_SHAPES, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, statsFor, type Honor, type HonorKind } from '../../lib/honors';
+import { approveHonor, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, statsFor, type Honor, type HonorKind } from '../../lib/honors';
 import { useHonors } from './useHonors';
 
 type Draft = Omit<Honor, 'at'>;
@@ -128,15 +129,30 @@ function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {
                   ))}
                 </div>
               </Field>
-              <Field label="Shape">
-                <div className="flex gap-2">
-                  {BADGE_SHAPES.map((s) => (
-                    <button key={s} type="button" onClick={() => setX({ ...x, shape: s })} className={`chip px-3 py-1 text-xs capitalize ${x.shape === s ? 'border-gold-400 text-gold-200' : 'text-smoke'}`}>
-                      {s}
+              <Field label="Medal" hint="Its tier sets the metal: iron, bronze, silver, gold, jeweled gold, prismatic.">
+                <div className="flex flex-wrap gap-2">
+                  {MEDAL_FORMS.map((f) => (
+                    <button key={f} type="button" onClick={() => setX({ ...x, form: f })} title={FORM_LABEL[f]} className={`flex flex-col items-center gap-1 border p-1.5 text-[10px] ${formFor(x) === f ? 'border-gold-400 text-gold-200' : 'border-line text-smoke'}`}>
+                      <Medal form={f} rarity={x.rarity} icon={ICONS[x.icon ?? ''] ?? Star} size={40} />
+                      {FORM_LABEL[f]}
                     </button>
                   ))}
                 </div>
               </Field>
+              <Field label="Ribbon colors">
+                <div className="flex items-center gap-3">
+                  <input type="color" value={(x.ribbon ?? METALS[x.rarity].ribbon)[0]} onChange={(e) => setX({ ...x, ribbon: [e.target.value, (x.ribbon ?? METALS[x.rarity].ribbon)[1]] })} aria-label="Ribbon color 1" />
+                  <input type="color" value={(x.ribbon ?? METALS[x.rarity].ribbon)[1]} onChange={(e) => setX({ ...x, ribbon: [(x.ribbon ?? METALS[x.rarity].ribbon)[0], e.target.value] })} aria-label="Ribbon color 2" />
+                  {x.ribbon && (
+                    <button type="button" className="text-xs text-smoke hover:text-gold-200" onClick={() => setX({ ...x, ribbon: null })}>
+                      Use the tier's colors
+                    </button>
+                  )}
+                </div>
+              </Field>
+              <div className="flex justify-center rounded border border-line-soft bg-black/30 p-4">
+                <Badge h={x} size={110} ribbon />
+              </div>
             </>
           )}
           {x.kind === 'frame' && (

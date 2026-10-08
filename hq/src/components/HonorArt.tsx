@@ -22,7 +22,6 @@ import {
   Ghost,
   HandCoins,
   Heart,
-  HelpCircle,
   Landmark,
   MessageCircle,
   Moon,
@@ -45,21 +44,15 @@ import type { CSSProperties, ReactNode } from 'react';
 import { rarityOf, type Honor, type Rarity } from '../lib/honors';
 import type { Member } from '../lib/types';
 import { Avatar } from './Avatar';
+import { formFor, Medal } from './Medal';
 
 export const ICONS: Record<string, LucideIcon> = { Skull, Crown, Swords, Crosshair, Flag, Star, Package, Car, Sprout, FlaskConical, Box, Gem, WashingMachine, HandCoins, Utensils, CalendarDays, Flame, Landmark, Coins, Feather, Eye, Target, MessageCircle, Shield, Heart, Moon, Rose, Zap, Trophy, Ghost, Spade, Club, Diamond, Dices, Cherry, Vote, Cake, PartyPopper };
 
 const vars = (r: Rarity, extra: CSSProperties = {}) => ({ '--rar': rarityOf(r).color, ...extra }) as CSSProperties;
 
-/** A badge: its icon on a gem, shield or hex in the rarity's color. Higher tiers glow, shimmer, burn. */
-export function Badge({ h, size = 64, locked }: { h: Pick<Honor, 'icon' | 'shape' | 'rarity'>; size?: number; locked?: boolean }) {
-  const Icon = locked ? HelpCircle : (ICONS[h.icon ?? ''] ?? Star);
-  return (
-    <span className={`hb-badge hb-${h.shape ?? 'gem'} rar-${h.rarity} ${locked ? 'locked' : ''}`} style={vars(h.rarity, { width: size, height: size })}>
-      <span className="hb-badge-face">
-        <Icon style={{ width: size * 0.42, height: size * 0.42 }} strokeWidth={1.8} />
-      </span>
-    </span>
-  );
+/** A badge: a keepsake medal in its form and its tier's metal, with its icon engraved. Bigger ones hang from a ribbon. */
+export function Badge({ h, size = 64, locked, ribbon }: { h: Pick<Honor, 'icon' | 'shape' | 'rarity'> & Partial<Pick<Honor, 'id' | 'form' | 'ribbon'>>; size?: number; locked?: boolean; ribbon?: boolean }) {
+  return <Medal form={formFor(h)} rarity={h.rarity} icon={ICONS[h.icon ?? ''] ?? Star} size={size} locked={locked} ribbon={ribbon ?? size >= 88} ribbonColors={h.ribbon ?? null} />;
 }
 
 const ORNAMENTS: Record<string, { icon: LucideIcon; n: number } | null> = {
