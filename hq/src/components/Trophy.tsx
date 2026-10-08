@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Tier, TrophyDesign } from '../lib/trophies';
 
 /** Metal stops per tier: dark edge → light → highlight → mid → dark edge. */
@@ -12,7 +12,7 @@ const METALS: Record<Tier, { stops: string[]; trim: string; ink: string }> = {
 const ROMAN = ['', 'I', 'II', 'III', 'IV'];
 
 /** The figure for each design, drawn in a 100×100 box. `m` is the metal fill, `t` the trim colour, `k` the dark detail colour. */
-function Figure({ design, m, t, k }: { design: TrophyDesign; m: string; t: string; k: string }) {
+export function Figure({ design, m, t, k }: { design: TrophyDesign; m: string; t: string; k: string }) {
   const s = { stroke: t, strokeWidth: 1.6, strokeLinejoin: 'round' as const };
   switch (design) {
     case 'cup':
@@ -286,6 +286,25 @@ function Figure({ design, m, t, k }: { design: TrophyDesign; m: string; t: strin
  */
 export function Trophy({ design, tier, size = 96, title }: { design: TrophyDesign; tier: Tier; size?: number; title?: string }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  // The real 3D render, once it's ready (and if this device can do WebGL); the drawing until then.
+  const [img, setImg] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    import('./trophy3d')
+      .then((r) => r.renderTrophy(design, tier))
+      .then((url) => live && setImg(url))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [design, tier]);
+  if (img)
+    return (
+      <span className={`tr tr3d tr-t${tier}`} style={{ width: size, height: size * 1.2 }}>
+        <img src={img} alt={title ?? `${design} trophy`} width={size} height={size * 1.2} draggable={false} />
+        {tier >= 3 && <span className="tr3d-glint" aria-hidden />}
+      </span>
+    );
   const metal = METALS[tier];
   const m = `url(#m${id})`;
   return (

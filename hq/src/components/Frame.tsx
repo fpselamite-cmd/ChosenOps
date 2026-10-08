@@ -242,6 +242,92 @@ function ornaments(theme: string, m: string, lo: string, hi: string, enamel: str
           </g>
         ),
       };
+    case 'filigree':
+      return {
+        front: (
+          <g fill="none" stroke={m} strokeWidth="2" strokeLinecap="round">
+            {Array.from({ length: 8 }, (_, i) => {
+              const d = i * 45;
+              const [x, y] = at(d, 50);
+              const [x1, y1] = at(d - 14, 56);
+              const [x2, y2] = at(d + 14, 56);
+              return <path key={i} d={`M${x1} ${y1} Q${x} ${y} ${x2} ${y2} M${x} ${y} m-3 0 a3 3 0 1 0 6 0 a3 3 0 1 0 -6 0`} />;
+            })}
+            <polygon points={star(60, 4, 6)} fill={m} stroke={lo} strokeWidth="0.8" />
+          </g>
+        ),
+      };
+    case 'chains':
+      return {
+        front: (
+          <g>
+            {Array.from({ length: 18 }, (_, i) => {
+              const [x, y] = at(i * 20, 50);
+              return <ellipse key={i} cx={x} cy={y} rx="5" ry="3" transform={`rotate(${i * 20 + (i % 2 ? 0 : 90)} ${x} ${y})`} fill="none" stroke={m} strokeWidth="2.4" />;
+            })}
+            <rect x="52" y="98" width="16" height="14" rx="2" fill={m} {...s} />
+            <path d="M55 98 V93 a5 5 0 0 1 10 0 V98" fill="none" stroke={m} strokeWidth="2.4" />
+          </g>
+        ),
+      };
+    case 'bullets':
+      return {
+        front: (
+          <g>
+            <path d={`M${at(150, 52).join(' ')} A52 52 0 0 0 ${at(30, 52).join(' ')}`} fill="none" stroke="#4a3520" strokeWidth="9" />
+            {Array.from({ length: 9 }, (_, i) => {
+              const d = 150 - i * 15;
+              const [x, y] = at(d, 52);
+              return (
+                <g key={i} transform={`rotate(${d + 90} ${x} ${y})`}>
+                  <rect x={x - 2.4} y={y - 9} width="4.8" height="9" fill="#b8913a" stroke="#5c4510" strokeWidth="0.5" />
+                  <path d={`M${x - 2.4} ${y - 9} Q${x} ${y - 15} ${x + 2.4} ${y - 9} Z`} fill="#c9773b" />
+                </g>
+              );
+            })}
+          </g>
+        ),
+      };
+    case 'dice': {
+      const die = (x: number, y: number, n: number, k: number) => (
+        <g key={k} transform={`rotate(${k * 17 - 20} ${x} ${y})`}>
+          <rect x={x - 8} y={y - 8} width="16" height="16" rx="3" fill="#f5f0e1" stroke={lo} strokeWidth="1" />
+          {[[-4, -4], [4, 4], [0, 0], [4, -4], [-4, 4], [-4, 0], [4, 0]].slice(0, n).map(([dx, dy], j) => (
+            <circle key={j} cx={x + dx!} cy={y + dy!} r="1.5" fill={j === 2 && n === 1 ? RED : '#111'} />
+          ))}
+        </g>
+      );
+      return { front: <g>{[die(18, 22, 5, 1), die(102, 22, 2, 2), die(20, 98, 6, 3), die(100, 98, 3, 4)]}</g> };
+    }
+    case 'moon':
+      return {
+        back: (
+          <g>
+            <path d="M60 -2 A62 62 0 1 0 122 60 A50 50 0 1 1 60 -2 Z" fill={m} {...s} transform="rotate(-30 60 60)" />
+          </g>
+        ),
+        front: (
+          <g>
+            {[[100, 18], [108, 40], [88, 6]].map(([x, y], i) => (
+              <polygon key={i} className="fr-twinkle" style={{ animationDelay: `${i * 0.6}s` }} points={star(x!, y!, 3.5)} fill="#f8e7a8" />
+            ))}
+          </g>
+        ),
+      };
+    case 'wings':
+      return {
+        back: (
+          <g>
+            {[-1, 1].map((sd) => (
+              <g key={sd} transform={sd < 0 ? '' : 'translate(120 0) scale(-1 1)'}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <path key={i} d={`M30 ${46 + i * 6} C${14 - i * 3} ${30 + i * 8} ${2 - i * 2} ${24 + i * 12} ${-4 + i * 2} ${18 + i * 16} C${8} ${40 + i * 8} ${18} ${54 + i * 6} 32 ${62 + i * 4} Z`} fill={m} {...s} opacity={1 - i * 0.08} />
+                ))}
+              </g>
+            ))}
+          </g>
+        ),
+      };
     default:
       // iron: four rivets
       return {

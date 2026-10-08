@@ -1,5 +1,6 @@
 import { deleteDoc, doc, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
+import { bigCatalog, CATALOG_ICONS } from './honorCatalog';
 
 /**
  * Honors: badges, titles, portrait frames, color hues and name effects members unlock by hitting
@@ -29,12 +30,12 @@ export const KINDS: { id: HonorKind; label: string; plural: string }[] = [
   { id: 'effect', label: 'Name effect', plural: 'Name effects' },
 ];
 
-export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards', 'stars', 'lightning', 'hearts', 'gothic', 'horns', 'neon', 'laurel', 'wax', 'band'] as const;
+export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards', 'stars', 'lightning', 'hearts', 'gothic', 'horns', 'neon', 'laurel', 'wax', 'band', 'filigree', 'chains', 'bullets', 'dice', 'moon', 'wings'] as const;
 export type FrameTheme = (typeof FRAME_THEMES)[number];
-export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism'] as const;
+export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism', 'goldleaf', 'ember', 'smoke', 'holo', 'chrome', 'toxic', 'bloodmoon', 'aurora'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
 /** Badge icons, by lucide name (see HonorArt). */
-export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry', 'Vote', 'Cake', 'PartyPopper'] as const;
+export const BADGE_ICONS = ['Skull', 'Crown', 'Swords', 'Crosshair', 'Flag', 'Star', 'Package', 'Car', 'Sprout', 'FlaskConical', 'Box', 'Gem', 'WashingMachine', 'HandCoins', 'Utensils', 'CalendarDays', 'Flame', 'Landmark', 'Coins', 'Feather', 'Eye', 'Target', 'MessageCircle', 'Shield', 'Heart', 'Moon', 'Rose', 'Zap', 'Trophy', 'Ghost', 'Spade', 'Club', 'Diamond', 'Dices', 'Cherry', 'Vote', 'Cake', 'PartyPopper', ...CATALOG_ICONS] as const;
 export const BADGE_SHAPES = ['gem', 'shield', 'hex'] as const;
 
 /** What a milestone counts. */
@@ -161,8 +162,8 @@ export interface Loadout {
   banner?: BannerSpec | null;
 }
 export interface BannerSpec {
-  shape: 'pennant' | 'standard' | 'scroll' | 'swallow';
-  pattern: 'plain' | 'stripes' | 'chevron' | 'diamonds' | 'quartered' | 'saltire';
+  shape: 'pennant' | 'standard' | 'scroll' | 'swallow' | 'tattered' | 'kite' | 'split' | 'arch';
+  pattern: 'plain' | 'stripes' | 'chevron' | 'diamonds' | 'quartered' | 'saltire' | 'bend' | 'pale' | 'fess' | 'checky' | 'bordure' | 'cross' | 'pall' | 'gyronny';
   /** An icon from a badge they own. */
   sigil: string;
   c1: string;
@@ -469,7 +470,10 @@ DEFAULT_HONORS.push(
   { ...m('f3-founding', 'frame', 'Founding Season', 'epic', 'days', 1, 'Was in the family during the Founding Season.', { theme: 'stars' }), season: 'Founding Season', endsAt: ET_END_2026 },
 );
 
-export const HONORS_VERSION = 9;
+/** Wave 8: the big catalog (ladders on every number, the chip shop's racks, High Table's wing). */
+DEFAULT_HONORS.push(...bigCatalog(m, h, (s) => STATS.find((x) => x.id === s)?.label ?? s));
+
+export const HONORS_VERSION = 10;
 
 // ---------- writes ----------
 
@@ -486,10 +490,14 @@ export const whenMs = (t: unknown): number | null => {
   return typeof v.toMillis === 'function' ? v.toMillis() : typeof v.seconds === 'number' ? v.seconds * 1000 : null;
 };
 export async function setUpHonors(have: Set<string> = new Set()) {
-  const b = writeBatch(db);
-  DEFAULT_HONORS.filter((x) => !have.has(x.id)).forEach((x) => b.set(doc(db, 'honors', x.id), { ...store(x), at: serverTimestamp() }));
-  b.set(doc(db, 'settings', 'honors'), { setUp: true, version: HONORS_VERSION });
-  await b.commit();
+  // A batch takes at most 500 writes, so the catalog goes in chunks; the version is set last.
+  const missing = DEFAULT_HONORS.filter((x) => !have.has(x.id));
+  for (let i = 0; i < missing.length; i += 400) {
+    const b = writeBatch(db);
+    missing.slice(i, i + 400).forEach((x) => b.set(doc(db, 'honors', x.id), { ...store(x), at: serverTimestamp() }));
+    await b.commit();
+  }
+  await setDoc(doc(db, 'settings', 'honors'), { setUp: true, version: HONORS_VERSION });
 }
 /** Chips paid out for unlocking an honor. */
 export const CHIPS_FOR: Record<Rarity, number> = { common: 50, uncommon: 100, rare: 250, epic: 500, legendary: 1500, mythic: 5000 };

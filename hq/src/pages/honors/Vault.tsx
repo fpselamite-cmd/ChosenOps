@@ -56,7 +56,7 @@ function Wardrobe({ m }: { m: Member }) {
     );
   };
   const owned = trying ? has(m.id, trying.id) : false;
-  const sigils = ['Crown', ...new Set(of('badge').map((h) => h.icon).filter((x): x is string => !!x && !!ICONS[x]))];
+  const sigils = [...new Set(['Crown', ...of('badge').map((h) => h.icon).filter((x): x is string => !!x && !!ICONS[x])])];
   const colors = [...BANNER_COLORS, ...of('hue').map((h) => h.color).filter((c): c is string => !!c)];
   return (
     <Panel title="Wardrobe">

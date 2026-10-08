@@ -7,9 +7,9 @@ import type { Rarity } from '../lib/honors';
  * (iron → bronze → silver → gold → gold set with stones → prismatic), with an enamel field, an
  * engraved icon and, on bigger views, a striped ribbon. Higher tiers catch the light, glow and spark.
  */
-export const MEDAL_FORMS = ['round', 'star', 'crest', 'cross', 'coin', 'seal', 'card', 'pin'] as const;
+export const MEDAL_FORMS = ['round', 'star', 'crest', 'cross', 'coin', 'seal', 'card', 'pin', 'diamond', 'octagon', 'heart', 'sheriff'] as const;
 export type MedalForm = (typeof MEDAL_FORMS)[number];
-export const FORM_LABEL: Record<MedalForm, string> = { round: 'Round medal', star: 'Star medal', crest: 'Shield crest', cross: 'Order cross', coin: 'Old coin', seal: 'Wax seal', card: 'Playing card', pin: 'Enamel pin' };
+export const FORM_LABEL: Record<MedalForm, string> = { round: 'Round medal', star: 'Star medal', crest: 'Shield crest', cross: 'Order cross', coin: 'Old coin', seal: 'Wax seal', card: 'Playing card', pin: 'Enamel pin', diamond: 'Diamond', octagon: 'Octagon plate', heart: 'Heart locket', sheriff: 'Six-point star' };
 
 /** Light, mid and dark of each tier's metal; the enamel set into it; the ribbon it hangs from. */
 export const METALS: Record<Rarity, { name: string; hi: string; mid: string; lo: string; enamel: string; ribbon: [string, string] }> = {
@@ -65,6 +65,10 @@ const SHAPES: Record<MedalForm, { rim: string; field: string; iconAt?: number }>
   seal: { rim: blob, field: 'M50 19 A31 31 0 1 1 49.99 19 Z' },
   card: { rim: 'M22 2 H78 Q92 2 92 16 V84 Q92 98 78 98 H22 Q8 98 8 84 V16 Q8 2 22 2 Z', field: 'M26 12 H74 Q82 12 82 20 V80 Q82 88 74 88 H26 Q18 88 18 80 V20 Q18 12 26 12 Z' },
   pin: { rim: 'M30 6 H70 L96 50 L70 94 H30 L4 50 Z', field: 'M34 15 H66 L86 50 L66 85 H34 L14 50 Z' },
+  diamond: { rim: 'M50 1 L97 50 L50 99 L3 50 Z', field: 'M50 14 L84 50 L50 86 L16 50 Z' },
+  octagon: { rim: 'M30 2 H70 L98 30 V70 L70 98 H30 L2 70 V30 Z', field: 'M33 11 H67 L89 33 V67 L67 89 H33 L11 67 V33 Z' },
+  heart: { rim: 'M50 95 C10 70 0 45 8 26 C16 8 40 4 50 22 C60 4 84 8 92 26 C100 45 90 70 50 95 Z', field: 'M50 82 C20 63 13 45 18 31 C24 18 41 15 50 30 C59 15 76 18 82 31 C87 45 80 63 50 82 Z', iconAt: 48 },
+  sheriff: { rim: `M${star(6, 49, 30)} Z`, field: 'M50 25 A25 25 0 1 1 49.99 25 Z' },
 };
 /** Where the stones sit on a legendary medal, per form. */
 const GEMS: Record<MedalForm, [number, number][]> = {
@@ -76,6 +80,10 @@ const GEMS: Record<MedalForm, [number, number][]> = {
   seal: [],
   card: [[20, 14], [80, 14], [20, 86], [80, 86]],
   pin: [[50, 10.5], [50, 89.5]],
+  diamond: [[50, 8], [90, 50], [50, 92], [10, 50]],
+  octagon: [[50, 6.5], [93.5, 50], [50, 93.5], [6.5, 50]],
+  heart: [[50, 88], [20, 22], [80, 22]],
+  sheriff: [[50, 4], [90, 27], [90, 73], [50, 96], [10, 73], [10, 27]],
 };
 
 export function Medal({
