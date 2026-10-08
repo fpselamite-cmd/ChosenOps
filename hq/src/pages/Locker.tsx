@@ -113,6 +113,7 @@ function thingFrom(key: string, qty: number, name: (id: string) => string): Thin
 // ---------- dialogs ----------
 
 function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageId: string; onClose: () => void }) {
+  const { narco } = useHub();
   const { types, name } = useItemTypes();
   const ops = useOps('stash');
   const toast = useToast();
@@ -147,7 +148,7 @@ function AddDialog({ locker, storageId, onClose }: { locker: LockerApi; storageI
       >
         <p className="text-sm text-ash">For things you got yourself in the city. Taking gang property? Use “Take from a stash” so it’s signed out.</p>
         <div className="flex gap-1">
-          {(['item', 'drug'] as const).map((x) => (
+          {(narco ? (['item', 'drug'] as const) : (['item'] as const)).map((x) => (
             <button key={x} type="button" onClick={() => setTab(x)} className={`chip px-3 py-1.5 text-xs ${tab === x ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
               {x === 'item' ? 'Guns, ammo & items' : 'Drugs'}
             </button>

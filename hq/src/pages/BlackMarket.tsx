@@ -579,6 +579,7 @@ function LedgerModal({ type, toId, onClose }: { type: 'payout' | 'expense'; toId
 }
 
 function MoneyView() {
+  const { narco } = useHub();
   const m = useMoney();
   const mops = useMoneyOps();
   const [ledger, setLedger] = useState<{ type: 'payout' | 'expense'; toId?: string } | null>(null);
@@ -595,7 +596,11 @@ function MoneyView() {
         {m.all ? (
           <>
             <Stat label="Gang bank" value={money(m.bank)} sub="Gang sales, minus team pay, payouts & expenses" />
-            <Stat label="Gang sales · 30 days" value={money(gang30)} sub={owedTotal ? `${money(owedTotal)} owed to members` : 'Nothing owed'} />
+            {narco ? (
+              <Stat label="Gang sales · 30 days" value={money(gang30)} sub={owedTotal ? `${money(owedTotal)} owed to members` : 'Nothing owed'} />
+            ) : (
+              <Stat label="Owed to members" value={money(owedTotal)} sub="By the Treasurer" />
+            )}
           </>
         ) : (
           <>
@@ -1128,9 +1133,11 @@ function Body() {
   setExtraProducts(useLists().products);
   const m = useMoney();
   const { ready } = useNarcotics();
+  // Selling product is narcotics: without the Narco role the BlackMarket is money and the wish list.
+  const { narco } = useHub();
   const [settings, setSettings] = useState(false);
   const asked = params.get('tab');
-  const view = (asked === 'money' || asked === 'wish' || asked === 'washing' ? asked : 'sell') as View;
+  const view = (asked === 'money' || asked === 'wish' || asked === 'washing' ? asked : narco ? 'sell' : 'money') as View;
   const openWishes = m.wishes.filter((w) => w.status === 'open' || w.status === 'claimed').length;
   if (!m.ready || !ready)
     return (
@@ -1144,29 +1151,29 @@ function Body() {
         icon={VenetianMask}
         kicker="Business"
         title="BlackMarket"
-        sub="Product sells for dirty money at the Narco. Gang stash sales are the gang’s money; sales from your own locker are yours."
+        sub={narco ? 'Product sells for dirty money at the Narco. Gang stash sales are the gang’s money; sales from your own locker are yours.' : 'Your money, payouts and the family wish list.'}
         actions={
-          m.all && (
+          m.all && narco && (
             <button className="btn-ghost" onClick={() => setSettings(true)}>
               <Settings2 className="size-4" /> Settings
             </button>
           )
         }
       />
-      <NoelStatus />
+      {narco && <NoelStatus />}
       <div className="mb-5">
         <Tabs
           value={view}
-          onChange={(v) => setParams(v === 'sell' ? {} : { tab: v })}
+          onChange={(v) => setParams(v === (narco ? 'sell' : 'money') ? {} : { tab: v })}
           tabs={[
-            { id: 'sell', label: 'Sell' },
+            ...(narco ? [{ id: 'sell' as View, label: 'Sell' }] : []),
             { id: 'money', label: 'Money' },
             { id: 'wish', label: `Wish list${openWishes ? ` · ${openWishes}` : ''}` },
 
           ]}
         />
       </div>
-      {view === 'sell' && <SellView />}
+      {view === 'sell' && narco && <SellView />}
       {view === 'money' && <MoneyView />}
       {view === 'wish' && <WishView />}
       {/* Washing moved to the Money page. */}

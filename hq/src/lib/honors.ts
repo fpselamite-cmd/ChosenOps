@@ -68,6 +68,9 @@ export const STATS = [
   { id: 'jackpots', label: 'Slot jackpots', group: 'Casino' },
 ] as const;
 export type StatId = (typeof STATS)[number]['id'];
+/** Narcotics stats (coke runs, harvests, cooks, bricks, product sold): honors on them are Narco only. */
+export const NARCO_STATS = new Set<string>(['runs', 'harvests', 'cooks', 'pressed', 'sold']);
+export const statsFor = (narco: boolean) => STATS.filter((s) => narco || !NARCO_STATS.has(s.id));
 export type HonorStats = Record<StatId, number>;
 
 export interface Honor {

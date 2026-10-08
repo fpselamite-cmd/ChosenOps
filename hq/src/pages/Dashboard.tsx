@@ -47,7 +47,7 @@ import { LowStockLine } from './Stash';
 import { useMoney } from '../lib/money';
 import { BASICS, CITY, LOOKS, STORY, type Sheet } from '../lib/sheet';
 import { cashText, thingsText, type Trade2 } from '../lib/trades';
-import type { TrophyDoc } from '../lib/trophies';
+import { isNarcoTrophy, type TrophyDoc } from '../lib/trophies';
 import type { Member, RepTransfer } from '../lib/types';
 import { Podium } from './HallOfFame';
 import { MoodPicker } from './Profile';
@@ -68,7 +68,7 @@ const seeded = (seed: string, n: number) => {
 // ---------- hero ----------
 
 function Hero() {
-  const { me, myRank, presence } = useHub();
+  const { me, myRank, presence, narco } = useHub();
   const { byId } = useBoards();
   const month = byId.get(monthKey());
   const place = (b: 'sales' | 'bricks') => ranked(month, b).find((r) => r.memberId === me.id)?.place;
@@ -91,7 +91,7 @@ function Hero() {
           </div>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      {narco && <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="border border-line-soft bg-coal/60 px-3 py-2">
           <p className="label">My sales · {monthName(monthKey(), true)}</p>
           <p className="font-mono text-lg text-gold-100">
@@ -104,7 +104,7 @@ function Hero() {
             {(month?.bricks?.[me.id] ?? 0).toLocaleString('en-US')} {place('bricks') && <span className="text-xs text-gold-400">#{place('bricks')}</span>}
           </p>
         </div>
-      </div>
+      </div>}
       <div className="mt-3">
         <KitStrip memberId={me.id} />
       </div>
@@ -250,7 +250,7 @@ function MoneyTile() {
 // ---------- briefing ----------
 
 function Briefing() {
-  const { memberById, rankById } = useHub();
+  const { memberById, rankById, narco } = useHub();
   const yesterday = addDays(keyOf(Date.now()), -1);
   const daily = useDoc<{ sales?: Record<string, number> }>(`daily/${yesterday}`);
   const sites = useCollection<Blacksite>('blacksites');
@@ -259,7 +259,7 @@ function Briefing() {
   const newsQ = useMemo(() => query(collection(db, 'news'), where('at', '>=', weekAgo)), [weekAgo]);
   const news = useCollection<{ id: string; kind: 'joined' | 'promoted'; memberId: string; rankId: string; at?: Timestamp }>(newsQ) ?? [];
   const tq = useMemo(() => query(collection(db, 'trophies'), where('at', '>=', dayAgo)), [dayAgo]);
-  const trophies = (useCollection<TrophyDoc>(tq) ?? []).sort((a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
+  const trophies = (useCollection<TrophyDoc>(tq) ?? []).filter((t) => narco || !isNarcoTrophy(t)).sort((a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
   const sellers = Object.entries(daily?.sales ?? {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const total = sellers.reduce((t, [, v]) => t + v, 0);
   const last = [...(sites ?? [])].sort((a, b) => b.at.toMillis() - a.at.toMillis())[0];
@@ -281,15 +281,17 @@ function Briefing() {
         <span className="label">{fmtDate(Timestamp.now())}</span>
       </div>
       <div className="grid gap-x-6 sm:grid-cols-2">
-        <Item icon={<Crown className="size-3" />} kicker="Yesterday’s top seller">
-          {sellers.length ? (
-            <>
-              <MemberName id={sellers[0]![0]} className="font-semibold" /> moved <b className="text-gold-200">{money(sellers[0]![1])}</b>. The family sold <b className="text-gold-200">{money(total)}</b> in all.
-            </>
-          ) : (
-            'Quiet day. Nothing sold yesterday.'
-          )}
-        </Item>
+        {narco && (
+          <Item icon={<Crown className="size-3" />} kicker="Yesterday’s top seller">
+            {sellers.length ? (
+              <>
+                <MemberName id={sellers[0]![0]} className="font-semibold" /> moved <b className="text-gold-200">{money(sellers[0]![1])}</b>. The family sold <b className="text-gold-200">{money(total)}</b> in all.
+              </>
+            ) : (
+              'Quiet day. Nothing sold yesterday.'
+            )}
+          </Item>
+        )}
         <Item icon={<Crosshair className="size-3" />} kicker="Last blacksite">
           {last ? (
             <>
@@ -445,7 +447,7 @@ function Birthdays() {
 }
 
 function Todos() {
-  const { me, can } = useHub();
+  const { me, can, narco } = useHub();
   const tradesQ = useMemo(() => query(collection(db, 'trades'), where('to', '==', me.id), where('status', '==', 'pending')), [me.id]);
   const trades = useCollection<Trade>(tradesQ) ?? [];
   const outQ = useMemo(() => query(collection(db, 'signouts'), where('memberId', '==', me.id), where('status', '==', 'out')), [me.id]);
@@ -467,7 +469,7 @@ function Todos() {
   const items: { to: string; text: string; group: string }[] = [];
   trades.forEach((t) => {
     const x = t as unknown as Trade2;
-    const what = x.v === 2 ? [thingsText(x.things), cashText(x.cash)].filter(Boolean).join(' + ') || 'a trade' : `${t.thing?.qty} × ${t.thing?.label}`;
+    const what = x.v === 2 ? [thingsText(x.things, narco), cashText(x.cash)].filter(Boolean).join(' + ') || 'a trade' : `${t.thing?.qty} × ${t.thing?.label}`;
     items.push({ group: 'Mine', to: '/locker', text: `${t.fromName} is offering you ${what}` });
   });
   mySites.filter(recent).forEach((s) => {
@@ -522,7 +524,7 @@ function Todos() {
           <CheckCircle2 className="size-4 text-ok" /> All caught up.
         </p>
       )}
-      {can('manageOps') && <LowStockLine />}
+      {can('manageOps') && narco && <LowStockLine />}
     </Panel>
   );
 }
@@ -549,9 +551,12 @@ function WelcomeNote() {
 
 // ---------- the rest ----------
 
+/** Both monthly boards are narcotics (drug sales, bricks pressed), so only Narco sees them. */
 function ThisMonth() {
+  const { narco } = useHub();
   const { byId } = useBoards();
   const now = monthKey();
+  if (!narco) return null;
   return (
     <Panel title={`Leaderboards · ${monthName(now)}`} right={<Link to="/hall-of-fame" className="label hover:text-gold-300">Hall of Fame →</Link>}>
       <div className="grid gap-8 sm:grid-cols-2">

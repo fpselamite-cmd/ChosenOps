@@ -17,7 +17,8 @@ import { db } from '../lib/firebase';
 import {
   addLegend,
   addMemory,
-  HALL_BOARDS,
+  HALL_BOARDS as ALL_HALL_BOARDS,
+  NARCO_BOARDS,
   lightCandle,
   removeLegend,
   removeMemory,
@@ -316,7 +317,9 @@ function BiggestGivers() {
 }
 
 export default function HallOfFame() {
-  const { me, members, memberById, can } = useHub();
+  const { me, members, memberById, can, narco } = useHub();
+  // Drug sales and bricks pressed are narcotics boards: only Narco (and High Table) see them.
+  const HALL_BOARDS = useMemo(() => ALL_HALL_BOARDS.filter((b) => narco || !NARCO_BOARDS.has(b.id)), [narco]);
   const hall = useHall();
   const now = monthKey();
   const last = prevMonth(now);
@@ -325,7 +328,7 @@ export default function HallOfFame() {
   const mvpList = useCollection<MonthMvp>('monthMvp') ?? [];
   const mvpBy = new Map(mvpList.map((x) => [x.id, x]));
   const legends = (useCollection<Legend>('legends') ?? []).sort((a, b) => (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
-  const [board, setBoard] = useState<HallBoardId>('sales');
+  const [board, setBoard] = useState<HallBoardId>(narco ? 'sales' : 'mvps');
   const [open, setOpen] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [legendForm, setLegendForm] = useState(false);
@@ -354,7 +357,7 @@ export default function HallOfFame() {
       out.set(b.id, f);
     });
     return out;
-  }, [hall, now]);
+  }, [hall, now, HALL_BOARDS]);
 
   if (!hall.ready) return null;
   const amFirst = HALL_BOARDS.some((b) => hall.at(b.id, now)[0]?.memberId === me.id);

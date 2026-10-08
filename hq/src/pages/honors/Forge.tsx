@@ -5,7 +5,7 @@ import { Field } from '../../components/Field';
 import { HonorPic, ICONS, RarityChip } from '../../components/HonorArt';
 import { Modal } from '../../components/Modal';
 import { useHub } from '../../hooks/useHub';
-import { approveHonor, BADGE_SHAPES, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, type Honor, type HonorKind } from '../../lib/honors';
+import { approveHonor, BADGE_SHAPES, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, statsFor, type Honor, type HonorKind } from '../../lib/honors';
 import { useHonors } from './useHonors';
 
 type Draft = Omit<Honor, 'at'>;
@@ -33,7 +33,7 @@ const day = (t?: Timestamp | null) => (t ? new Date(t.toMillis()).toISOString().
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'honor';
 
 function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {
-  const { me, isLead } = useHub();
+  const { me, isLead, narco } = useHub();
   const [x, setX] = useState<Draft>(d);
   const isNew = !d.id;
   const save = async () => {
@@ -75,7 +75,7 @@ function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="How it's earned">
-              <select className="input" value={x.source} onChange={(e) => setX({ ...x, source: e.target.value as Honor['source'], stat: e.target.value === 'milestone' ? (x.stat ?? 'runs') : null })}>
+              <select className="input" value={x.source} onChange={(e) => setX({ ...x, source: e.target.value as Honor['source'], stat: e.target.value === 'milestone' ? (x.stat ?? (narco ? 'runs' : 'fights')) : null })}>
                 <option value="milestone">Milestone (unlocks itself)</option>
                 <option value="honor">Given by High Table</option>
               </select>
@@ -83,8 +83,8 @@ function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {
             {x.source === 'milestone' && (
               <>
                 <Field label="Counts">
-                  <select className="input" value={x.stat ?? 'runs'} onChange={(e) => setX({ ...x, stat: e.target.value as Honor['stat'] })}>
-                    {STATS.map((s) => (
+                  <select className="input" value={x.stat ?? (narco ? 'runs' : 'fights')} onChange={(e) => setX({ ...x, stat: e.target.value as Honor['stat'] })}>
+                    {statsFor(narco).map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.group} · {s.label}
                       </option>

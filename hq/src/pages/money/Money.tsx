@@ -261,7 +261,7 @@ function Overview({ b }: { b: Books }) {
             <BankCard label="Gang bank · clean" value={b.bank.clean} cash="clean" />
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="In this month" value={<span className="text-base">{money(mIn('dirty'))} · <span className="text-ok">{money(mIn('clean'))}</span></span>} sub="dirty · clean, outside Narco" />
+            <Stat label="In this month" value={<span className="text-base">{money(mIn('dirty'))} · <span className="text-ok">{money(mIn('clean'))}</span></span>} sub="dirty · clean, outside sales" />
             <Stat label="Out this month" value={<span className="text-base">{money(mOut('dirty'))} · <span className="text-ok">{money(mOut('clean'))}</span></span>} sub="dirty · clean" />
             <Stat label="Owed to members" value={money(owedPayouts.reduce((t, p) => t + p.amount, 0))} sub={`${owedPayouts.length} payouts`} />
             <Stat label="Out washing" value={money(b.washing.out)} sub="Gang dirty at the washers" />
@@ -459,12 +459,12 @@ interface Line {
 }
 
 function useLines(b: Books): Line[] {
-  const { memberById } = useHub();
+  const { memberById, narco } = useHub();
   return useMemo(() => {
     const t = (x?: { toMillis(): number }) => x?.toMillis() ?? Date.now();
     const out: Line[] = [];
     b.entries.forEach((e) => out.push({ key: e.id, at: t(e.at), dir: e.dir, cash: e.cash, amount: e.amount, what: e.note || e.category, category: e.category, who: e.memberId ?? e.by, entryId: e.source === 'manual' ? e.id : undefined }));
-    b.m.sales.filter((x) => saleKind(x) === 'gang' && x.price).forEach((x) => out.push({ key: `s${x.id}`, at: t(x.at), dir: 'in', cash: 'dirty', amount: x.price!, what: `Narco: ${x.qty} × ${x.product}`, category: 'Narco', who: x.sellerId }));
+    b.m.sales.filter((x) => saleKind(x) === 'gang' && x.price).forEach((x) => out.push({ key: `s${x.id}`, at: t(x.at), dir: 'in', cash: 'dirty', amount: x.price!, what: narco ? `Narco: ${x.qty} × ${x.product}` : 'Gang sale', category: narco ? 'Narco' : 'Sales', who: x.sellerId }));
     b.m.pays.filter((p) => p.fromBank).forEach((p) => out.push({ key: `t${p.id}`, at: t(p.at), dir: 'out', cash: 'dirty', amount: p.fromBank, what: `Team pay to ${memberById.get(p.to)?.name ?? 'someone'}`, category: 'Payouts', who: p.from }));
     b.m.ledger.forEach((l) => out.push({ key: `l${l.id}`, at: t(l.at), dir: 'out', cash: 'dirty', amount: l.amount, what: l.note || (l.type === 'payout' ? `Payout to ${l.toName}` : 'Expense'), category: l.type === 'payout' ? 'Payouts' : 'Other' }));
     b.duesPays.filter((p) => p.status === 'confirmed').forEach((p) => out.push({ key: `d${p.id}`, at: t(p.at), dir: 'in', cash: p.cash, amount: p.amount, what: `Dinner dues ${p.week}`, category: 'Dues', who: p.memberId }));
@@ -475,7 +475,7 @@ function useLines(b: Books): Line[] {
         if (w.status === 'done') out.push({ key: `wi${w.id}`, at: t(w.doneAt), dir: 'in', cash: 'clean', amount: w.clean, what: `Washed by ${w.claimerName ?? 'a washer'}`, category: 'Washing' });
       });
     return out.sort((a, x) => x.at - a.at);
-  }, [b, memberById]);
+  }, [b, memberById, narco]);
 }
 
 function Ledger({ b }: { b: Books }) {
@@ -701,7 +701,7 @@ function Washing({ b }: { b: Books }) {
 // ---------- reports ----------
 
 function Reports({ b }: { b: Books }) {
-  const { roster } = useHub();
+  const { roster, narco } = useHub();
   const lines = useLines(b);
   const weeks = Array.from({ length: 8 }, (_, i) => {
     const end = Date.now() - i * 7 * 86400e3;
@@ -740,7 +740,7 @@ function Reports({ b }: { b: Books }) {
         <p className="mt-3 text-xs text-smoke">Each week: in (bright) next to out (dim). Red is dirty, green is clean.</p>
       </Panel>
       <div className="space-y-6">
-        <Panel title="Top gang sellers · this month">
+        {narco && <Panel title="Top gang sellers · this month">
           {earners.length ? (
             <ol className="space-y-1.5 text-sm">
               {earners.map(({ m, v }, i) => (
@@ -753,7 +753,7 @@ function Reports({ b }: { b: Books }) {
           ) : (
             <p className="text-sm text-smoke">No gang sales yet this month.</p>
           )}
-        </Panel>
+        </Panel>}
         <Panel title="Spent by category · this month">
           {byCat.length ? (
             <ul className="space-y-1.5 text-sm">

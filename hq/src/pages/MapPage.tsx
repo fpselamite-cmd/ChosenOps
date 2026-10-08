@@ -8,7 +8,7 @@ import { PageHeader, Panel } from '../components/Page';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft, type Scope } from '../lib/audience';
 import { ago, NIGHT } from '../lib/format';
-import { addPin, PIN_TYPES, pinType, removePin, savePin, type Pin } from '../lib/pins';
+import { addPin, pinShows, pinType, pinTypesFor, removePin, savePin, type Pin } from '../lib/pins';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
 import { spotOf, type Blacksite, type Spot } from '../lib/blacksites';
@@ -30,7 +30,7 @@ function useLead() {
 }
 
 function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: number }; onClose: () => void }) {
-  const { me } = useHub();
+  const { me, narco } = useHub();
   const lead = useLead();
   const [name, setName] = useState(pin?.name ?? '');
   const [type, setType] = useState(pin?.type ?? 'meet');
@@ -61,7 +61,7 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
         <div>
           <span className="label mb-1.5 block">Type</span>
           <div className="grid grid-cols-3 gap-1.5">
-            {PIN_TYPES.map((t) => (
+            {pinTypesFor(narco).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -213,8 +213,8 @@ function StashCounts({ id }: { id: string }) {
   );
 }
 
-const LAYERS = [
-  ...PIN_TYPES.map((t) => ({ id: t.id, label: t.label, color: t.color, icon: t.icon })),
+const layersFor = (narco: boolean) => [
+  ...pinTypesFor(narco).map((t) => ({ id: t.id, label: t.label, color: t.color, icon: t.icon })),
   { id: '_spots', label: 'Blacksite locations', color: '#ef4444', icon: Swords },
   { id: '_events', label: 'Events · 7 days', color: '#a78bfa', icon: CalendarDays },
   { id: '_turf', label: 'Rival turf', color: '#f97316', icon: ShieldHalf },
@@ -222,9 +222,12 @@ const LAYERS = [
 ];
 
 function MapPage() {
-  const { me, rankById } = useHub();
+  const { me, rankById, narco } = useHub();
+  const LAYERS = layersFor(narco);
   const lead = useLead();
-  const pins = useVisible<Pin>('pins');
+  // Grows, stash houses and labs never reach anyone without the Narco role.
+  const allPins = useVisible<Pin>('pins');
+  const pins = useMemo(() => allPins && allPins.filter((p) => pinShows(p, narco)), [allPins, narco]);
   const rivals = useCollection<Rival>('rivals') ?? [];
   const sightings = useCollection<Sighting>('sightings') ?? [];
   const [src, setSrc] = useState(MAP_SRC);
@@ -253,10 +256,10 @@ function MapPage() {
   const shown = useMemo(
     () =>
       (pins ?? [])
-        .filter((p) => !hidden.has(p.type) && (scope === 'all' || p.scope === scope))
+        .filter((p) => pinShows(p, narco) && !hidden.has(p.type) && (scope === 'all' || p.scope === scope))
         .filter((p) => !search || `${p.name} ${p.note ?? ''} ${p.postal ?? ''}`.toLowerCase().includes(search.toLowerCase().replace(/^postal\s*/, '')))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [pins, hidden, scope, search],
+    [pins, hidden, scope, search, narco],
   );
   const sel = (pins ?? []).find((p) => p.id === selected);
   // Opened from an event or a banner: ?pin=<id> centers on it.

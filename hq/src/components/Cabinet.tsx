@@ -8,7 +8,7 @@ import { fmtDate } from '../lib/format';
 import { squareImage } from '../lib/image';
 import { itemTitle, kindOf, type ItemType } from '../lib/items';
 import { thingsIn, useLocker } from '../lib/locker';
-import { ACHIEVEMENTS, AWARD_DESIGNS, TIERS, tierFor, type Pedestal, type Tier, type TrophyDesign, type TrophyDoc } from '../lib/trophies';
+import { achievementsFor, AWARD_DESIGNS, TIERS, tierFor, type Pedestal, type Tier, type TrophyDesign, type TrophyDoc } from '../lib/trophies';
 import type { Member } from '../lib/types';
 import { ErrorText, Field } from './Field';
 import { Modal } from './Modal';
@@ -69,7 +69,8 @@ function PedestalEditor({ memberId, index, current, trophies, onClose }: { membe
   const [kind, setKind] = useState<Pedestal['kind']>(current?.kind ?? (trophies.length ? 'trophy' : 'item'));
   const [trophyId, setTrophyId] = useState(current?.trophyId ?? trophies[0]?.id ?? '');
   const owned = locker.storages.flatMap((s) => thingsIn(locker.stock.get(s.id), (id) => itemTitle(items.get(id), items)));
-  const ownedOptions = [...new Map(owned.map((t) => [t.item ?? `drug:${t.strain ?? t.field}`, t.item ? t.label : t.label.replace(/ (bricks?|trimmed|untrimmed)$/, '')])).entries()];
+  const { narco } = useHub();
+  const ownedOptions = [...new Map(owned.filter((t) => narco || t.item).map((t) => [t.item ?? `drug:${t.strain ?? t.field}`, t.item ? t.label : t.label.replace(/ (bricks?|trimmed|untrimmed)$/, '')])).entries()];
   const [itemId, setItemId] = useState(current?.itemTypeId ?? ownedOptions[0]?.[0] ?? '');
   const [name, setName] = useState(current?.name ?? '');
   const [image, setImage] = useState<string | null>(current?.image ?? null);
@@ -258,12 +259,13 @@ export function AwardDialog({ member, onClose }: { member: Member; onClose: () =
 
 /** Progress toward the next tier of every achievement (your own profile only). */
 function Progress() {
+  const { narco } = useHub();
   const stats = useMyAchievementStats();
   if (!stats) return null;
   return (
     <Panel title="Achievements">
       <ul className="grid gap-3 sm:grid-cols-2">
-        {ACHIEVEMENTS.map((a) => {
+        {achievementsFor(narco).map((a) => {
           const v = stats[a.stat];
           const t: number = tierFor(a, v);
           const next = t < 4 ? (a.at as readonly number[])[t]! : null;
@@ -299,7 +301,7 @@ function Progress() {
 
 /** The keepsake cabinet on a member's profile. */
 export function Cabinet({ member }: { member: Member }) {
-  const { me, can } = useHub();
+  const { me, can, narco } = useHub();
   const { cabinet, trophies, save, ready } = useCabinet(member.id);
   const items = useItemTypes();
   const [editing, setEditing] = useState<number | null>(null);
@@ -344,7 +346,9 @@ export function Cabinet({ member }: { member: Member }) {
           {shelves.map((row, si) => (
             <div key={si} className="shelf" style={{ ['--per' as string]: per }}>
               {row.map((i) => {
-                const p = cabinet.slots[String(i)];
+                const raw = cabinet.slots[String(i)];
+                // Drugs on a pedestal, or a narcotics trophy, stay hidden from anyone without the Narco role.
+                const p = raw && !narco && ((raw.kind === 'item' && raw.itemTypeId?.startsWith('drug:')) || (raw.kind === 'trophy' && !trophies.some((t) => t.id === raw.trophyId))) ? undefined : raw;
                 const trophy = p?.trophyId ? byId.get(p.trophyId) : undefined;
                 return (
                   <div

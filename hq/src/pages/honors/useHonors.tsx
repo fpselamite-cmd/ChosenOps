@@ -8,7 +8,7 @@ import type { DuesPay } from '../../lib/books';
 import { records, type Blacksite } from '../../lib/blacksites';
 import { useMyAchievementStats } from '../../lib/cabinet';
 import { db } from '../../lib/firebase';
-import { CHIPS_FOR, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
+import { CHIPS_FOR, NARCO_STATS, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
 import type { Bounty, Sighting } from '../../lib/rivals';
 import { useArchiveAccess } from '../archives/useArchives';
 import { claimGift, dayKey, DEFAULT_CASINO, openChips, weekKey, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
@@ -30,8 +30,15 @@ const Ctx = createContext<HonorsCtx | null>(null);
 export const useHonors = () => useContext(Ctx)!;
 
 export function HonorsProvider({ children }: { children: ReactNode }) {
-  const honors = useCollection<Honor>('honors') ?? [];
-  const owned = useCollection<Owned>('honorsOwned') ?? [];
+  const { narco } = useHub();
+  const allHonors = useCollection<Honor>('honors');
+  const allOwned = useCollection<Owned>('honorsOwned');
+  // Honors for narcotics milestones only exist for Narco (and High Table).
+  const honors = useMemo(() => (allHonors ?? []).filter((h) => narco || !NARCO_STATS.has(h.stat ?? '')), [allHonors, narco]);
+  const owned = useMemo(() => {
+    const ok = new Set(honors.map((h) => h.id));
+    return (allOwned ?? []).filter((o) => ok.has(o.honorId));
+  }, [allOwned, honors]);
   const loadouts = useCollection<Loadout>('honorLoadouts') ?? [];
   const settings = useDoc<{ setUp?: boolean }>('settings/honors');
   const value = useMemo<HonorsCtx>(() => {

@@ -14,6 +14,10 @@ export const PIN_TYPES: { id: string; label: string; color: string; icon: Lucide
   { id: 'shop', label: 'Shop / plug', color: '#60a5fa', icon: Store },
   { id: 'other', label: 'Other', color: '#a1a1aa', icon: MapPin },
 ];
+/** Pin types only Narco (and High Table) see: grows, stash houses and labs. */
+export const NARCO_PINS = new Set(['grow', 'stash', 'lab']);
+export const pinTypesFor = (narco: boolean) => (narco ? PIN_TYPES : PIN_TYPES.filter((t) => !NARCO_PINS.has(t.id)));
+export const pinShows = (p: { type: string }, narco: boolean) => narco || !NARCO_PINS.has(p.type);
 export const pinType = (id: string) => PIN_TYPES.find((t) => t.id === id) ?? PIN_TYPES[PIN_TYPES.length - 1]!;
 
 export interface Pin extends Audience {

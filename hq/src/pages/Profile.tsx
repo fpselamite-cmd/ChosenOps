@@ -77,7 +77,7 @@ import {
 import { keyOf } from '../lib/calendar';
 import { setLoa, useStreak } from '../lib/streak';
 import { markPast, PAST_KINDS, restoreMember, type Past, type PastKind } from '../lib/hall';
-import { PRESENCE_STATUSES, type Member, type RepTransfer } from '../lib/types';
+import { NARCO_MOODS, PRESENCE_STATUSES, type Member, type RepTransfer } from '../lib/types';
 import { KitCard } from '../components/Kit';
 import { RoleChips } from '../components/RoleChips';
 import type { DuesPay } from '../lib/books';
@@ -140,6 +140,7 @@ function Box({ title, children, right }: { title: ReactNode; children: ReactNode
 // ---------- the locked stat block ----------
 
 function useStats(m: Member) {
+  const { narco } = useHub();
   const boards = useBoards();
   const sites = useCollection<Blacksite>('blacksites');
   const petty = useDoc<{ rep?: number }>(`petty/${m.id}`);
@@ -162,12 +163,15 @@ function useStats(m: Member) {
     const r = records(sites ?? []).get(m.id);
     const sent = (transfers ?? []).filter((t) => t.status === 'confirmed').reduce((s, t) => s + (t.amount ?? 0), 0);
     const days = m.joinedAt ? Math.max(0, Math.floor((Date.now() - m.joinedAt.toMillis()) / 86400e3)) : 0;
+    // Drug sales and bricks are narcotics: only Narco (and High Table) see them.
     return {
-      Money: [
-        ['Lifetime sales', money(sales)],
-        ['This month', money(month)],
-        ['Bricks pressed', bricks.toLocaleString('en-US')],
-      ],
+      ...(narco && {
+        Money: [
+          ['Lifetime sales', money(sales)],
+          ['This month', money(month)],
+          ['Bricks pressed', bricks.toLocaleString('en-US')],
+        ],
+      }),
       War: [
         ['Blacksites', r?.fights ?? 0],
         ['Wins', r?.wins ?? 0],
@@ -183,14 +187,16 @@ function useStats(m: Member) {
       Standing: [
         ['Days in the family', days],
         ['Trophies', trophies.length],
-        ['Best finish', best ? `#${best}` : '—'],
+        ...(narco ? [['Best finish', best ? `#${best}` : '—'] as [string, string]] : []),
       ],
     } as Record<string, [string, string | number][]>;
-  }, [boards, sites, petty, transfers, trophies, m.id, m.joinedAt]);
+  }, [boards, sites, petty, transfers, trophies, m.id, m.joinedAt, narco]);
 }
 
 function StatBlock({ m }: { m: Member }) {
-  const stats = { ...useStats(m), NoelOps: useNoelOpsStats(m.name) };
+  const { narco } = useHub();
+  const noel = useNoelOpsStats(m.name, narco);
+  const stats = { ...useStats(m), ...(narco && { NoelOps: noel }) };
   const links: Record<string, ReactNode> = {
     War: (
       <Link to="/blacksites" className="text-smoke hover:text-gold-300" title="Blacksites">
@@ -235,6 +241,7 @@ function StatBlock({ m }: { m: Member }) {
 
 /** The headline numbers, for the strip under the name. */
 function Glance({ m }: { m: Member }) {
+  const { narco } = useHub();
   const st = useStats(m);
   const v = (g: string, l: string) => st[g]?.find(([x]) => x === l)?.[1] ?? 0;
   // Lifetime giving to the family: dinner dues cash, and all rep sent in.
@@ -242,9 +249,13 @@ function Glance({ m }: { m: Member }) {
   const transfers = useCollection<RepTransfer>('repTransfers') ?? [];
   const given = lifetime(m.id, transfers, pays);
   const tiles: [string, string | number][] = [
-    ['This month', v('Money', 'This month')],
-    ['Lifetime sales', v('Money', 'Lifetime sales')],
-    ['Bricks', v('Money', 'Bricks pressed')],
+    ...(narco
+      ? ([
+          ['This month', v('Money', 'This month')],
+          ['Lifetime sales', v('Money', 'Lifetime sales')],
+          ['Bricks', v('Money', 'Bricks pressed')],
+        ] as [string, string | number][])
+      : []),
     ['Blacksites', `${v('War', 'Wins')}W · ${v('War', 'Blacksites')}`],
     ['Kills', v('War', 'Kills')],
     ['Petty rep', v('Street', 'Petty rep')],
@@ -253,7 +264,7 @@ function Glance({ m }: { m: Member }) {
     ['Given', `${money(given.clean + given.dirty)} · ${given.rep.toLocaleString()}r`],
   ];
   return (
-    <div className="grid grid-cols-3 gap-px border-t border-line-soft bg-line-soft sm:grid-cols-9">
+    <div className={`grid grid-cols-3 gap-px border-t border-line-soft bg-line-soft ${narco ? 'sm:grid-cols-9' : 'sm:grid-cols-6'}`}>
       {tiles.map(([l, x]) => (
         <div key={l} className="bg-panel px-2 py-2.5 text-center">
           <p className="truncate font-mono text-sm text-gold-100 sm:text-base">{x}</p>
@@ -367,6 +378,7 @@ function ShareMenu({ target }: { target: React.RefObject<HTMLElement | null> }) 
 export function MoodPicker({ id, status }: { id: string; status?: string }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
+  const { narco } = useHub();
   return (
     <span className="no-print relative">
       <button className="text-xs text-gold-300 hover:underline" onClick={() => setOpen(!open)}>
@@ -375,7 +387,7 @@ export function MoodPicker({ id, status }: { id: string; status?: string }) {
       {open && (
         <div className="absolute left-0 z-30 mt-1 w-64 border border-line bg-coal p-3 text-left shadow-xl">
           <div className="flex flex-wrap gap-1.5">
-            {PRESENCE_STATUSES.map((s) => (
+            {PRESENCE_STATUSES.filter((s) => narco || !NARCO_MOODS.has(s)).map((s) => (
               <button
                 key={s}
                 onClick={() => (setPresenceStatus(id, s === status ? '' : s), setOpen(false))}
@@ -717,9 +729,9 @@ function ChangePin({ onClose }: { onClose: () => void }) {
 }
 
 /** What they've done in NoelOps (grows, cooks, runs), matched by name. Read live from NoelOps. */
-function useNoelOpsStats(name: string) {
-  const crew = useNoel<Record<string, NoelCrewMember>>('crew');
-  const key = crew.data === undefined ? '' : noelStatKey(name, crew.data);
+function useNoelOpsStats(name: string, enabled = true) {
+  const crew = useNoel<Record<string, NoelCrewMember>>('crew', enabled);
+  const key = !enabled || crew.data === undefined ? '' : noelStatKey(name, crew.data);
   const stats = useNoel<Record<string, unknown>>(`stats/${key}`, !!key);
   const titles = useNoel<Record<string, unknown>>(`titles/${key}`, !!key);
   const n = (f: string) => Math.max(0, Math.floor(Number(stats.data?.[f]) || 0));

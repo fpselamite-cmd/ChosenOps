@@ -112,7 +112,7 @@ const delta = (loc: string, t: Thing, qty: number) => ({ loc, strain: t.strain, 
 
 /** My own locker: storages, what's in them, my sign-outs and trades. Private to me. */
 export function useLocker() {
-  const { me } = useHub();
+  const { me, narco } = useHub();
   const ops = useOps('stash');
   const locker = useDoc<LockerDoc>(`lockers/${me.id}`);
   const stockQ = useMemo(() => query(collection(db, 'lockerStock'), where('owner', '==', me.id)), [me.id]);
@@ -151,7 +151,8 @@ export function useLocker() {
   }, [locker, me.id]);
 
   const storages = locker?.storages ?? DEFAULT_STORAGES;
-  const stock = new Map((stockRows ?? []).map((r) => [r.id.split('__')[1]!, r]));
+  // Without the Narco role a locker shows its items only, never drugs.
+  const stock = new Map((stockRows ?? []).map((r) => [r.id.split('__')[1]!, narco ? r : ({ id: r.id, items: r.items ?? {} } as StockDoc)]));
   const path = (storageId: string) => lockerPath(me.id, storageId);
 
   return {

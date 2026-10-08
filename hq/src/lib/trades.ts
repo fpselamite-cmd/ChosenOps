@@ -53,7 +53,8 @@ export const NO_CASH: Cash = { dirty: 0, clean: 0 };
 export const hasCash = (c?: Cash) => !!c && (c.dirty > 0 || c.clean > 0);
 export const cashText = (c?: Cash) =>
   [c?.dirty ? `$${c.dirty.toLocaleString('en-US')} dirty` : '', c?.clean ? `$${c.clean.toLocaleString('en-US')} clean` : ''].filter(Boolean).join(' + ');
-export const thingsText = (t?: Thing[]) => (t ?? []).map((x) => `${x.qty} × ${x.label}`).join(', ');
+/** What's in a trade. Without the Narco role drugs read as "product". */
+export const thingsText = (t?: Thing[], narco = true) => (t ?? []).map((x) => `${x.qty} × ${narco || x.item ? x.label : 'product'}`).join(', ');
 
 export const createTrade = (t: Omit<Trade2, 'id' | 'v' | 'status' | 'at'>) => addDoc(collection(db, 'trades'), { ...t, v: 2, status: 'pending', at: serverTimestamp() });
 

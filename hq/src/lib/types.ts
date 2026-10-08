@@ -151,6 +151,8 @@ export interface Announcement {
 }
 
 export const PRESENCE_STATUSES = ['At the lab', 'Growing', 'Selling', 'On a run', 'At a blacksite', 'Busy', 'AFK'];
+/** Moods that give away narcotics work: anyone without the Narco role sees them as "Busy". */
+export const NARCO_MOODS = new Set(['At the lab', 'Growing', 'Selling', 'On a run']);
 
 
 const all = (): PermissionMap => Object.fromEntries(Object.keys(PERMISSIONS).map((k) => [k, true]));

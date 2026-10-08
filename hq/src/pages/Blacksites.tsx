@@ -373,12 +373,13 @@ function MyLine({ s }: { s: Blacksite }) {
 
 /** Loot from the fight: leadership splits it between the people who were there; the rest goes into the stash. */
 function LootPanel({ s }: { s: Blacksite }) {
-  const { me, can, canSee, isLead } = useHub();
+  const { me, can, canSee, isLead, narco } = useHub();
   const { locLabel } = useNarcotics();
   const locker = useLocker();
   const ops = useOps('stash');
   const toast = useToast();
-  const loot = useCollection<Loot>(`blacksites/${s.id}/loot`) ?? [];
+  // Drug loot only shows to Narco (and High Table).
+  const loot = (useCollection<Loot>(`blacksites/${s.id}/loot`) ?? []).filter((l) => narco || !!l.item);
   const [into, setInto] = useState('onme');
   const [give, setGive] = useState<Record<string, Record<string, string>>>({});
   const lead = can('manageOps') || isLead;

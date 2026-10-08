@@ -150,6 +150,7 @@ export function NewTrade({ locker, itemName, onClose, start }: { locker: Locker;
 
 /** Answer with something back. */
 function Counter({ locker, itemName, t, onClose }: { locker: Locker; itemName: (id: string) => string; t: Trade2; onClose: () => void }) {
+  const { narco } = useHub();
   const check = useCashCheck();
   const [storageId, setStorageId] = useState(locker.storages[0]?.id ?? 'onme');
   const [picks, setPicks] = useState<Record<string, number>>({});
@@ -171,7 +172,7 @@ function Counter({ locker, itemName, t, onClose }: { locker: Locker; itemName: (
         }}
       >
         <p className="text-sm text-ash">
-          They offer <b className="text-gold-100">{[thingsText(t.things), cashText(t.cash)].filter(Boolean).join(' + ')}</b>. What do you give back? It’s held until they confirm; what they sent lands in the storage you pick here.
+          They offer <b className="text-gold-100">{[thingsText(t.things, narco), cashText(t.cash)].filter(Boolean).join(' + ')}</b>. What do you give back? It’s held until they confirm; what they sent lands in the storage you pick here.
         </p>
         <Basket locker={locker} itemName={itemName} storageId={storageId} setStorageId={setStorageId} picks={picks} setPicks={setPicks} cash={cash} setCash={setCash} />
         <Field label="Message">
@@ -192,7 +193,8 @@ function Counter({ locker, itemName, t, onClose }: { locker: Locker; itemName: (
 }
 
 const Side = ({ things, cash }: { things?: Thing[]; cash?: Cash }) => {
-  const parts = [thingsText(things), cashText(cash)].filter(Boolean);
+  const { narco } = useHub();
+  const parts = [thingsText(things, narco), cashText(cash)].filter(Boolean);
   return <b className="text-gold-100">{parts.length ? parts.join(' + ') : 'nothing'}</b>;
 };
 
