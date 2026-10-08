@@ -197,10 +197,10 @@ function BarLink({ i }: { i: NavItem }) {
   );
 }
 
-function PhoneBar({ onMenu }: { onMenu: () => void }) {
+function PhoneBar({ onMenu, hidden }: { onMenu: () => void; hidden: boolean }) {
   const { picks } = usePhoneBar();
   return (
-    <nav className="phone-bar fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-end border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+    <nav className={`phone-bar ${hidden ? 'bars-hidden' : ''} fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 items-end border-t border-line sky-glass pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden`}>
       {picks[0] ? <BarLink i={picks[0]} /> : <span />}
       {picks[1] ? <BarLink i={picks[1]} /> : <span />}
       <NavLink to="/" end className={({ isActive }) => `phone-home ${isActive ? 'on' : ''}`} aria-label="Dashboard">
@@ -287,6 +287,24 @@ function HeaderButtons() {
   );
 }
 
+/** On a phone, the header and the bottom bar slide away while scrolling down and come back on the way up. */
+function useScrollHide(pathname: string) {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => setHidden(false), [pathname]);
+  useEffect(() => {
+    let last = window.scrollY;
+    const on = () => {
+      const y = window.scrollY;
+      if (window.innerWidth >= 1024 || y < 80) setHidden(false);
+      else if (Math.abs(y - last) > 8) setHidden(y > last);
+      last = y;
+    };
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return hidden;
+}
+
 export function AppShell() {
   const { me } = useHub();
   const { isAssoc } = useWelcomeAccess();
@@ -295,6 +313,7 @@ export function AppShell() {
   const [drawer, setDrawer] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => window.scrollTo(0, 0), [pathname]);
+  const barsHidden = useScrollHide(pathname);
 
 
   return (
@@ -324,7 +343,7 @@ export function AppShell() {
       </aside>
 
       {/* Top bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line sky-glass px-4 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:px-8">
+      <header className={`top-bar ${barsHidden ? 'bars-hidden' : ''} sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line sky-glass px-4 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] lg:px-8`}>
         <div className="lg:hidden">
           <Brand compact />
         </div>
@@ -343,14 +362,15 @@ export function AppShell() {
       >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
           <PreviewBar />
-          {!isAssoc && <EventBanner />}
+          {/* The Dashboard shows it in its own banner strip. */}
+          {!isAssoc && pathname !== '/' && <EventBanner />}
           <Outlet />
         </main>
         <div id="modal-root" />
       </div>
 
       {/* Phone bottom bar: two picks, the Dashboard in the middle, one pick, then the menu. */}
-      <PhoneBar onMenu={() => setDrawer(true)} />
+      <PhoneBar onMenu={() => setDrawer(true)} hidden={barsHidden} />
 
       {/* Phone menu drawer */}
       {drawer && (

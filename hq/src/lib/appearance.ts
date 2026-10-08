@@ -8,11 +8,15 @@ export interface Prefs {
   wheel?: 'on' | 'off';
   text?: 'normal' | 'large';
   shooting?: 'on' | 'off';
+  /** Stars and corner sparkles: 'auto' is full on a computer and fewer on a phone. */
+  sparkles?: 'auto' | 'full' | 'few' | 'off';
+  /** Dashboard panels: the order they show in, and the ones hidden. */
+  dash?: { order?: string[]; hidden?: string[] };
   /** The phone bar's three picks (menu paths), two left of the Dashboard and one right. */
   bar?: string[];
 }
 
-export const DEFAULT_PREFS: Required<Omit<Prefs, 'bar'>> = { accent: 'gold', sky: 'stars', motion: 'on', wheel: 'on', text: 'normal', shooting: 'on' };
+export const DEFAULT_PREFS: Required<Omit<Prefs, 'bar' | 'dash'>> = { accent: 'gold', sky: 'stars', motion: 'on', wheel: 'on', text: 'normal', shooting: 'on', sparkles: 'auto' };
 
 /** `unlock` = best login streak (days in a row) needed to pick it. */
 export const ACCENTS: { id: NonNullable<Prefs['accent']>; label: string; swatch: string; unlock?: number }[] = [
@@ -51,6 +55,7 @@ export function applyPrefs(p: Prefs) {
   el.dataset.wheel = all.wheel;
   el.dataset.text = all.text;
   el.dataset.shooting = all.shooting;
+  el.dataset.sparkles = all.sparkles;
   try {
     localStorage.setItem(KEY, JSON.stringify(p));
   } catch {

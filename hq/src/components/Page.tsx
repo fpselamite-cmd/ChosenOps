@@ -1,5 +1,5 @@
-import type { LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ChevronDown, type LucideIcon } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
 /** Page title block: serif gold title, small HUD kicker and an optional action area. */
 export function PageHeader({
@@ -42,27 +42,69 @@ export function Panel({
   children,
   className = '',
   pad = true,
+  fold,
+  folded: startFolded = false,
 }: {
   title?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   className?: string;
   pad?: boolean;
+  /** On a phone, the title folds the panel up (remembered on this device under this key). */
+  fold?: string;
+  /** Folded until opened, on a phone. */
+  folded?: boolean;
 }) {
+  const [folded, setFolded] = useFold(fold, startFolded);
   return (
     <section className={`hud rise ${className}`}>
       {title && (
         <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-2.5">
           <h2 className="t-soft font-hud text-sm font-bold tracking-[0.16em] text-gold-300 uppercase">
-            <span className="star4 t-accent mr-1.5 inline-block size-2.5 align-[-1px]" aria-hidden />
-            {title}
+            {fold ? (
+              <button type="button" className="fold-btn" onClick={() => setFolded(!folded)} aria-expanded={!folded}>
+                <span className="star4 t-accent mr-1.5 inline-block size-2.5 align-[-1px]" aria-hidden />
+                {title}
+                <ChevronDown className={`fold-chev size-3.5 ${folded ? '' : 'rotate-180'}`} />
+              </button>
+            ) : (
+              <>
+                <span className="star4 t-accent mr-1.5 inline-block size-2.5 align-[-1px]" aria-hidden />
+                {title}
+              </>
+            )}
           </h2>
           {right}
         </div>
       )}
-      <div className={pad ? 'p-4' : ''}>{children}</div>
+      <div className={`${pad ? 'p-4' : ''} ${fold && folded ? 'fold-hidden' : ''}`}>{children}</div>
     </section>
   );
+}
+
+/** Folded or open, remembered per device. Only matters on a phone (CSS ignores it on bigger screens). */
+export function useFold(key: string | undefined, start = false): [boolean, (v: boolean) => void] {
+  const k = `chosenops.fold.${key}`;
+  const [v, setV] = useState<boolean>(() => {
+    if (!key) return false;
+    try {
+      const s = localStorage.getItem(k);
+      return s == null ? start : s === '1';
+    } catch {
+      return start;
+    }
+  });
+  return [
+    v,
+    (n) => {
+      setV(n);
+      try {
+        localStorage.setItem(k, n ? '1' : '0');
+      } catch {
+        /* private window */
+      }
+    },
+  ];
 }
 
 /** Big number tile for dashboards and stats. */

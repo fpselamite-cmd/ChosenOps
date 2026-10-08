@@ -2361,3 +2361,83 @@ button.assoc-box:not(:disabled):active { transform: scale(0.9); }
   .run-cash { margin-left: auto; }
   .run-body { padding-left: 8px; }
 }
+
+/* ---------- Phone polish ---------- */
+/* Header and bottom bar slide away while scrolling down (phones and tablets only). */
+@media (max-width: 1023px) {
+  .top-bar, .phone-bar { transition: transform 0.25s ease; }
+  .top-bar.bars-hidden { transform: translateY(-100%); }
+  .phone-bar.bars-hidden { transform: translateY(110%); }
+}
+/* Dialogs become full-screen sheets on a phone: slide up, title and close stay put, Save sticks to the bottom. */
+@media (max-width: 639px) {
+  .modal-sheet { height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: max(1.25rem, env(safe-area-inset-top)); padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); animation: sheet-up 0.22s ease-out; }
+  .modal-sheet::before, .modal-sheet::after { display: none; }
+  .modal-sheet .modal-head { position: sticky; top: calc(-1 * max(1.25rem, env(safe-area-inset-top))); z-index: 2; margin: calc(-1 * max(1.25rem, env(safe-area-inset-top))) -1.25rem 1rem; padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem 0.75rem; background: rgba(7, 7, 7, 0.96); border-bottom: 1px solid var(--color-line-soft); }
+  .modal-sheet form > div:last-child:has(> .btn-gold), .modal-sheet form > div:last-child:has(> button:last-child.btn-gold) { position: sticky; bottom: calc(-1 * max(1.25rem, env(safe-area-inset-bottom))); z-index: 2; margin: 0 -1.25rem calc(-1 * max(1.25rem, env(safe-area-inset-bottom))); padding: 0.75rem 1.25rem max(0.75rem, env(safe-area-inset-bottom)); background: rgba(7, 7, 7, 0.96); border-top: 1px solid var(--color-line-soft); }
+  .modal-sheet form > div:last-child > .btn-gold { flex: 1; justify-content: center; }
+  /* Finger-size tap targets. */
+  .btn-sm { min-height: 36px; }
+  .chip { min-height: 32px; }
+  [aria-label='Close'], .radio-key { min-width: 36px; min-height: 36px; display: inline-grid; place-items: center; }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .modal-sheet { animation: none; } }
+
+/* Sparkles: 'few' drops the twinkle layer and one corner star; 'off' drops the stars altogether. 'auto' is few on a phone. */
+html[data-sparkles='few'] body::before, html[data-sparkles='few'] .hud::before,
+html[data-sparkles='off'] body::before, html[data-sparkles='off'] .hud::before, html[data-sparkles='off'] .hud::after { display: none; }
+html[data-sparkles='off'] body { background-image: radial-gradient(1100px 700px at 85% -10%, rgb(var(--acc) / 0.09), transparent 60%), radial-gradient(1400px 900px at 50% 40%, #0b0b0b, #030303 70%); }
+html[data-sparkles='off'] .hud { background: linear-gradient(180deg, rgba(15, 15, 15, 0.92), rgba(7, 7, 7, 0.94)); }
+@media (max-width: 639px) {
+  html[data-sparkles='auto'] body::before, html[data-sparkles='auto'] .hud::before { display: none; }
+  html[data-sparkles='auto'] body { background-size: 1300px 1300px, 900px 900px, auto, auto, auto; }
+}
+/* Panels that fold up on a phone. */
+.fold-btn { display: inline-flex; align-items: center; gap: 0; text-transform: inherit; letter-spacing: inherit; }
+.fold-chev { margin-left: 6px; transition: transform 0.2s; }
+@media (min-width: 640px) {
+  .fold-chev { display: none; }
+  .fold-btn { pointer-events: none; }
+}
+@media (max-width: 639px) { .fold-hidden { display: none; } }
+/* Dashboard: one ordered column on a phone (the column wrappers dissolve), two columns on a computer. */
+.dash-grid { display: flex; flex-direction: column; gap: 1.5rem; }
+.dash-col { display: contents; }
+.dash-slot { min-width: 0; }
+@media (min-width: 1024px) {
+  .dash-grid { display: grid; grid-template-columns: 1fr 360px; align-items: start; }
+  .dash-col { display: flex; flex-direction: column; gap: 1.5rem; }
+}
+.dash-slot.editing { outline: 1px dashed rgb(var(--acc) / 0.45); outline-offset: 6px; border-radius: 4px; }
+.dash-slot.off > :not(.dash-tools) { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+.dash-tools { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; padding: 4px 8px; background: rgb(var(--acc) / 0.08); border: 1px solid rgb(var(--acc) / 0.3); }
+.dash-tools button { display: grid; place-items: center; width: 34px; height: 30px; color: var(--color-gold-200); }
+.dash-tools button:disabled { opacity: 0.3; }
+.banner-strip:not(:has(.banner-slot:not(.hidden) > *)) { display: none; }
+.banner-slot > * { margin-bottom: 0 !important; }
+.banner-dots { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
+.banner-dots button { width: 22px; height: 22px; display: grid; place-items: center; }
+.banner-dots button::after { content: ''; width: 7px; height: 7px; border-radius: 99px; background: rgb(var(--acc) / 0.3); }
+.banner-dots button.on::after { background: var(--color-gold-300); box-shadow: 0 0 6px rgb(var(--acc) / 0.8); }
+/* Profile: the tab bar sticks while scrolling; a bigger name and picture on a phone. */
+.profile-tabs { position: sticky; top: 0; z-index: 15; margin: 0 -4px; padding: 6px 4px 0; background: linear-gradient(rgba(5, 5, 5, 0.96), rgba(5, 5, 5, 0.9)); backdrop-filter: blur(8px); }
+@media (min-width: 1024px) { .profile-tabs { top: 57px; } }
+@media (max-width: 639px) {
+  .profile-head h1 { font-size: 2.35rem; line-height: 1.1; }
+  .profile-head .scanlines > .relative:first-child { transform: scale(1.12); margin: 6px 0 4px; }
+  .profile-head .scanlines { padding-top: 1.75rem; }
+}
+/* Tables become stacked cards on a phone: the first cell is the card's title, the rest are labelled rows. */
+@media (max-width: 639px) {
+  .card-table, .card-table tbody, .card-table tr, .card-table td { display: block; width: 100%; }
+  .card-table thead { display: none; }
+  .card-table tr { margin: 0 0 10px; padding: 10px 12px; border: 1px solid rgb(var(--acc) / 0.2); background: rgba(10, 10, 10, 0.6); }
+  .card-table td { padding: 5px 0 !important; border: 0 !important; text-align: left !important; background: none !important; }
+  .card-table td[data-label] { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .card-table td[data-label]::before { content: attr(data-label); flex-shrink: 0; font: 700 10px var(--font-hud); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-smoke); }
+  .card-table td[data-label] > select, .card-table td[data-label] > .input { width: auto; max-width: 60%; }
+  .card-table td.card-title { padding-bottom: 8px !important; margin-bottom: 4px; border-bottom: 1px solid var(--color-line-soft) !important; font-weight: 600; }
+  .card-table td.card-actions { display: flex; justify-content: flex-end; padding-top: 8px !important; }
+  .card-table tr.assoc-final { border-color: rgb(var(--acc) / 0.5); }
+}

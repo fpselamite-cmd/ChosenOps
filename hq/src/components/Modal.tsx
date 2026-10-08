@@ -22,14 +22,14 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   const box = (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+    <div className="modal-back fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        className={`hud max-h-[92dvh] w-full overflow-y-auto p-5 sm:p-6 ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
+        className={`hud modal-sheet max-h-[92dvh] w-full overflow-y-auto p-5 sm:p-6 ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="modal-head mb-4 flex items-start justify-between gap-4">
           <h2 className="font-display text-xl font-bold text-gold-200">{title}</h2>
           <button onClick={onClose} className="text-smoke hover:text-gold-200" aria-label="Close">
             <X className="size-5" />
