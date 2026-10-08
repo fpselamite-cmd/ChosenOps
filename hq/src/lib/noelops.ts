@@ -1,4 +1,3 @@
-import { getApps, initializeApp } from 'firebase/app';
 import {
   connectDatabaseEmulator,
   getDatabase,
@@ -12,30 +11,25 @@ import {
   type Database,
 } from 'firebase/database';
 import { useEffect, useState } from 'react';
+import { app } from './firebase';
 
 /**
- * NoelOps runs the grows, cooks and coke runs, and owns the drug stock. The HQ reads its
- * Realtime Database live and writes drug sales and stock changes straight back, so both
- * apps always show the same counts. Its database rules are open, the same as NoelOps itself.
+ * NoelOps runs the grows, cooks and coke runs, and owns the drug stock. It lives at /noelops/ on the HQ's own
+ * site and keeps its data in the HQ project's Realtime Database, so the same sign-in covers both. Who can read
+ * or change what comes from the access list leadership's HQ pages keep up to date (see NoelAccessSync and
+ * database.rules.json): the Narco role and leadership get in; other blooded members only see stash houses and stats.
  */
-export const NOELOPS_URL = 'https://fpselamite-cmd.github.io/noelops/';
+export const NOELOPS_URL = '/noelops/';
 
 const env = import.meta.env;
-const CONFIG = {
-  apiKey: 'AIzaSyBBINuk-Vve1ZCIzfM9atn6wcmkiLSb2UA',
-  authDomain: 'noelops.firebaseapp.com',
-  databaseURL: 'https://noelops-default-rtdb.firebaseio.com',
-  projectId: 'noelops',
-  appId: '1:890001351597:web:1b4dcfa187b362771f3724',
-};
+const DB_URL = env.VITE_NOELOPS_DB_URL || 'https://chosenops-default-rtdb.firebaseio.com';
 /** Everything NoelOps shares lives under this path. */
 const ROOT = 'noelops';
 
 let rtdb: Database | null = null;
 export function noelDb() {
   if (rtdb) return rtdb;
-  const app = getApps().find((a) => a.name === 'noelops') ?? initializeApp(CONFIG, 'noelops');
-  rtdb = getDatabase(app);
+  rtdb = getDatabase(app, DB_URL);
   if (env.VITE_USE_EMULATORS === 'true') connectDatabaseEmulator(rtdb, window.location.hostname, 9000);
   return rtdb;
 }

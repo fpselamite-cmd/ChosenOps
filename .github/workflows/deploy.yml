@@ -61,5 +61,8 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      # NoelOps' data lives in the project's Realtime Database (create it once in the Firebase console first).
+      - name: Deploy database rules
+        run: npx firebase deploy --only database --config firebase.database.json --project chosenops --non-interactive
       - name: Deploy to Firebase
         run: npx firebase deploy --only hosting,firestore:rules,firestore:indexes --project chosenops --non-interactive

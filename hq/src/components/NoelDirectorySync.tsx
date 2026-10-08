@@ -7,11 +7,12 @@ const thumbs = new Map<string, string | null>();
 
 /**
  * Keeps NoelOps' copy of the member directory (name, rank, small picture) in step with the HQ, so NoelOps can show
- * HQ ranks and link to profiles. Any signed-in member's page does it; only differences are written.
+ * HQ ranks and link to profiles. Any Narco or leadership page does it (only they can write there); only differences
+ * are written.
  */
 export function NoelDirectorySync() {
-  const { ready, me, roster, rankById } = useHub();
-  const enabled = ready && me.status === 'active';
+  const { ready, me, roster, rankById, narco, preview } = useHub();
+  const enabled = ready && me.status === 'active' && narco && !preview;
   const current = useNoel<Record<string, NoelHqMember>>('hq/members', enabled);
   const have = current.data;
 

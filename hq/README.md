@@ -28,8 +28,11 @@ npm run test:rules   # security rule tests
   the crew's motto, color and emblem. People can be in several crews.
 - **Petty Crime**: everyone tracks their own petty rep (quick +/− and a crime log) and can send rep to the family.
   A Lieutenant or above confirms it before it counts toward the family's gang rep; turned-down rep goes back.
-- **Narcotics** opens NoelOps in a new tab. NoelOps runs the grows, cooks and coke runs and owns the drug stock; the
-  HQ reads its Realtime Database live (`src/lib/noelops.ts`) and writes drug sales and stock changes straight back.
+- **Narcotics** opens NoelOps (`/noelops/`, the page in `public/noelops/`) in a new tab. NoelOps runs the grows, cooks
+  and coke runs and owns the drug stock. Its data lives in this project's Realtime Database behind
+  `database.rules.json`, and it uses HQ sign-in: the **Narco** role edits, leadership manages (Admin, settings, places),
+  other blooded members only see stash houses and stats, associates nothing. Leadership's HQ pages keep the access list
+  in step with ranks and roles (`src/components/NoelAccessSync.tsx`). The HQ reads and writes it live (`src/lib/noelops.ts`).
 - **Stash** (gold) lists every place and everything in it. Drug counts come live from NoelOps; guns, attachments, ammo
   and gear are kept in Firestore. Stash houses are shared with NoelOps (the HQ adds its own crew and postal); grows are
   managed in NoelOps. The **Main Stash** is gang-wide. Adding and editing places needs **Manage ops**.
@@ -58,6 +61,19 @@ npm run test:rules   # security rule tests
   everything except act on the top rank. The Boss can't hand out admin; only owners can.
 - **Discord**: Admin → Discord. Paste a webhook for Blacksites and/or Rep donations, tick the events, Send a test.
   Everything is off until then. Webhook URLs live in the database, never in the repo.
+- **NoelOps database**: the `chosenops` project's Realtime Database (create it once: Firebase console → Build →
+  Realtime Database → Create, US, locked mode). Its rules (`database.rules.json`) deploy with every push. NoelOps'
+  Discord webhook is kept where only leadership can read it; NoelOps queues its messages and any open leadership page
+  (HQ or NoelOps) sends them.
+- **Moving NoelOps** (once): 1) in the **old** NoelOps Firebase project (console → Realtime Database → Rules), paste
+  `{ "rules": { "noelops": { ".read": true, ".write": false } } }` and Publish, so nothing changes during the move;
+  2) Actions → **Move NoelOps**, dry run first (it lists NoelOps crew who won't get in), then for real;
+  3) after two weeks, lock the old database completely: `{ "rules": { ".read": false, ".write": false } }`.
+- **NoelOps backups**: Actions → **NoelOps backup** runs nightly and saves an encrypted copy to the `noelops-backups`
+  branch. It needs a `NOELOPS_BACKUP_KEY` repo secret (a long random password; keep a copy somewhere safe, without it
+  the backups can't be opened). To restore: download a `.json.enc` file and run
+  `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass pass:'<key>' -in <file>.json.enc -out backup.json`, then
+  `node scripts/move-noelops.mjs --live --force --from=backup.json` (with `GOOGLE_APPLICATION_CREDENTIALS` set).
 - **Map**: `public/map/city.jpg` (the postal map from NoelOps). Replace the file to change it.
 - **Item catalog**: `src/data/catalog.json`; Admin → Item catalog → Load/Refresh pushes it to the database.
 
@@ -70,3 +86,17 @@ npm run test:rules   # security rule tests
 5. ✅ Blacksites
 6. ✅ Gear & Loadouts
 7. ✅ Discord editors, NoelOps import, go live
+
+## NoelOps change notes
+
+Newest first. Every NoelOps change adds an entry here, written so it can be pasted straight into Discord (no tables,
+no links, under 2,000 characters). Older notes are in the old NoelOps repo.
+
+### 🔒 Oct 8, 2026: NoelOps moves into ChosenOps HQ and gets locked down
+- NoelOps now lives at **chosenops.web.app/noelops** and the old link sends you there
+- Sign in with your **ChosenOps HQ** name and PIN. If you're signed in to HQ, you're already in. No more NoelOps PINs
+- NoelOps is for the **Narco** crew and leadership. Leadership gets **Admin** automatically from their HQ rank, no password
+- Adding, editing and removing grow locations is leadership's now
+- Your name, picture and rank come from your **HQ profile**
+- The data is locked: only people with access can see or change anything, and nightly backups are encrypted
+- Discord messages still go out; leadership keeps the webhook private

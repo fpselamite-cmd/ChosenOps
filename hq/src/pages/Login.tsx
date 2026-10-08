@@ -30,6 +30,9 @@ export default function Login({ mode }: { mode: Mode }) {
       if (mode === 'login') await login(name, pin);
       else if (mode === 'register') await register(name, pin);
       else await redeemResetCode(name, code, pin);
+      // Sent here from NoelOps: go back there once signed in.
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (mode === 'login' && next?.startsWith('/noelops/')) return window.location.assign(next);
       nav('/');
     } catch (err) {
       setError(err instanceof AuthError ? err.message : 'Something went wrong. Try again.');

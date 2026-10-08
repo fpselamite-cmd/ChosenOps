@@ -1,0 +1,65 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "access": {
+      ".read": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'",
+      ".write": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['m', 'n', 'lvl']) && newData.child('m').isString() && newData.child('n').isString() && newData.child('lvl').isString() && newData.child('lvl').val().matches(/^(member|edit|manage)$/)"
+      }
+    },
+    "private": {
+      ".read": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'",
+      ".write": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'"
+    },
+    "outbox": {
+      ".read": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'",
+      "$id": {
+        ".write": "((auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')) && !data.exists()) || ((auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage') && !newData.exists())",
+        ".validate": "newData.hasChildren(['body', 'ts']) && newData.child('body').isString() && newData.child('body').val().length <= 6000"
+      }
+    },
+    "noelops": {
+      ".read": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')",
+      ".write": "auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage'",
+      "settings": {
+        "mainStash": {
+          ".read": "auth != null && root.child('access').child(auth.uid).exists()",
+          ".write": "(auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')) || (auth != null && root.child('access').child(auth.uid).child('ops').val() === true)"
+        },
+        "supplyLow": {
+          ".write": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')"
+        }
+      },
+      "stashes": {
+        ".read": "auth != null && root.child('access').child(auth.uid).exists()",
+        ".write": "(auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')) || (auth != null && root.child('access').child(auth.uid).child('ops').val() === true)"
+      },
+      "stats": {
+        ".read": "auth != null && root.child('access').child(auth.uid).exists()",
+        ".write": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')"
+      },
+      "titles": {
+        ".read": "auth != null && root.child('access').child(auth.uid).exists()",
+        ".write": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')"
+      },
+      "crew": {
+        ".read": "auth != null && root.child('access').child(auth.uid).exists()"
+      },
+      "hq": {
+        ".read": "auth != null && root.child('access').child(auth.uid).exists()",
+        ".write": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')"
+      },
+      "locations": {
+        "$loc": {
+          ".write": "(auth != null && root.child('access').child(auth.uid).child('lvl').val() === 'manage') || ((auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')) && data.exists() && newData.exists())"
+        }
+      },
+      "$other": {
+        ".write": "auth != null && (root.child('access').child(auth.uid).child('lvl').val() === 'edit' || root.child('access').child(auth.uid).child('lvl').val() === 'manage')"
+      }
+    }
+  }
+}
