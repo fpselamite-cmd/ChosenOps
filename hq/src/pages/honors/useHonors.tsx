@@ -6,7 +6,7 @@ import { useHub } from '../../hooks/useHub';
 import type { DinnerNote, Lore } from '../../lib/archives';
 import type { DuesPay } from '../../lib/books';
 import { records, type Blacksite } from '../../lib/blacksites';
-import { useMyAchievementStats } from '../../lib/cabinet';
+import { useCabinet, useMyAchievementStats } from '../../lib/cabinet';
 import { heistStatsOf, type Heist } from '../../lib/heists';
 import { runStatsOf, type NarcoRun } from '../../lib/runs';
 import { db } from '../../lib/firebase';
@@ -114,6 +114,7 @@ export function useMyHonorStats(): HonorStats | null {
   const runs = useCollection<NarcoRun>(useMemo(() => query(collection(db, 'narcoRuns'), where('crew', 'array-contains', me.id)), [me.id]), narco) ?? [];
   const chips = useDoc<Chips>(`chips/${me.id}`);
   const ctx = useContext(Ctx);
+  const { trophies } = useCabinet(me.id, true);
   if (!base || !sites || chips === undefined) return null;
   // A set counts as collected once every piece in it is mine.
   const setDone = (group: string) => {
@@ -122,6 +123,8 @@ export function useMyHonorStats(): HonorStats | null {
     return pieces.length > 0 && pieces.every((h) => ctx.has(me.id, h.id)) ? 1 : 0;
   };
   const sets: Record<string, number> = Object.fromEntries(SETS.map((st) => [st.id, setDone(st.group)]));
+  const setsDone = Object.values(sets).reduce((t, v) => t + v, 0);
+  const champion = trophies.filter((t) => t.kind === 'monthly' && (t as { place?: number }).place === 1).length;
   const hz = heistStatsOf(heists, me.id);
   const nr = runStatsOf(runs, me.id);
   const r = records(sites).get(me.id);
@@ -158,6 +161,8 @@ export function useMyHonorStats(): HonorStats | null {
     asHacker: hz.asHacker,
     asGunman: hz.asGunman,
     ...sets,
+    setsDone,
+    champion,
   } as HonorStats;
 }
 

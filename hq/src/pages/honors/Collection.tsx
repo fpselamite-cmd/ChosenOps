@@ -3,7 +3,7 @@ import { Badge, HonorPic, RarityChip } from '../../components/HonorArt';
 import { Modal } from '../../components/Modal';
 import { useHub } from '../../hooks/useHub';
 import { fmtDate } from '../../lib/format';
-import { CHIPS_FOR, HIGH_TIER, KINDS, RARITIES, revoke, SETS, setMembers, STATS, type Honor, type Owned } from '../../lib/honors';
+import { CHIPS_FOR, groupOf, HIGH_TIER, KINDS, RARITIES, revoke, SETS, setMembers, STATS, type Honor, type Owned } from '../../lib/honors';
 import type { Member } from '../../lib/types';
 import { useHonors, useMyHonorStats } from './useHonors';
 
@@ -89,6 +89,7 @@ export function DisplayCase({ m, onOpen }: { m: Member; onOpen: (h: Honor) => vo
   const setMedal = (id: string) => live.find((h) => h.id === `set-${id}`);
   const trays = [
     ...SETS.map((st) => ({ key: st.id, title: st.label, pieces: setMembers(live, st.group), medal: setMedal(st.id) })).filter((t) => t.pieces.length),
+    { key: 'feats', title: 'Feats & seasons', pieces: live.filter((h) => h.source === 'milestone' && (groupOf(h.stat) === 'Feats' || !!h.season) && !h.id.startsWith('set-')), medal: undefined },
     { key: 'given', title: 'Given by High Table', pieces: live.filter((h) => h.source === 'honor' && !h.price && !h.id.startsWith('set-')), medal: undefined },
     { key: 'shop', title: 'From the chip shop', pieces: live.filter((h) => h.source === 'honor' && (h.price ?? 0) > 0), medal: undefined },
   ].filter((t) => t.pieces.length);

@@ -29,7 +29,7 @@ export const KINDS: { id: HonorKind; label: string; plural: string }[] = [
   { id: 'effect', label: 'Name effect', plural: 'Name effects' },
 ];
 
-export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards', 'stars', 'lightning', 'hearts'] as const;
+export const FRAME_THEMES = ['iron', 'barbed', 'roses', 'skulls', 'money', 'crown', 'flames', 'chips', 'cards', 'stars', 'lightning', 'hearts', 'gothic', 'horns', 'neon', 'laurel', 'wax', 'band'] as const;
 export type FrameTheme = (typeof FRAME_THEMES)[number];
 export const EFFECTS = ['shimmer', 'flames', 'glitch', 'starlight', 'blood', 'neon', 'frost', 'prism'] as const;
 export type NameEffect = (typeof EFFECTS)[number];
@@ -79,6 +79,8 @@ export const STATS = [
   { id: 'asDriver', label: 'Heists as Driver', group: 'Heists' },
   { id: 'asHacker', label: 'Heists as Hacker', group: 'Heists' },
   { id: 'asGunman', label: 'Heists as Gunman', group: 'Heists' },
+  { id: 'champion', label: 'Months finished #1', group: 'Feats' },
+  { id: 'setsDone', label: 'Sets completed', group: 'Feats' },
   // A whole set collected (1 once it's complete).
   { id: 'setWork', label: 'Work & sales set', group: 'Sets' },
   { id: 'setFights', label: 'Fights set', group: 'Sets' },
@@ -155,6 +157,16 @@ export interface Loadout {
   trimHue?: string | null;
   backdropHue?: string | null;
   showcase?: string[];
+  /** The banner behind their portrait, built in the wardrobe. */
+  banner?: BannerSpec | null;
+}
+export interface BannerSpec {
+  shape: 'pennant' | 'standard' | 'scroll' | 'swallow';
+  pattern: 'plain' | 'stripes' | 'chevron' | 'diamonds' | 'quartered' | 'saltire';
+  /** An icon from a badge they own. */
+  sigil: string;
+  c1: string;
+  c2: string;
 }
 export const HUE_SLOTS: { id: keyof Loadout; label: string; hint: string }[] = [
   { id: 'nameHue', label: 'Name color', hint: 'Everyone sees it' },
@@ -434,7 +446,7 @@ export const SETS: { id: StatId; group: string; label: string; icon: string }[] 
 const GROUP_OF = new Map<string, string>(STATS.map((x) => [x.id, x.group]));
 export const groupOf = (stat?: string | null) => (stat ? GROUP_OF.get(stat) : undefined);
 /** The honors that make up a set (its Full Set medal not included). */
-export const setMembers = (honors: Honor[], group: string) => honors.filter((h) => h.source === 'milestone' && h.status === 'active' && groupOf(h.stat) === group);
+export const setMembers = (honors: Honor[], group: string) => honors.filter((h) => h.source === 'milestone' && h.status === 'active' && !h.season && groupOf(h.stat) === group);
 // Wave 6: a Full Set medal per set, worth 100 chips for every piece in it.
 DEFAULT_HONORS.push(
   ...SETS.map((st) => {
@@ -443,7 +455,21 @@ DEFAULT_HONORS.push(
   }),
 );
 
-export const HONORS_VERSION = 8;
+/** Wave 7: Diablo-style frames, earned by feats and seasons. */
+const ET_END_2026 = Timestamp.fromDate(new Date('2027-01-01T04:59:59Z'));
+DEFAULT_HONORS.push(
+  m('f3-cathedral', 'frame', 'Cathedral', 'legendary', 'champion', 1, 'Finished a month at #1 on a Hall of Fame board.', { theme: 'gothic' }),
+  m('f3-dynasty', 'frame', 'Dynasty', 'mythic', 'champion', 3, 'Three months at #1.', { theme: 'gothic', secret: true }),
+  m('f3-victor', 'frame', "Victor's Laurel", 'epic', 'setsDone', 1, 'Completed a whole set in the collection.', { theme: 'laurel' }),
+  m('f3-completionist', 'frame', 'The Completionist', 'legendary', 'setsDone', 4, 'Completed four sets.', { theme: 'crown' }),
+  m('f3-horns', 'frame', "Devil's Due", 'epic', 'heists', 25, 'Twenty-five heists pulled.', { theme: 'horns' }),
+  m('f3-neon', 'frame', 'Neon Nights', 'rare', 'hands', 500, 'Five hundred casino games.', { theme: 'neon' }),
+  m('f3-wax', 'frame', 'Sealed in Wax', 'uncommon', 'duesPaid', 10, 'Ten dues payments.', { theme: 'wax' }),
+  m('f3-band', 'frame', 'Money Band', 'rare', 'bestTake', 100000, 'On a heist that brought home $100,000.', { theme: 'band' }),
+  { ...m('f3-founding', 'frame', 'Founding Season', 'epic', 'days', 1, 'Was in the family during the Founding Season.', { theme: 'stars' }), season: 'Founding Season', endsAt: ET_END_2026 },
+);
+
+export const HONORS_VERSION = 9;
 
 // ---------- writes ----------
 
@@ -451,15 +477,23 @@ type Me = { id: string; name: string };
 const clean = <T extends object>(o: T) => JSON.parse(JSON.stringify(o)) as T;
 
 /** Writes the starting catalog, or adds defaults it's missing (High Table). Never overwrites edits. */
+/** A clean copy to store, keeping season dates as real timestamps (JSON would flatten them). */
+const store = (x: Omit<Honor, 'at'>) => ({ ...clean(x), startsAt: x.startsAt ?? null, endsAt: x.endsAt ?? null });
+/** Milliseconds of a season date, whether it's a Timestamp or (from an older save) a plain {seconds}. */
+export const whenMs = (t: unknown): number | null => {
+  if (!t) return null;
+  const v = t as { toMillis?: () => number; seconds?: number };
+  return typeof v.toMillis === 'function' ? v.toMillis() : typeof v.seconds === 'number' ? v.seconds * 1000 : null;
+};
 export async function setUpHonors(have: Set<string> = new Set()) {
   const b = writeBatch(db);
-  DEFAULT_HONORS.filter((x) => !have.has(x.id)).forEach((x) => b.set(doc(db, 'honors', x.id), { ...clean(x), at: serverTimestamp() }));
+  DEFAULT_HONORS.filter((x) => !have.has(x.id)).forEach((x) => b.set(doc(db, 'honors', x.id), { ...store(x), at: serverTimestamp() }));
   b.set(doc(db, 'settings', 'honors'), { setUp: true, version: HONORS_VERSION });
   await b.commit();
 }
 /** Chips paid out for unlocking an honor. */
 export const CHIPS_FOR: Record<Rarity, number> = { common: 50, uncommon: 100, rare: 250, epic: 500, legendary: 1500, mythic: 5000 };
-export const saveHonor = (x: Omit<Honor, 'at'>) => setDoc(doc(db, 'honors', x.id), { ...clean(x), at: serverTimestamp() });
+export const saveHonor = (x: Omit<Honor, 'at'>) => setDoc(doc(db, 'honors', x.id), { ...store(x), at: serverTimestamp() });
 export const approveHonor = (id: string) => updateDoc(doc(db, 'honors', id), { status: 'active' });
 export const removeHonor = (id: string) => deleteDoc(doc(db, 'honors', id));
 
@@ -478,7 +512,9 @@ export const saveLoadout = (memberId: string, l: Omit<Loadout, 'id'>) => setDoc(
 /** Can this honor be earned right now (active, and inside its season if it has one)? */
 export function earnable(x: Honor, now = Date.now()) {
   if (x.status !== 'active') return false;
-  if (x.startsAt && x.startsAt.toMillis() > now) return false;
-  if (x.endsAt && x.endsAt.toMillis() < now) return false;
+  const from = whenMs(x.startsAt);
+  const to = whenMs(x.endsAt);
+  if (from != null && from > now) return false;
+  if (to != null && to < now) return false;
   return true;
 }

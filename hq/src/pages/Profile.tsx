@@ -45,6 +45,7 @@ import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
 import { records, type Blacksite } from '../lib/blacksites';
 import { useWelcomeAccess } from './welcome/useWelcome';
+import { Banner } from '../components/Banner';
 import { heistStatsOf, type Heist, type HeistStats } from '../lib/heists';
 import { runStatsOf, type NarcoRun } from '../lib/runs';
 import { monthKey, ranked, useBoards } from '../lib/boards';
@@ -895,7 +896,7 @@ export default function Profile() {
   const [traitInput, setTraitInput] = useState('');
   const [params, setParams] = useSearchParams();
   const [focus, setFocus] = useState<string | null>(null);
-  const { equipped } = useHonors();
+  const { equipped, loadoutOf } = useHonors();
   const worn = equipped(id);
   const viewerAssoc = useWelcomeAccess().isAssoc;
 
@@ -991,7 +992,10 @@ export default function Profile() {
               <WantedPoster m={m} w={wanted} />
             ) : (
               <div className="relative shrink-0">
-                <Framed member={m} frame={worn.frame} size="xl" online={on} />
+                {loadoutOf(m.id).banner && <Banner spec={loadoutOf(m.id).banner!} width={130} className="profile-banner" />}
+                <span className="relative z-[1] inline-block">
+                  <Framed member={m} frame={worn.frame} size="xl" online={on} />
+                </span>
                 {mine && (
                   <>
                     <button onClick={() => fileRef.current?.click()} className="no-print absolute right-0 bottom-0 rounded-full bg-gold-400 p-1.5 text-void shadow" title="Change picture">
