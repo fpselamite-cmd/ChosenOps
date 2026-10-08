@@ -55,7 +55,8 @@ import { MyProgress, NewlyPatched, PatchMoment } from './welcome/DashboardBits';
 import { OpenPolls } from './polls/PollsBits';
 import { useAttention } from './admin/useAttention';
 import { PartyBanner } from './parties/Parties';
-import { useWelcomeAttention } from './welcome/useWelcome';
+import { LiveHeistBanner } from './Heists';
+import { useWelcomeAccess, useWelcomeAttention } from './welcome/useWelcome';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
 /** Same pick for everyone on the same day. */
@@ -631,6 +632,27 @@ export default function Dashboard() {
   const leadership = roster.filter((m) => rankById.get(m.rankId ?? '')?.leadership);
   const hour = Number(new Date().toLocaleString('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }));
   const greet = hour < 5 ? 'Late night' : hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+  const { isAssoc } = useWelcomeAccess();
+  const footer = (
+    <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-smoke/60">
+      <span className="h-px w-16 bg-gradient-to-r from-transparent to-gold-700/40" />
+      <AdminLock signedIn={{ id: me.id, admin: me.admin }} canOpen={canAdmin} badge={canAdmin || me.admin ? waiting : 0} />
+      <span className="h-px w-16 bg-gradient-to-l from-transparent to-gold-700/40" />
+    </footer>
+  );
+
+  // Associates: their progress and the welcome bits, nothing about the family's business.
+  if (isAssoc)
+    return (
+      <>
+        <PageHeader icon={LayoutDashboard} kicker={`${settings.name} · ${settings.motto}`} title={`${greet}, ${me.name}`} actions={<StreakBadge />} />
+        <WelcomeNote />
+        <div className="mx-auto max-w-2xl space-y-6">
+          <MyProgress />
+        </div>
+        {footer}
+      </>
+    );
 
   return (
     <>
@@ -642,6 +664,7 @@ export default function Dashboard() {
         } />
 
       <PartyBanner />
+      <LiveHeistBanner />
       <PatchMoment />
       <NewlyPatched />
       <WelcomeNote />
@@ -699,11 +722,7 @@ export default function Dashboard() {
           </Panel>
         </div>
       </div>
-      <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-smoke/60">
-        <span className="h-px w-16 bg-gradient-to-r from-transparent to-gold-700/40" />
-        <AdminLock signedIn={{ id: me.id, admin: me.admin }} canOpen={canAdmin} badge={canAdmin || me.admin ? waiting : 0} />
-        <span className="h-px w-16 bg-gradient-to-l from-transparent to-gold-700/40" />
-      </footer>
+      {footer}
     </>
   );
 }

@@ -27,6 +27,7 @@ import { ShootingStars } from './ShootingStars';
 import { PollsButton } from '../pages/polls/PollsBits';
 import { RadioButton } from './RadioButton';
 import { PollKeeper } from '../pages/polls/usePolls';
+import { HeistCall } from '../pages/Heists';
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -258,6 +259,9 @@ function MeCard() {
 /** Map and Calendar live in the header as small labelled buttons. */
 function HeaderButtons() {
   const { canSee } = useHub();
+  const { isAssoc } = useWelcomeAccess();
+  // Associates get their radio and nothing else up here.
+  if (isAssoc) return <RadioButton />;
   return (
     <div className="flex items-center gap-1">
       {HEADER_NAV.filter((i) => !i.page || canSee(i.page)).map((i) => (
@@ -283,6 +287,7 @@ function HeaderButtons() {
 
 export function AppShell() {
   const { me } = useHub();
+  const { isAssoc } = useWelcomeAccess();
   useApplyPrefs(me.prefs);
   const clock = useClock();
   const [drawer, setDrawer] = useState(false);
@@ -300,6 +305,7 @@ export function AppShell() {
       <NoelDirectorySync />
       <PollKeeper />
       <EnsureNarcoRole />
+      <HeistCall />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">
@@ -323,7 +329,7 @@ export function AppShell() {
         </p>
         <div className="flex items-center gap-2 sm:gap-3">
           <HeaderButtons />
-          <WhoIsOnline />
+          {!isAssoc && <WhoIsOnline />}
         </div>
       </header>
 
@@ -333,7 +339,7 @@ export function AppShell() {
       >
         <main className="mx-auto max-w-7xl px-4 pt-6 pb-28 lg:px-8 lg:pb-12">
           <PreviewBar />
-          <EventBanner />
+          {!isAssoc && <EventBanner />}
           <Outlet />
         </main>
         <div id="modal-root" />
