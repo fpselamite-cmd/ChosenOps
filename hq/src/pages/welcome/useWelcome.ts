@@ -5,7 +5,7 @@ import { useHub } from '../../hooks/useHub';
 import { db } from '../../lib/firebase';
 import type { Sheet } from '../../lib/sheet';
 import type { Member } from '../../lib/types';
-import { DEFAULT_WELCOME, type Onboarding, type Stamp, type WelcomeSettings } from '../../lib/welcome';
+import { DEFAULT_WELCOME, guideDone, type Onboarding, type Stamp, type WelcomeSettings } from '../../lib/welcome';
 
 /** Who's on which side of the welcome center. */
 export function useWelcomeAccess() {
@@ -41,7 +41,7 @@ export interface Progress {
 }
 export function progressOf(w: WelcomeSettings, ob: Onboarding | null | undefined, sheet: Sheet | null | undefined, rep: number, stamps: Stamp[]): Progress {
   const map = new Map(stamps.filter((s) => w.steps.some((t) => t.id === s.stepId)).map((s) => [s.stepId, s]));
-  const rules = (ob?.rulesAccepted ?? 0) >= w.rulesVersion;
+  const rules = guideDone(ob, w.rulesVersion);
   const sh = sheetDone(sheet);
   const repDone = !w.repTarget || rep >= w.repTarget;
   const tasksDone = [...map.values()].filter((s) => s.status === 'done').length;

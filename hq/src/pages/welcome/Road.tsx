@@ -308,6 +308,12 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                 ) : (
                   <span className={x.done ? 'text-ash' : 'text-gold-100'}>{x.title}</span>
                 )}
+                {x.id === 'rules' && ob?.guideSig && (
+                  <span className="ml-auto flex items-center gap-2 text-[11px] text-smoke" title={`Signed by ${ob.guideSig.name}`}>
+                    <img src={ob.guideSig.img} alt="Signature" className="sig-thumb" />
+                    signed {ob.guideSig.at ? fmtDate(ob.guideSig.at) : ''}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

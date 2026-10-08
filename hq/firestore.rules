@@ -1007,14 +1007,24 @@ service cloud.firestore {
         // The Guide: a Canva view-only embed link (never an edit link), or blank.
         && (!('canva' in request.resource.data) || request.resource.data.canva == ''
           || (request.resource.data.canva is string && request.resource.data.canva.size() <= 300
-            && request.resource.data.canva.matches('https://www[.]canva[.]com/design/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/view[?]embed')));
+            && request.resource.data.canva.matches('https://www[.]canva[.]com/design/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/view[?]embed')))
+        && str(request.resource.data.get('pledge', ''), 300);
     }
     match /onboarding/{mid} {
       allow read: if active() && (mid == myId() || handler());
       // Their own: accept the rules, and mark that they've seen their patch moment.
       allow create, update: if active() && mid == myId()
-        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasOnly(['rulesAccepted', 'rulesAt', 'patchSeen'])
-        && request.resource.data.get('rulesAt', request.time) == request.time;
+        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasOnly(['rulesAccepted', 'rulesAt', 'patchSeen', 'guideSig'])
+        && request.resource.data.get('rulesAt', request.time) == request.time
+        // The Guide signature: signed once (a WC clears it), a typed name and a small drawn image.
+        && (!('guideSig' in request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys())
+          || ((resource == null || resource.data.get('guideSig', null) == null)
+            && request.resource.data.guideSig.keys().hasOnly(['name', 'img', 'pledge', 'at'])
+            && str(request.resource.data.guideSig.name, 60) && request.resource.data.guideSig.name.size() > 0
+            && str(request.resource.data.guideSig.pledge, 300)
+            && request.resource.data.guideSig.img is string && request.resource.data.guideSig.img.size() < 120000
+            && request.resource.data.guideSig.img.matches('data:image/png;base64,.*')
+            && request.resource.data.guideSig.at == request.time));
       allow create, update: if active() && handler() && mid != myId();
     }
     match /welcomeStamps/{id} {

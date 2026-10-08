@@ -2308,3 +2308,35 @@ button.assoc-box:not(:disabled):active { transform: scale(0.9); }
 .heist-banner .heist-icon { color: #fecaca; background: radial-gradient(circle at 35% 30%, rgba(239, 68, 68, 0.45), rgba(239, 68, 68, 0.1)); border-color: rgba(239, 68, 68, 0.5); animation: poll-pulse 1.8s ease-in-out infinite; }
 .heist-banner-mine { border-color: rgb(var(--acc) / 0.8); box-shadow: 0 0 0 1px rgb(var(--acc) / 0.4), 0 0 28px rgba(239, 68, 68, 0.18); background: linear-gradient(100deg, rgba(239, 68, 68, 0.2), rgb(var(--acc) / 0.08) 50%, #0b0a07); }
 @media (prefers-reduced-motion: reduce) { .heist-banner .heist-icon, .heist-status.s-live { animation: none; } }
+
+/* ---------- The Guide contract: parchment, a wax seal, ink on a line ---------- */
+.contract { position: relative; padding: 22px 22px 18px; color: #2b2112; background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 255, 255, 0.35), transparent 60%),
+    radial-gradient(ellipse at 90% 100%, rgba(120, 80, 30, 0.22), transparent 55%),
+    linear-gradient(170deg, #efe2c2, #e2cfa2 60%, #d6bf8c);
+  border: 1px solid #a88a52; box-shadow: inset 0 0 0 5px rgba(239, 226, 194, 0.6), inset 0 0 0 6px rgba(140, 105, 50, 0.45), inset 0 0 40px rgba(110, 70, 20, 0.25), 0 10px 30px rgba(0, 0, 0, 0.45); font-family: Georgia, 'Times New Roman', serif; }
+.contract-sm { padding: 14px 14px 10px; }
+.contract-kicker { margin-bottom: 10px; font: 700 11px var(--font-hud); letter-spacing: 0.22em; text-transform: uppercase; color: #7a5a22; text-align: center; }
+.contract-pledge { font-style: italic; font-size: 15px; line-height: 1.5; text-align: center; color: #3a2c14; }
+.contract-sm .contract-pledge { font-size: 12px; }
+.contract-check { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; font-size: 14px; cursor: pointer; }
+.contract-check input { width: 16px; height: 16px; accent-color: #7a1f1f; }
+.contract-label { display: block; margin-bottom: 4px; font: 700 10px var(--font-hud); letter-spacing: 0.16em; text-transform: uppercase; color: #7a5a22; }
+.contract-input { width: 100%; padding: 6px 2px; background: transparent; border: 0; border-bottom: 1px solid #8a6a32; color: #1c1408; font: italic 22px 'Brush Script MT', 'Segoe Script', cursive; outline: none; }
+.contract-input::placeholder { color: rgba(60, 40, 10, 0.3); }
+.contract-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: linear-gradient(#8c2323, #5e1414); color: #f6e7c8; border: 1px solid #3d0c0c; font: 700 12px var(--font-hud); letter-spacing: 0.14em; text-transform: uppercase; box-shadow: 0 2px 0 #2b0808; }
+.contract-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.contract-seal { position: absolute; top: -12px; right: 16px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; color: #f6e7c8; background: radial-gradient(circle at 35% 30%, #b13434, #6e1212 70%); box-shadow: 0 0 0 3px rgba(110, 18, 18, 0.35), 0 3px 8px rgba(0, 0, 0, 0.45); }
+.contract-sm .contract-seal { width: 28px; height: 28px; top: -9px; right: 10px; }
+.contract-sign { position: relative; margin-top: 12px; }
+.contract-ink { display: block; height: 70px; margin: 0 auto -8px; object-fit: contain; }
+.contract-sm .contract-ink { height: 44px; }
+.contract-line { display: block; border-bottom: 1px solid #6e5428; }
+.contract-under { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 11px; color: #5c4620; }
+.contract-name { font: italic 15px 'Brush Script MT', 'Segoe Script', cursive; color: #1c1408; }
+.sig-pad { position: relative; height: 130px; background: rgba(255, 250, 235, 0.45); border: 1px dashed #8a6a32; }
+.sig-pad canvas { width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
+.sig-hint { position: absolute; left: 12px; bottom: 10px; pointer-events: none; font: italic 14px Georgia, serif; color: rgba(60, 40, 10, 0.4); }
+.sig-clear { position: absolute; right: 6px; top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font: 700 10px var(--font-hud); letter-spacing: 0.1em; text-transform: uppercase; color: #5c4620; background: rgba(239, 226, 194, 0.9); border: 1px solid #a88a52; }
+.sig-thumb { height: 22px; width: auto; padding: 1px 4px; background: #e9d9b0; border: 1px solid #a88a52; }
+@media (max-width: 640px) { .sig-pad { height: 110px; } }
