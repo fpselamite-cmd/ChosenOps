@@ -6,7 +6,7 @@ import { Badge, HonorPic, ICONS, RarityChip } from '../../components/HonorArt';
 import { FORM_LABEL, formFor, Medal, MEDAL_FORMS, METALS } from '../../components/Medal';
 import { Modal } from '../../components/Modal';
 import { useHub } from '../../hooks/useHub';
-import { approveHonor, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, statsFor, type Honor, type HonorKind } from '../../lib/honors';
+import { approveHonor, whenMs, EFFECTS, FRAME_THEMES, KINDS, RARITIES, removeHonor, saveHonor, STATS, statsFor, type Honor, type HonorKind } from '../../lib/honors';
 import { useHonors } from './useHonors';
 
 type Draft = Omit<Honor, 'at'>;
@@ -30,7 +30,7 @@ const blank = (kind: HonorKind): Draft => ({
   effect: 'shimmer',
   status: 'active',
 });
-const day = (t?: Timestamp | null) => (t ? new Date(t.toMillis()).toISOString().slice(0, 10) : '');
+const day = (t?: Timestamp | null) => (whenMs(t) ? new Date(whenMs(t)!).toISOString().slice(0, 10) : '');
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'honor';
 
 function Editor({ d, onClose }: { d: Draft; onClose: () => void }) {

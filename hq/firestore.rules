@@ -1178,8 +1178,10 @@ service cloud.firestore {
     match /honorLoadouts/{mid} {
       allow read: if blooded();
       allow write: if active() && mid == myId()
-        && request.resource.data.keys().hasOnly(['title', 'frame', 'effect', 'nameHue', 'accentHue', 'trimHue', 'backdropHue', 'showcase'])
-        && request.resource.data.get('showcase', []).size() <= 3;
+        && request.resource.data.keys().hasOnly(['title', 'frame', 'effect', 'nameHue', 'accentHue', 'trimHue', 'backdropHue', 'showcase', 'banner'])
+        && request.resource.data.get('showcase', []).size() <= 3
+        && (request.resource.data.get('banner', null) == null || (request.resource.data.banner.keys().hasOnly(['shape', 'pattern', 'sigil', 'c1', 'c2'])
+          && str(request.resource.data.banner.sigil, 30) && str(request.resource.data.banner.c1, 9) && str(request.resource.data.banner.c2, 9)));
     }
 
     // ---------- The Casino (play chips only) ----------

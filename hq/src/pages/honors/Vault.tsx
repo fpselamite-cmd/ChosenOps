@@ -1,12 +1,13 @@
 import { Gift, Hammer, Lock, Sparkles, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { Field } from '../../components/Field';
-import { FancyName, Framed, HonorPic, RarityChip, TitleTag } from '../../components/HonorArt';
+import { Banner, BANNER_COLORS, BANNER_PATTERNS, BANNER_SHAPES, DEFAULT_BANNER } from '../../components/Banner';
+import { FancyName, Framed, HonorPic, ICONS, RarityChip, TitleTag } from '../../components/HonorArt';
 import { Modal } from '../../components/Modal';
 import { Panel } from '../../components/Page';
 import { useHub } from '../../hooks/useHub';
 import { ago } from '../../lib/format';
-import { give, HIGH_TIER, HUE_SLOTS, KINDS, RARITIES, rarityOf, revoke, saveLoadout, STATS, type Honor, type HonorKind, type Loadout } from '../../lib/honors';
+import { give, HIGH_TIER, HUE_SLOTS, KINDS, RARITIES, rarityOf, revoke, saveLoadout, STATS, type BannerSpec, type Honor, type HonorKind, type Loadout } from '../../lib/honors';
 import type { Member } from '../../lib/types';
 import { useArchiveAccess } from '../archives/useArchives';
 import { Forge } from './Forge';
@@ -16,78 +17,207 @@ import { useHonors, useMyHonorStats } from './useHonors';
 const statLabel = (id?: string | null) => STATS.find((s) => s.id === id)?.label ?? id ?? '';
 const rank = (h: Honor) => RARITIES.findIndex((r) => r.id === h.rarity);
 
-/** What you have on, and swapping it. */
+/** The wardrobe: every frame, title and effect (owned or still to earn), tried on your portrait before you equip it, plus your banner. */
 function Wardrobe({ m }: { m: Member }) {
-  const { honorById, ownedBy, loadoutOf, equipped } = useHonors();
+  const { honors, honorById, ownedBy, loadoutOf, equipped, has } = useHonors();
   const mine = ownedBy(m.id).map((o) => honorById.get(o.honorId)).filter((x): x is Honor => !!x);
   const l = loadoutOf(m.id);
   const e = equipped(m.id);
+  const [tab, setTab] = useState<'frame' | 'title' | 'effect' | 'banner' | 'colors'>('frame');
+  const [trying, setTrying] = useState<Honor | null>(null);
+  const [banner, setBanner] = useState<BannerSpec | null>(l.banner ?? null);
   const of = (k: HonorKind) => mine.filter((h) => h.kind === k).sort((a, b) => rank(b) - rank(a));
   const set = (patch: Omit<Loadout, 'id'>) => saveLoadout(m.id, patch);
-  const pick = (label: string, k: HonorKind, field: keyof Loadout) => (
-    <Field label={label}>
-      <select className="input py-1.5 text-sm" value={(l[field] as string) ?? ''} onChange={(ev) => set({ [field]: ev.target.value || null })}>
-        <option value="">None</option>
-        {of(k).map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.name} · {rarityOf(h.rarity).label}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
-  const badges = of('badge');
-  const show = l.showcase ?? [];
+  const field = { frame: 'frame', title: 'title', effect: 'effect' } as const;
+  // What the preview shows: what you're trying on, else what you wear.
+  const frame = trying?.kind === 'frame' ? trying : e.frame;
+  const title = trying?.kind === 'title' ? trying : e.title;
+  const effect = trying?.kind === 'effect' ? trying : e.effect;
+  const shownBanner = tab === 'banner' ? banner : (l.banner ?? null);
+  const grid = (k: 'frame' | 'title' | 'effect') => {
+    const all = honors.filter((h) => h.kind === k && (h.status === 'active' || has(m.id, h.id))).sort((a, b) => +has(m.id, b.id) - +has(m.id, a.id) || rank(a) - rank(b));
+    const worn = l[field[k]];
+    return (
+      <div className="wr-grid">
+        {all.map((h) => {
+          const own = has(m.id, h.id);
+          const hidden = h.secret && !own;
+          return (
+            <button key={h.id} type="button" className={`wr-cell rar-${h.rarity} ${own ? '' : 'locked'} ${trying?.id === h.id ? 'on' : ''} ${worn === h.id ? 'worn' : ''}`} onClick={() => setTrying(h)} style={{ ['--rar' as string]: rarityOf(h.rarity).color }}>
+              <span className="wr-pic">
+                {k === 'frame' ? <Framed member={m} frame={h} size="md" /> : k === 'title' ? <TitleTag h={h} className="text-[10px]" /> : <FancyName name={m.name.split(' ')[0]!} effect={h.effect} className="font-display text-base" />}
+                {!own && <Lock className="wr-lock" />}
+              </span>
+              <span className="wr-name">{hidden ? '???' : h.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+  const owned = trying ? has(m.id, trying.id) : false;
+  const sigils = ['Crown', ...new Set(of('badge').map((h) => h.icon).filter((x): x is string => !!x && !!ICONS[x]))];
+  const colors = [...BANNER_COLORS, ...of('hue').map((h) => h.color).filter((c): c is string => !!c)];
   return (
-    <Panel title="Your loadout">
-      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-        <div className="flex flex-col items-center gap-2 text-center" style={e.backdropHue ? { background: `radial-gradient(circle at 50% 30%, color-mix(in oklab, ${e.backdropHue} 35%, transparent), transparent 70%)` } : undefined}>
-          <Framed member={m} frame={e.frame} size="xl" />
-          <FancyName name={m.name} hue={e.nameHue} effect={e.effect?.effect} className="font-display text-2xl" />
-          {e.title && <TitleTag h={e.title} />}
-          <div className="flex gap-1.5">
-            {e.showcase.map((h) => (
-              <HonorPic key={h.id} h={h} />
-            ))}
+    <Panel title="Wardrobe">
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        <div className="wr-stage" style={e.backdropHue ? { background: `radial-gradient(circle at 50% 30%, color-mix(in oklab, ${e.backdropHue} 35%, transparent), transparent 70%)` } : undefined}>
+          {shownBanner && <Banner spec={shownBanner} width={120} className="wr-banner" />}
+          <div className="relative z-10 flex flex-col items-center gap-2 pt-6">
+            <Framed member={m} frame={frame} size="xl" />
+            <FancyName name={m.name} hue={e.nameHue} effect={effect?.effect} className="font-display text-2xl" />
+            {title && <TitleTag h={title} />}
           </div>
-        </div>
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {pick('Title', 'title', 'title')}
-            {pick('Portrait frame', 'frame', 'frame')}
-            {pick('Name effect', 'effect', 'effect')}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {HUE_SLOTS.map((s) => (
-              <Field key={s.id} label={`${s.label} · ${s.hint}`}>
-                <div className="flex flex-wrap gap-1.5">
-                  <button className={`chip px-2 py-1 text-xs ${!l[s.id] ? 'border-gold-400 text-gold-200' : 'text-smoke'}`} onClick={() => set({ [s.id]: null })}>
-                    Default
+          {trying && tab !== 'banner' && tab !== 'colors' && (
+            <div className="relative z-10 mt-3 space-y-1.5 text-center">
+              <p className="text-sm text-gold-100">
+                {trying.name} <RarityChip r={trying.rarity} />
+              </p>
+              {owned ? (
+                l[field[trying.kind as 'frame']] === trying.id ? (
+                  <button className="btn-ghost btn-sm" onClick={() => set({ [field[trying.kind as 'frame']]: null })}>
+                    Take it off
                   </button>
-                  {of('hue').map((h) => (
-                    <button key={h.id} title={h.name} onClick={() => set({ [s.id]: h.id })} className={`size-7 rounded-full border-2 ${l[s.id] === h.id ? 'border-white' : 'border-transparent'}`} style={{ background: h.color }} />
-                  ))}
-                  {!of('hue').length && <span className="text-xs text-smoke">No hues yet.</span>}
-                </div>
-              </Field>
-            ))}
-          </div>
-          <Field label={`Showcase badges (${show.length}/3)`}>
-            <div className="flex flex-wrap gap-2">
-              {badges.map((h) => {
-                const on = show.includes(h.id);
-                return (
-                  <button key={h.id} title={h.name} className={`rounded p-0.5 ${on ? 'ring-2 ring-gold-300' : 'opacity-60 hover:opacity-100'}`} onClick={() => set({ showcase: on ? show.filter((x) => x !== h.id) : [...show, h.id].slice(-3) })}>
-                    <HonorPic h={h} />
+                ) : (
+                  <button className="btn-gold btn-sm" onClick={() => set({ [field[trying.kind as 'frame']]: trying.id })}>
+                    Equip
                   </button>
-                );
-              })}
-              {!badges.length && <span className="text-xs text-smoke">Earn badges to show them off.</span>}
+                )
+              ) : (
+                <p className="text-xs text-smoke">
+                  <Lock className="mr-1 inline size-3" />
+                  {trying.secret ? 'A secret. Earn it to find out.' : trying.source === 'honor' ? (trying.price ? `From the chip shop · ${trying.price.toLocaleString()} chips` : 'Given by High Table.') : `${statLabel(trying.stat)}: ${(trying.goal ?? 0).toLocaleString()}`}
+                  {trying.season ? ` · ${trying.season} only` : ''}
+                </p>
+              )}
             </div>
-          </Field>
+          )}
+        </div>
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['frame', 'Frames'],
+                ['title', 'Titles'],
+                ['effect', 'Name effects'],
+                ['banner', 'Banner'],
+                ['colors', 'Colors & showcase'],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} className={`chip px-3 py-1 text-xs ${tab === id ? 'border-gold-400 bg-gold-500/10 text-gold-200' : 'text-smoke'}`} onClick={() => (setTab(id), setTrying(null))}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {(tab === 'frame' || tab === 'title' || tab === 'effect') && grid(tab)}
+          {tab === 'banner' && (
+            <div className="space-y-4">
+              {!banner ? (
+                <button className="btn-gold btn-sm" onClick={() => setBanner(DEFAULT_BANNER)}>
+                  Raise a banner
+                </button>
+              ) : (
+                <>
+                  <Field label="Shape">
+                    <div className="flex flex-wrap gap-1.5">
+                      {BANNER_SHAPES.map((x) => (
+                        <button key={x.id} className={`chip px-2.5 py-1 text-xs ${banner.shape === x.id ? 'border-gold-400 text-gold-200' : 'text-smoke'}`} onClick={() => setBanner({ ...banner, shape: x.id })}>
+                          {x.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label="Pattern">
+                    <div className="flex flex-wrap gap-1.5">
+                      {BANNER_PATTERNS.map((x) => (
+                        <button key={x.id} className={`chip px-2.5 py-1 text-xs ${banner.pattern === x.id ? 'border-gold-400 text-gold-200' : 'text-smoke'}`} onClick={() => setBanner({ ...banner, pattern: x.id })}>
+                          {x.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label={`Sigil · from the badges you own (${sigils.length})`}>
+                    <div className="flex flex-wrap gap-1">
+                      {sigils.map((k) => {
+                        const I = ICONS[k]!;
+                        return (
+                          <button key={k} title={k} onClick={() => setBanner({ ...banner, sigil: k })} className={`grid size-8 place-items-center border ${banner.sigil === k ? 'border-gold-300 text-gold-200' : 'border-line text-smoke'}`}>
+                            <I className="size-4" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
+                  {(['c1', 'c2'] as const).map((c, i) => (
+                    <Field key={c} label={i ? 'Second color' : 'Main color'}>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...new Set(colors)].map((col) => (
+                          <button key={col} title={col} onClick={() => setBanner({ ...banner, [c]: col })} className={`size-7 rounded-full border-2 ${banner[c] === col ? 'border-white' : 'border-transparent'}`} style={{ background: col }} />
+                        ))}
+                      </div>
+                    </Field>
+                  ))}
+                  <div className="flex gap-2">
+                    <button className="btn-gold btn-sm" onClick={() => set({ banner })}>
+                      Hang it
+                    </button>
+                    {l.banner && (
+                      <button className="btn-ghost btn-sm" onClick={() => (set({ banner: null }), setBanner(null))}>
+                        Take it down
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {tab === 'colors' && <Colors m={m} />}
         </div>
       </div>
     </Panel>
+  );
+}
+
+/** Hues and the three showcase badges. */
+function Colors({ m }: { m: Member }) {
+  const { honorById, ownedBy, loadoutOf } = useHonors();
+  const mine = ownedBy(m.id).map((o) => honorById.get(o.honorId)).filter((x): x is Honor => !!x);
+  const l = loadoutOf(m.id);
+  const of = (k: HonorKind) => mine.filter((h) => h.kind === k).sort((a, b) => rank(b) - rank(a));
+  const set = (patch: Omit<Loadout, 'id'>) => saveLoadout(m.id, patch);
+  const badges = of('badge');
+  const show = l.showcase ?? [];
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {HUE_SLOTS.map((s) => (
+          <Field key={s.id} label={`${s.label} · ${s.hint}`}>
+            <div className="flex flex-wrap gap-1.5">
+              <button className={`chip px-2 py-1 text-xs ${!l[s.id] ? 'border-gold-400 text-gold-200' : 'text-smoke'}`} onClick={() => set({ [s.id]: null })}>
+                Default
+              </button>
+              {of('hue').map((h) => (
+                <button key={h.id} title={h.name} onClick={() => set({ [s.id]: h.id })} className={`size-7 rounded-full border-2 ${l[s.id] === h.id ? 'border-white' : 'border-transparent'}`} style={{ background: h.color }} />
+              ))}
+              {!of('hue').length && <span className="text-xs text-smoke">No hues yet.</span>}
+            </div>
+          </Field>
+        ))}
+      </div>
+      <Field label={`Showcase badges (${show.length}/3)`}>
+        <div className="flex flex-wrap gap-2">
+          {badges.map((h) => {
+            const on = show.includes(h.id);
+            return (
+              <button key={h.id} title={h.name} className={`rounded p-0.5 ${on ? 'ring-2 ring-gold-300' : 'opacity-60 hover:opacity-100'}`} onClick={() => set({ showcase: on ? show.filter((x) => x !== h.id) : [...show, h.id].slice(-3) })}>
+                <HonorPic h={h} />
+              </button>
+            );
+          })}
+          {!badges.length && <span className="text-xs text-smoke">Earn badges to show them off.</span>}
+        </div>
+      </Field>
+    </div>
   );
 }
 
