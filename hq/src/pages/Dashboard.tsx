@@ -1,4 +1,4 @@
-import { collection, doc, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import {
   Cake,
   CheckCircle2,
@@ -6,7 +6,12 @@ import {
   Crown,
   Gift,
   HelpCircle,
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
   LayoutDashboard,
+  SlidersHorizontal,
   Lock,
   Megaphone,
   Newspaper,
@@ -16,9 +21,10 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AdminLock } from '../components/AdminLock';
+import { EventBanner } from '../components/EventBanner';
 import { Avatar } from '../components/Avatar';
 import { RankBadge } from '../components/Badges';
 import { Field } from '../components/Field';
@@ -423,7 +429,7 @@ function Birthdays() {
   });
   rows.sort((a, b) => a.day.localeCompare(b.day));
   return (
-    <Panel title="Birthdays & anniversaries">
+    <Panel title="Birthdays & anniversaries" fold="dash.birthdays" folded>
       {rows.length ? (
         <ul className="space-y-2">
           {rows.map((r) => (
@@ -658,76 +664,217 @@ export default function Dashboard() {
       </>
     );
 
-  return (
-    <>
-      <PageHeader icon={LayoutDashboard} kicker={`${settings.name} · ${settings.motto}`} title={`${greet}, ${me.name}`} actions={
-          <div className="flex items-center gap-2">
-            <PettyRing />
-            <StreakBadge />
-          </div>
-        } />
-
-      <PartyBanner />
-      <LiveHeistBanner />
-      <PatchMoment />
-      <NewlyPatched />
-      <WelcomeNote />
-      <OpenPolls />
-      <div className="mb-6 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+  const panels: Record<string, ReactNode> = {
+    polls: <OpenPolls />,
+    todos: <Todos />,
+    upnext: <UpNext />,
+    word: <WordFromTheTop />,
+    briefing: <Briefing />,
+    hero: (
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Hero />
         <Spotlight />
       </div>
-
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-flow-col lg:auto-cols-fr">
+    ),
+    stats: (
+      <div className="grid grid-cols-2 gap-3 lg:grid-flow-col lg:auto-cols-fr">
         <Stat label="Family" value={roster.length} sub={`${ranks.length} ranks`} />
         <Stat label="Online now" value={<span className="text-ok">{online.length}</span>} />
         <Stat label="Family rep" value={familyRep.toLocaleString('en-US')} sub="Petty rep sent in + blacksites" />
         <MoneyTile />
         <RunsTile />
       </div>
+    ),
+    month: <ThisMonth />,
+    birthdays: <Birthdays />,
+    leadership: (
+      <Panel title="Leadership" fold="dash.leadership" folded>
+        <ul className="space-y-2">
+          {leadership.map((m) => (
+            <li key={m.id}>
+              <Link to={`/members/${m.id}`} className="flex items-center gap-3 hover:opacity-90">
+                <Avatar member={m} online={isOnline(m.id)} />
+                <span className="flex-1 truncate font-semibold text-gold-100">{m.name}</span>
+                <RankBadge rank={rankById.get(m.rankId ?? '')} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    ),
+    online: (
+      <Panel title={`Online · ${online.length}`} fold="dash.online" folded>
+        {online.length ? (
+          <div className="flex flex-wrap gap-2">
+            {online.map((m) => (
+              <Link key={m.id} to={`/members/${m.id}`} title={m.name}>
+                <Avatar member={m} size="md" online />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-smoke">Just you.</p>
+        )}
+      </Panel>
+    ),
+  };
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <WordFromTheTop />
-          <Briefing />
-          <ThisMonth />
-
-        </div>
-
-        <div className="space-y-6">
-          <MyProgress />
-          <Todos />
-          <UpNext />
-          <Birthdays />
-          <Panel title="Leadership">
-            <ul className="space-y-2">
-              {leadership.map((m) => (
-                <li key={m.id}>
-                  <Link to={`/members/${m.id}`} className="flex items-center gap-3 hover:opacity-90">
-                    <Avatar member={m} online={isOnline(m.id)} />
-                    <span className="flex-1 truncate font-semibold text-gold-100">{m.name}</span>
-                    <RankBadge rank={rankById.get(m.rankId ?? '')} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-          <Panel title={`Online · ${online.length}`}>
-            {online.length ? (
-              <div className="flex flex-wrap gap-2">
-                {online.map((m) => (
-                  <Link key={m.id} to={`/members/${m.id}`} title={m.name}>
-                    <Avatar member={m} size="md" online />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-smoke">Just you.</p>
-            )}
-          </Panel>
-        </div>
-      </div>
+  return (
+    <>
+      <PageHeader
+        icon={LayoutDashboard}
+        kicker={`${settings.name} · ${settings.motto}`}
+        title={`${greet}, ${me.name}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <PettyRing />
+            <StreakBadge />
+          </div>
+        }
+      />
+      <PatchMoment />
+      {/* Only the most urgent banner shows; the rest wait behind the dots. */}
+      <BannerStrip>
+        <LiveHeistBanner />
+        <EventBanner />
+        <PartyBanner />
+        <NewlyPatched />
+        <WelcomeNote />
+      </BannerStrip>
+      <DashPanels panels={panels} />
       {footer}
     </>
+  );
+}
+
+/** Dashboard panels in the member's order (live → mine → family by default), with a Customize mode. */
+const DASH: { id: string; label: string; col: 'main' | 'side' }[] = [
+  { id: 'polls', label: 'Polls', col: 'main' },
+  { id: 'todos', label: 'Waiting on you', col: 'side' },
+  { id: 'upnext', label: 'Up next', col: 'side' },
+  { id: 'word', label: 'Word from the top', col: 'main' },
+  { id: 'briefing', label: 'Briefing', col: 'main' },
+  { id: 'hero', label: 'Family & spotlight', col: 'main' },
+  { id: 'stats', label: 'Numbers', col: 'main' },
+  { id: 'month', label: 'Leaderboards', col: 'main' },
+  { id: 'birthdays', label: 'Birthdays', col: 'side' },
+  { id: 'leadership', label: 'Leadership', col: 'side' },
+  { id: 'online', label: 'Online', col: 'side' },
+];
+function DashPanels({ panels }: { panels: Record<string, ReactNode> }) {
+  const { me, realMe, preview } = useHub();
+  const saved = me.prefs?.dash;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<{ order: string[]; hidden: string[] } | null>(null);
+  const known = new Set(DASH.map((d) => d.id));
+  const baseOrder = [...(saved?.order ?? []).filter((id) => known.has(id)), ...DASH.map((d) => d.id).filter((id) => !(saved?.order ?? []).includes(id))];
+  const order = draft?.order ?? baseOrder;
+  const hidden = draft?.hidden ?? saved?.hidden ?? [];
+  const pos = (id: string) => order.indexOf(id);
+  const move = (id: string, d: number) => {
+    const o = [...order];
+    const i = o.indexOf(id);
+    const j = i + d;
+    if (j < 0 || j >= o.length) return;
+    [o[i], o[j]] = [o[j]!, o[i]!];
+    setDraft({ order: o, hidden });
+  };
+  const toggle = (id: string) => setDraft({ order, hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] });
+  const save = () => {
+    if (draft) void updateDoc(doc(db, 'members', realMe.id), { prefs: { ...(realMe.prefs ?? {}), dash: draft } }).catch(() => {});
+    setEditing(false);
+    setDraft(null);
+  };
+  const slot = (d: (typeof DASH)[number]) => {
+    const off = hidden.includes(d.id);
+    if (off && !editing) return null;
+    return (
+      <div key={d.id} className={`dash-slot ${editing ? 'editing' : ''} ${off ? 'off' : ''}`} style={{ order: pos(d.id) }}>
+        {editing && (
+          <div className="dash-tools">
+            <span className="flex-1 font-hud text-[11px] font-bold tracking-wider text-gold-200 uppercase">{d.label}</span>
+            <button type="button" onClick={() => move(d.id, -1)} disabled={pos(d.id) === 0} aria-label="Move up">
+              <ArrowUp className="size-4" />
+            </button>
+            <button type="button" onClick={() => move(d.id, 1)} disabled={pos(d.id) === order.length - 1} aria-label="Move down">
+              <ArrowDown className="size-4" />
+            </button>
+            <button type="button" onClick={() => toggle(d.id)} aria-label={off ? 'Show' : 'Hide'}>
+              {off ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        )}
+        {panels[d.id]}
+      </div>
+    );
+  };
+  const byOrder = (a: (typeof DASH)[number], b: (typeof DASH)[number]) => pos(a.id) - pos(b.id);
+  return (
+    <>
+      <div className="mb-3 flex justify-end gap-2">
+        {editing ? (
+          <>
+            <button className="btn-ghost btn-sm" onClick={() => setDraft({ order: DASH.map((d) => d.id), hidden: [] })}>
+              Reset
+            </button>
+            <button className="btn-ghost btn-sm" onClick={() => (setEditing(false), setDraft(null))}>
+              Cancel
+            </button>
+            <button className="btn-gold btn-sm" onClick={save}>
+              Save layout
+            </button>
+          </>
+        ) : (
+          !preview && (
+            <button className="btn-ghost btn-sm" onClick={() => setEditing(true)}>
+              <SlidersHorizontal className="size-3.5" /> Customize
+            </button>
+          )
+        )}
+      </div>
+      {/* One ordered list on a phone; two columns on a computer, each in the same order. */}
+      <div className="dash-grid">
+        <div className="dash-col">{DASH.filter((d) => d.col === 'main').sort(byOrder).map(slot)}</div>
+        <div className="dash-col dash-side">{DASH.filter((d) => d.col === 'side').sort(byOrder).map(slot)}</div>
+      </div>
+    </>
+  );
+}
+
+/** Stacks the top banners: the first one that has something to say shows, the others sit behind dots. */
+function BannerStrip({ children }: { children: ReactNode[] }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState<number[]>([]);
+  const [pick, setPick] = useState<number | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const count = () => {
+      const next = [...el.children].map((c, i) => (c.childElementCount ? i : -1)).filter((i) => i >= 0);
+      setLive((cur) => (cur.join() === next.join() ? cur : next));
+    };
+    count();
+    const mo = new MutationObserver(count);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
+  const shown = pick != null && live.includes(pick) ? pick : live[0];
+  return (
+    <div className="banner-strip mb-6">
+      <div ref={box}>
+        {children.map((c, i) => (
+          <div key={i} className={`banner-slot ${i === shown ? '' : 'hidden'}`}>
+            {c}
+          </div>
+        ))}
+      </div>
+      {live.length > 1 && (
+        <div className="banner-dots" role="tablist">
+          {live.map((i) => (
+            <button key={i} type="button" role="tab" aria-selected={i === shown} aria-label={`Banner ${live.indexOf(i) + 1}`} className={i === shown ? 'on' : ''} onClick={() => setPick(i)} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

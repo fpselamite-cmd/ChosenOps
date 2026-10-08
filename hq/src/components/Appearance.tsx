@@ -252,6 +252,19 @@ export function Appearance({ bare }: { bare?: boolean } = {}) {
       <div className="divide-y divide-line-soft">
         <Toggle on={p.motion === 'on'} onChange={(v) => set({ motion: v ? 'on' : 'off' })} label="Motion" hint="Panels drifting in, twinkling stars, glows." />
         <Toggle on={p.shooting === 'on'} onChange={(v) => set({ shooting: v ? 'on' : 'off' })} label="Shooting stars" hint="One streaks across the sky now and then." />
+        <div className="flex flex-wrap items-center gap-3 py-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm text-gold-100">Sparkles</span>
+            <span className="block text-xs text-smoke">Stars and the little corner sparkles. Auto is full on a computer and fewer on a phone.</span>
+          </span>
+          <span className="flex gap-1">
+            {(['auto', 'full', 'few', 'off'] as const).map((v) => (
+              <button key={v} type="button" className={`chip px-2.5 py-1 text-xs capitalize ${(p.sparkles ?? 'auto') === v ? 'border-gold-400 bg-gold-500/10 text-gold-200' : 'text-smoke'}`} onClick={() => set({ sparkles: v })}>
+                {v}
+              </button>
+            ))}
+          </span>
+        </div>
         <Toggle on={p.wheel === 'on'} onChange={(v) => set({ wheel: v ? 'on' : 'off' })} label="Zodiac wheel" hint="The seal turning slowly behind the page." />
         <Toggle on={p.text === 'large'} onChange={(v) => set({ text: v ? 'large' : 'normal' })} label="Bigger text" hint="Everything a little larger." />
         <PhoneBarPicker save={(bar) => set({ bar })} />

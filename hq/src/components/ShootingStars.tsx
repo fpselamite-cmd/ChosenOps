@@ -10,7 +10,8 @@ export function ShootingStars({ enabled }: { enabled: boolean }) {
       t = setTimeout(
         () => {
           const el = document.documentElement.dataset;
-          if (el.motion !== 'off' && el.shooting !== 'off' && el.sky !== 'plain' && document.visibilityState === 'visible')
+          const few = el.sparkles === 'few' || el.sparkles === 'off' || (el.sparkles !== 'full' && window.innerWidth < 640);
+          if (!few && el.motion !== 'off' && el.shooting !== 'off' && el.sky !== 'plain' && document.visibilityState === 'visible')
             setStar({ id: Date.now(), top: 5 + Math.random() * 35, left: 45 + Math.random() * 50 });
           next();
         },

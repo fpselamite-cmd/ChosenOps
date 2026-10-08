@@ -241,7 +241,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                 })}
               </div>
             </div>
-            <table className="assoc-table">
+            <table className="assoc-table card-table">
               <thead>
                 <tr>
                   <th>Training topic</th>
@@ -259,11 +259,11 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                   const wcCan = handler && !self && !!st;
                   return (
                     <tr key={t.id} className={`${t.final ? 'assoc-final' : ''} ${lock && !st ? 'assoc-locked' : ''}`}>
-                      <td>
+                      <td className="card-title">
                         <span className="text-gold-100">{t.title}</span>
                         {t.detail && <span className="block text-[11px] text-smoke">{t.detail}</span>}
                       </td>
-                      <td>
+                      <td data-label="Associate sign off">
                         <button
                           type="button"
                           className={`assoc-box ${st ? 'on' : ''}`}
@@ -274,7 +274,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                           {st && <Check className="size-3.5" strokeWidth={3} />}
                         </button>
                       </td>
-                      <td>
+                      <td data-label="WC sign off">
                         <button
                           type="button"
                           className={`assoc-box ${st?.status === 'done' ? 'on wc' : ''}`}
@@ -285,7 +285,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                           {st?.status === 'done' && <Check className="size-3.5" strokeWidth={3} />}
                         </button>
                       </td>
-                      <td className="text-sm text-gold-200">{wcName(st)}</td>
+                      <td className="text-sm text-gold-200" data-label="Name of WC">{wcName(st)}</td>
                     </tr>
                   );
                 })}

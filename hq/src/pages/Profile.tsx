@@ -133,9 +133,10 @@ function Line({ label, value, edit, onChange, long, mono, max = 80 }: { label: s
   );
 }
 
-function Box({ title, children, right }: { title: ReactNode; children: ReactNode; right?: ReactNode }) {
+/** A sheet section: folds up on a phone; on your own sheet it has its own pencil to edit just this bit. */
+function Box({ title, children, right, sec, tools }: { title: ReactNode; children: ReactNode; right?: ReactNode; sec?: string; tools?: ReactNode }) {
   return (
-    <Panel title={title} right={right}>
+    <Panel title={title} right={tools ?? right} fold={sec ? `sheet.${sec}` : undefined}>
       {children}
     </Panel>
   );
@@ -893,6 +894,7 @@ export default function Profile() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [traitInput, setTraitInput] = useState('');
   const [params, setParams] = useSearchParams();
+  const [focus, setFocus] = useState<string | null>(null);
   const { equipped } = useHonors();
   const worn = equipped(id);
   const viewerAssoc = useWelcomeAccess().isAssoc;
@@ -904,6 +906,29 @@ export default function Profile() {
   const on = isOnline(m.id);
   const status = presence.get(m.id)?.status;
   const edit = !!draft;
+  // Editing one section (its pencil) or the whole sheet (focus null).
+  const fullEdit = edit && !focus;
+  const ed = (sec: string) => edit && (!focus || focus === sec);
+  const tools = (sec: string, right?: ReactNode) =>
+    !mine || (edit && focus !== sec) || fullEdit ? (
+      right
+    ) : focus === sec ? (
+      <span className="no-print flex gap-1.5">
+        <button className="btn-ghost btn-sm" onClick={() => (setDraft(null), setFocus(null))}>
+          Cancel
+        </button>
+        <button className="btn-gold btn-sm" onClick={() => void save().then(() => setFocus(null))} disabled={saving}>
+          <Save className="size-3.5" /> Save
+        </button>
+      </span>
+    ) : (
+      <span className="no-print flex items-center gap-2">
+        {right}
+        <button className="text-smoke hover:text-gold-200" onClick={() => (startEdit(), setFocus(sec))} aria-label="Edit this section" title="Edit this section">
+          <Pencil className="size-3.5" />
+        </button>
+      </span>
+    );
   const asked = params.get('view');
   // Honors open once they're blooded in.
   const view = edit ? 'sheet' : asked === 'trophies' || asked === 'journal' || (asked === 'honors' && !viewerAssoc) ? asked : 'sheet';
@@ -960,9 +985,9 @@ export default function Profile() {
 
       <div ref={sheetRef} className="space-y-6">
         {/* ---------- sheet header ---------- */}
-        <section className="hud" style={worn.backdropHue ? { background: `radial-gradient(ellipse at 15% 20%, color-mix(in oklab, ${worn.backdropHue} 32%, transparent), transparent 65%), radial-gradient(ellipse at 90% 100%, color-mix(in oklab, ${worn.backdropHue} 16%, transparent), transparent 60%)` } : undefined}>
+        <section className="hud profile-head" style={worn.backdropHue ? { background: `radial-gradient(ellipse at 15% 20%, color-mix(in oklab, ${worn.backdropHue} 32%, transparent), transparent 65%), radial-gradient(ellipse at 90% 100%, color-mix(in oklab, ${worn.backdropHue} 16%, transparent), transparent 60%)` } : undefined}>
           <div className="scanlines flex flex-col items-center gap-6 p-6 text-center sm:flex-row sm:items-start sm:text-left">
-            {wanted?.on && !edit ? (
+            {wanted?.on && !fullEdit ? (
               <WantedPoster m={m} w={wanted} />
             ) : (
               <div className="relative shrink-0">
@@ -993,12 +1018,12 @@ export default function Profile() {
                   ))}
                 </button>
               )}
-              {edit ? (
+              {fullEdit ? (
                 <input className="input mt-1 max-w-xs" placeholder="Alias / street name" value={draft!.alias} maxLength={30} onChange={(e) => set({ alias: e.target.value })} />
               ) : (
                 m.alias && <p className="text-ash italic">“{m.alias}”</p>
               )}
-              {s.story?.quote && !edit && <p className="mt-2 font-display text-lg text-gold-200 italic">“{s.story.quote}”</p>}
+              {s.story?.quote && !fullEdit && <p className="mt-2 font-display text-lg text-gold-200 italic">“{s.story.quote}”</p>}
               <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 sm:justify-start">
                 <RankBadge rank={rankById.get(m.rankId ?? '')} size="lg" />
                 <RoleChips memberId={m.id} size="lg" />
@@ -1013,7 +1038,7 @@ export default function Profile() {
                 )}
                 {m.joinedAt && <> · Joined {fmtDate(m.joinedAt)}</>}
               </p>
-              {edit && (
+              {fullEdit && (
                 <div className="mt-4 grid gap-3 text-left sm:grid-cols-2">
                   <Field label="Theme song" hint="A YouTube or Spotify link">
                     <input className="input" value={draft!.song ?? ''} maxLength={300} onChange={(e) => set({ song: e.target.value })} placeholder="https://…" />
@@ -1040,7 +1065,7 @@ export default function Profile() {
               )}
               <ErrorText error={error} />
             </div>
-            {!edit && (
+            {!fullEdit && (
               <div className="no-print shrink-0 self-center">
                 <MiniFamilyCard
                   member={m}
@@ -1053,7 +1078,7 @@ export default function Profile() {
             )}
             <div className="no-print flex flex-wrap justify-center gap-2 sm:flex-col sm:items-end">
               {mine &&
-                (edit ? (
+                (fullEdit ? (
                   <div className="flex gap-2">
                     <button className="btn-ghost btn-sm" onClick={() => setDraft(null)}>
                       Cancel
@@ -1063,7 +1088,7 @@ export default function Profile() {
                     </button>
                   </div>
                 ) : (
-                  <button className="btn-gold btn-sm" onClick={startEdit}>
+                  <button className="btn-gold btn-sm" onClick={() => (startEdit(), setFocus(null))} disabled={edit}>
                     <Pencil className="size-3.5" /> Edit sheet
                   </button>
                 ))}
@@ -1086,12 +1111,12 @@ export default function Profile() {
               )}
             </div>
           </div>
-          {!edit && <Glance m={m} />}
+          {!fullEdit && <Glance m={m} />}
         </section>
 
         {/* ---------- tabs: the sheet, the trophy wall, the journal ---------- */}
-        {!edit && (
-          <div className="no-print">
+        {!fullEdit && (
+          <div className="no-print profile-tabs">
             <Tabs
               value={view}
               onChange={(v) => setParams(v === 'sheet' ? {} : { view: v }, { replace: true })}
@@ -1125,12 +1150,12 @@ export default function Profile() {
             <div id="family-card">
               <FamilyCard member={m} />
             </div>
-            <Box title="Vitals">
+            <Box title="Vitals" sec="vitals" tools={tools('vitals')}>
               <dl className="grid gap-3 sm:grid-cols-2">
                 {BASICS.map(([k, label]) => (
-                  <Line key={k} label={label} value={s.basics?.[k]} edit={edit} onChange={(v) => setIn('basics', k, v)} max={40} />
+                  <Line key={k} label={label} value={s.basics?.[k]} edit={ed('vitals')} onChange={(v) => setIn('basics', k, v)} max={40} />
                 ))}
-                {edit ? (
+                {ed('vitals') ? (
                   <label className="block sm:col-span-2">
                     <span className="label">Birthday · shows on the calendar</span>
                     <div className="mt-1 grid grid-cols-2 gap-2">
@@ -1157,20 +1182,20 @@ export default function Profile() {
                 )}
               </dl>
             </Box>
-            <Box title="Looks">
+            <Box title="Looks" sec="looks" tools={tools('looks')}>
               <dl className="grid gap-3 sm:grid-cols-2">
                 {LOOKS.map(([k, label]) => (
-                  <Line key={k} label={label} value={s.looks?.[k]} edit={edit} onChange={(v) => setIn('looks', k, v)} />
+                  <Line key={k} label={label} value={s.looks?.[k]} edit={ed('looks')} onChange={(v) => setIn('looks', k, v)} />
                 ))}
               </dl>
             </Box>
-            <Box title="City life">
+            <Box title="City life" sec="city" tools={tools('city')}>
               <dl className="grid gap-3 sm:grid-cols-2">
-                <Line label="In-city phone" value={edit ? draft!.phone : m.phone} edit={edit} onChange={(v) => set({ phone: v })} mono max={20} />
+                <Line label="In-city phone" value={ed('city') ? draft!.phone : m.phone} edit={ed('city')} onChange={(v) => set({ phone: v })} mono max={20} />
                 {CITY.map(([k, label]) => (
-                  <Line key={k} label={label} value={s.city?.[k]} edit={edit} onChange={(v) => setIn('city', k, v)} />
+                  <Line key={k} label={label} value={s.city?.[k]} edit={ed('city')} onChange={(v) => setIn('city', k, v)} />
                 ))}
-                {!edit && (
+                {!ed('city') && (
                   <>
                     <div>
                       <dt className="label">Answers to</dt>
@@ -1211,29 +1236,29 @@ export default function Profile() {
           </div>
 
           <div className="space-y-6 xl:order-2">
-            <Box title="Story">
+            <Box title="Story" sec="story" tools={tools('story')}>
               <dl className="grid gap-4 sm:grid-cols-2">
-                {STORY.filter(([k]) => edit || k !== 'quote').map(([k, label]) => (
-                  <Line key={k} label={label} value={story[k]} edit={edit} onChange={(v) => setIn('story', k, v)} long={LONG_STORY.includes(k)} max={LONG_STORY.includes(k) ? 3000 : 200} />
+                {STORY.filter(([k]) => ed('story') || k !== 'quote').map(([k, label]) => (
+                  <Line key={k} label={label} value={story[k]} edit={ed('story')} onChange={(v) => setIn('story', k, v)} long={LONG_STORY.includes(k)} max={LONG_STORY.includes(k) ? 3000 : 200} />
                 ))}
               </dl>
             </Box>
 
-            <Box title="Traits">
+            <Box title="Traits" sec="traits" tools={tools('traits')}>
               <div className="flex flex-wrap gap-2">
                 {(s.traits ?? []).map((t, i) => (
                   <span key={i} className="seal inline-flex items-center gap-1 px-3 py-1 text-sm">
                     {t}
-                    {edit && (
+                    {ed('traits') && (
                       <button onClick={() => set({ traits: (draft!.traits ?? []).filter((_, j) => j !== i) })} aria-label={`Remove ${t}`}>
                         <X className="size-3" />
                       </button>
                     )}
                   </span>
                 ))}
-                {!edit && !(s.traits ?? []).length && <p className="text-sm text-smoke">—</p>}
+                {!ed('traits') && !(s.traits ?? []).length && <p className="text-sm text-smoke">—</p>}
               </div>
-              {edit && (
+              {ed('traits') && (
                 <form
                   className="mt-3 flex gap-2"
                   onSubmit={(e) => {
@@ -1249,7 +1274,7 @@ export default function Profile() {
               )}
             </Box>
 
-            <Box title="Skills" right={<span className="text-[10px] text-smoke">self-rated</span>}>
+            <Box title="Skills" sec="skills" tools={tools('skills', <span className="text-[10px] text-smoke">self-rated</span>)}>
               <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                 {SKILL_GROUPS.map((g) => (
                   <div key={g.name}>
@@ -1257,17 +1282,17 @@ export default function Profile() {
                     {g.skills.map((k) => (
                       <div key={k} className="flex items-center justify-between py-0.5 text-sm">
                         <span className="text-ash">{k}</span>
-                        <Stars value={s.skills?.[k] ?? 0} onChange={edit ? (v) => set({ skills: { ...(draft!.skills ?? {}), [k]: v } }) : undefined} />
+                        <Stars value={s.skills?.[k] ?? 0} onChange={ed('skills') ? (v) => set({ skills: { ...(draft!.skills ?? {}), [k]: v } }) : undefined} />
                       </div>
                     ))}
                   </div>
                 ))}
-                {(edit || (s.customSkills ?? []).length > 0) && (
+                {(ed('skills') || (s.customSkills ?? []).length > 0) && (
                   <div>
                     <p className="label mb-1 text-gold-500">Own skills</p>
                     {(s.customSkills ?? []).map((c, i) => (
                       <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-sm">
-                        {edit ? (
+                        {ed('skills') ? (
                           <input
                             className="input py-1 text-sm"
                             value={c.name}
@@ -1278,15 +1303,15 @@ export default function Profile() {
                         ) : (
                           <span className="text-ash">{c.name}</span>
                         )}
-                        <Stars value={c.value} onChange={edit ? (v) => set({ customSkills: draft!.customSkills!.map((x, j) => (j === i ? { ...x, value: v } : x)) }) : undefined} />
-                        {edit && (
+                        <Stars value={c.value} onChange={ed('skills') ? (v) => set({ customSkills: draft!.customSkills!.map((x, j) => (j === i ? { ...x, value: v } : x)) }) : undefined} />
+                        {ed('skills') && (
                           <button onClick={() => set({ customSkills: draft!.customSkills!.filter((_, j) => j !== i) })} aria-label="Remove">
                             <X className="size-3.5 text-smoke" />
                           </button>
                         )}
                       </div>
                     ))}
-                    {edit && (
+                    {ed('skills') && (
                       <button className="mt-1 text-xs text-gold-300 hover:underline" onClick={() => set({ customSkills: [...(draft!.customSkills ?? []), { name: '', value: 0 }] })}>
                         + Add a skill
                       </button>
@@ -1296,9 +1321,9 @@ export default function Profile() {
               </div>
             </Box>
 
-            {(edit || (s.customFields ?? []).length > 0) && (
-              <Box title="More about me">
-                {edit ? (
+            {(ed('more') || (s.customFields ?? []).length > 0) && (
+              <Box title="More about me" sec="more" tools={tools('more')}>
+                {ed('more') ? (
                   <div className="space-y-2">
                     {(draft!.customFields ?? []).map((f, i) => (
                       <div key={i} className="flex gap-2">
@@ -1323,7 +1348,7 @@ export default function Profile() {
               </Box>
             )}
 
-            <Relations relations={s.relations ?? []} edit={edit} onChange={(relations) => set({ relations })} />
+            <Relations relations={s.relations ?? []} edit={fullEdit} onChange={(relations) => set({ relations })} />
           </div>
           </div>
         )}

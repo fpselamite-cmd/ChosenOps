@@ -115,7 +115,7 @@ service cloud.firestore {
           && (!('alias' in d) || str(d.alias, 30))
           && (!('phone' in d) || str(d.phone, 20))
           && (!('bio' in d) || str(d.bio, 1000))
-          && (!('prefs' in d) || (d.prefs is map && d.prefs.size() <= 10))
+          && (!('prefs' in d) || (d.prefs is map && d.prefs.size() <= 16))
           && (!('birthday' in d) || d.birthday == null || (d.birthday is string && d.birthday.matches('[01][0-9]-[0-3][0-9]')));
       }
 

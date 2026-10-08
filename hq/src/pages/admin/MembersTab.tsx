@@ -374,7 +374,7 @@ export default function MembersTab() {
         <p className="text-xs text-smoke">Promotions, leave and the like also live on the Family page and each profile.</p>
       </div>
       <div className="hud overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="card-table w-full text-sm sm:min-w-[760px]">
           <thead>
             <tr className="label border-b border-line text-left">
               <th className="px-4 py-2.5">Member</th>
@@ -395,7 +395,7 @@ export default function MembersTab() {
               const choices = isOwner || isAdmin ? ranks : [...(rank && !grantable.includes(rank) ? [rank] : []), ...grantable];
               return (
                 <tr key={m.id} className={m.status === 'suspended' ? 'opacity-50' : ''}>
-                  <td className="px-4 py-2.5">
+                  <td className="card-title px-4 py-2.5">
                     <span className="flex items-center gap-2.5">
                       <Avatar member={m} />
                       <span>
@@ -406,7 +406,7 @@ export default function MembersTab() {
                       </span>
                     </span>
                   </td>
-                  <td className="px-2">
+                  <td className="px-2" data-label="Rank">
                     {rankable ? (
                       <select
                         className="input py-1"
@@ -426,7 +426,7 @@ export default function MembersTab() {
                       <RankBadge rank={rank} />
                     )}
                   </td>
-                  <td className="px-2">
+                  <td className="px-2" data-label="Answers to">
                     {manage ? (
                       <select className="input py-1" value={m.reportsTo ?? ''} onChange={(e) => setReportsTo(m.id, e.target.value || null)}>
                         <option value="">Nobody</option>
@@ -442,7 +442,7 @@ export default function MembersTab() {
                       <span className="text-ash">{members.find((x) => x.id === m.reportsTo)?.name ?? '—'}</span>
                     )}
                   </td>
-                  <td className="px-2">
+                  <td className="px-2" data-label="Status">
                     {manage && !self ? (
                       <select className="input py-1" value={m.status} onChange={(e) => setStatus(m.id, e.target.value as Member['status']).then(() => log(`Set ${m.name} to ${e.target.value}`, m.id))}>
                         <option value="active">Active</option>
@@ -452,7 +452,7 @@ export default function MembersTab() {
                       <span className="text-ash capitalize">{m.status}</span>
                     )}
                   </td>
-                  <td className="px-4 text-right">
+                  <td className="card-actions px-4 text-right">
                     <span className="inline-flex items-center gap-1.5">
                       {(isAdmin || can('resetPins')) && (
                         <button className="btn-ghost btn-sm" onClick={() => setOpen({ m })}>
