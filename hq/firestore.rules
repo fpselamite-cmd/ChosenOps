@@ -1395,6 +1395,14 @@ service cloud.firestore {
 
     // ---------- Admin ----------
     // App-wide defaults (call-in cost, weekly goal, snapshot days, city clock) and editable lists (crime types, cars, products).
+    // Which 3D model each gun shows (Admin → Gun models): leadership picks; a pick is a file in the pack or '' (code-built).
+    match /settings/gunModels {
+      allow read: if active();
+      allow write: if active() && lead()
+        && request.resource.data.keys().hasOnly(['weapons', 'by', 'at'])
+        && request.resource.data.weapons is map && request.resource.data.weapons.size() <= 300
+        && request.resource.data.by == myId() && request.resource.data.at == request.time;
+    }
     match /settings/defaults {
       allow read: if active();
       allow write: if active() && (isAdmin() || can('manageSettings'));

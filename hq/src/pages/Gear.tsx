@@ -70,6 +70,7 @@ export function specOf(cat: Catalog, weaponId: string, parts: Record<string, str
     name: base?.name ?? w?.name ?? '',
     cls: gunClassOf(w, cat.byId),
     parts: Object.fromEntries(Object.entries(parts).filter(([, v]) => v).map(([k, v]) => [k, cat.byId.get(v)?.name ?? v])),
+    model: cat.gunModels[base?.id ?? weaponId],
   };
 }
 

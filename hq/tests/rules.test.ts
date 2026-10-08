@@ -691,6 +691,17 @@ describe('NoelOps names', () => {
   });
 });
 
+describe('gun models', () => {
+  it('lets leadership pick the 3D model for each gun; everyone reads the picks', async () => {
+    const pick = (by: string, weapons: Record<string, string>) => ({ weapons, by, at: serverTimestamp() });
+    await assertSucceeds(setDoc(doc(as('boss'), 'settings/gunModels'), pick('boss', { g_smg: 'pack/SubmachineGun_3.glb', g_taser: '' })));
+    await assertSucceeds(getDoc(doc(as('sol'), 'settings/gunModels')));
+    await assertFails(setDoc(doc(as('sol'), 'settings/gunModels'), pick('sol', { g_smg: 'pack/Pistol_1.glb' })));
+    await assertFails(setDoc(doc(as('boss'), 'settings/gunModels'), pick('ub', { g_smg: '' })));
+    await assertFails(setDoc(doc(as('boss'), 'settings/gunModels'), { ...pick('boss', {}), extra: 1 }));
+  });
+});
+
 describe('casino big wins', () => {
   const win = (by: string) => ({ by, name: 'Sol', game: 'slots', amount: 5000, note: 'Jackpot', at: serverTimestamp() });
   it('lets members post their own big wins and read the ticker', async () => {

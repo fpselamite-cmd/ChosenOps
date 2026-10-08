@@ -6,6 +6,7 @@ import { useHub } from '../../hooks/useHub';
 import { LowStockLine } from '../Stash';
 import AccessTab from './AccessTab';
 import ActivityTab from './ActivityTab';
+import GunModelsTab from './GunModelsTab';
 import IntegrationsTab from './IntegrationsTab';
 import ListsTab from './ListsTab';
 import MembersTab from './MembersTab';
@@ -15,7 +16,7 @@ import RolesTab from './RolesTab';
 import SettingsTab from './SettingsTab';
 import { useAttention } from './useAttention';
 
-type Tab = 'pending' | 'members' | 'roles' | 'lists' | 'activity' | 'settings' | 'integrations' | 'ranks' | 'access';
+type Tab = 'pending' | 'members' | 'roles' | 'lists' | 'activity' | 'settings' | 'integrations' | 'ranks' | 'access' | 'guns';
 
 /** The control room: what needs attention up top, then the tools. */
 export default function Admin() {
@@ -28,6 +29,7 @@ export default function Admin() {
     { id: 'members', label: 'Members', show: isAdmin || can('resetPins') || can('manageMembers') },
     { id: 'roles', label: 'Roles', show: isLead || can('manageRanks') },
     { id: 'lists', label: 'Lists & prices', show: isAdmin || can('manageOps') },
+    { id: 'guns', label: 'Gun models', show: isLead },
     { id: 'activity', label: 'Activity', show: isAdmin },
     { id: 'settings', label: 'Gang settings', show: can('manageSettings') },
     { id: 'integrations', label: 'NoelOps', show: can('manageSettings') },
@@ -49,6 +51,7 @@ export default function Admin() {
       {tab === 'members' && <MembersTab />}
       {tab === 'roles' && <RolesTab />}
       {tab === 'lists' && <ListsTab />}
+      {tab === 'guns' && <GunModelsTab />}
       {tab === 'activity' && <ActivityTab />}
       {tab === 'settings' && <SettingsTab />}
       {tab === 'integrations' && <IntegrationsTab />}

@@ -16,7 +16,11 @@ export interface GunSpec {
   cls: string;
   /** slot id → the fitted part's name */
   parts: Record<string, string>;
+  /** The model leadership picked in Admin (a file under /models/guns/), '' for the code-built gun; unset for the default. */
+  model?: string;
 }
+
+const SAFE_MODEL = /^pack\/[A-Za-z0-9_]+\.glb$/;
 
 // ---------- materials & textures ----------
 
@@ -726,12 +730,16 @@ interface Manifest {
 }
 let manifest: Promise<Manifest> | null = null;
 const glbs = new Map<string, Promise<THREE.Object3D | null>>();
+const loadManifest = (): Promise<Manifest> =>
+  (manifest ??= fetch('/models/guns/manifest.json')
+    .then((r) => (r.ok ? (r.json() as Promise<Manifest>) : {}))
+    .catch(() => ({})));
+/** The model a gun gets when leadership hasn't picked one: its own from the manifest, else its class's. */
+export const defaultModel = (weaponId: string, cls: string): Promise<string> => loadManifest().then((mf) => mf.weapons?.[weaponId] ?? mf.classes?.[cls] ?? '');
 function modelFor(spec: GunSpec): Promise<THREE.Object3D | null> {
-  manifest ??= fetch('/models/guns/manifest.json')
-    .then((r) => (r.ok ? r.json() : {}))
-    .catch(() => ({}));
-  return manifest.then((mf) => {
-    const file = mf.weapons?.[spec.weaponId] ?? mf.classes?.[spec.cls];
+  return loadManifest().then((mf) => {
+    // A pick from Admin wins (an empty pick means the code-built gun); otherwise the manifest's default.
+    const file = spec.model !== undefined ? (SAFE_MODEL.test(spec.model) ? spec.model : '') : (mf.weapons?.[spec.weaponId] ?? mf.classes?.[spec.cls]);
     if (!file) return null;
     if (!glbs.has(file))
       glbs.set(
@@ -744,32 +752,167 @@ function modelFor(spec: GunSpec): Promise<THREE.Object3D | null> {
     return glbs.get(file)!.then((o) => (o ? o.clone(true) : null));
   });
 }
-/** Swaps a code-built body for a downloaded model, keeping the fitted parts where they were. */
+/**
+ * The pack's models come in flat, chalky colours; give them the same gunmetal, polymer and walnut as the
+ * code-built parts (by the pack's material names). A fitted frame in a colour ("Tan", "Olive"…) recolours the polymer.
+ */
+function restyle(spec: GunSpec) {
+  const m = makeMats();
+  const frame = finishOf(spec.parts.frame);
+  const tint = 'color' in frame && !('metal' in frame) ? frame.color : null;
+  const cache = new Map<string, THREE.Material>();
+  const make = (name: string): THREE.Material => {
+    const solidWood = (c: string) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.04, roughness: 0.5 });
+    switch (name) {
+      case 'Wood':
+        return solidWood('#5a2f16');
+      case 'DarkWood':
+        return solidWood('#3e200e');
+      case 'Metal':
+        return m.steel('#2c2f34', 0.38);
+      case 'DarkMetal':
+        return m.steel('#2a2c30', 0.4);
+      case 'LightMetal':
+        return m.steel('#4d5158', 0.32);
+      case 'LightMetal2':
+        return m.steel('#7d838c', 0.28);
+      case 'Glass':
+        return m.glass();
+      case 'Green':
+        return m.poly('#4f5a33');
+      case 'Grey':
+        return m.poly(tint ?? '#2e3136');
+      case 'MainLight':
+        return m.poly(tint ?? '#262a30');
+      case 'Main':
+        return m.poly(tint ?? '#1c1f24');
+      case 'MainDark':
+        return m.poly('#15171b');
+      default:
+        return m.poly('#151618');
+    }
+  };
+  return (mat: THREE.Material) => {
+    if (!cache.has(mat.name)) cache.set(mat.name, make(mat.name));
+    return cache.get(mat.name)!;
+  };
+}
+
+/** The slots a real model already has built in (its own frame, barrel, mag, stock…). Handguns have no stock or under-rail of their own. */
+const BUILT_IN = new Set(['frame', 'slide', 'barrel', 'handguard', 'grip-rear', 'magazine', 'cylinder', 'stock', 'rail']);
+const HANDGUN_EXTRAS = new Set(['stock', 'rail']);
+
+/** Every vertex of an object, in the gun's own space. */
+function pointsIn(o: THREE.Object3D, inv: THREE.Matrix4) {
+  const out: THREE.Vector3[] = [];
+  o.traverse((m) => {
+    const pos = (m as THREE.Mesh).isMesh ? (m as THREE.Mesh).geometry.attributes.position : undefined;
+    if (!pos) return;
+    const mw = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
+    for (let i = 0; i < pos.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mw));
+  });
+  return out;
+}
+const boxIn = (objs: THREE.Object3D[], inv: THREE.Matrix4) => new THREE.Box3().setFromPoints(objs.flatMap((o) => pointsIn(o, inv)));
+
+/**
+ * Swaps a code-built body for a downloaded model. The model takes the body's place and length, bore to bore;
+ * the fitted add-ons (sight, muzzle device, light, foregrip, and a handgun's stock or rail) move onto the model:
+ * sights sit on its top, foregrips under it, muzzle devices on its muzzle.
+ */
 async function withModel(spec: GunSpec, holder: THREE.Group) {
   const model = await modelFor(spec);
   if (!model) return holder;
   const gun = holder.children[0]!;
-  const body = new THREE.Box3();
-  gun.children.forEach((c) => {
-    if (!c.userData.fitted) {
-      body.expandByObject(c);
-      c.visible = false;
-    }
-  });
-  const want = body.getSize(new THREE.Vector3());
-  const mb = new THREE.Box3().setFromObject(model);
-  const have = mb.getSize(new THREE.Vector3());
-  // Lie it along X, muzzle forward, if it came in along Z.
+  const handgun = holder.userData.kind === 'pistol' || holder.userData.kind === 'revolver';
+  holder.updateMatrixWorld(true);
+  const inv = gun.matrixWorld.clone().invert();
+  const bodyParts: THREE.Object3D[] = [];
+  const addOns: THREE.Object3D[] = [];
+  let barrel: THREE.Object3D | null = null;
+  for (const c of gun.children) {
+    const slot = c.userData.slot as string | undefined;
+    if (slot === 'barrel') barrel = c;
+    if (handgun && slot && HANDGUN_EXTRAS.has(slot) && c.userData.fitted) addOns.push(c);
+    else if (!slot || BUILT_IN.has(slot)) bodyParts.push(c);
+    else if (c.userData.fitted) addOns.push(c);
+    else c.visible = false; // the stock iron sights and flash hider: the model has its own
+  }
+  const body = boxIn(bodyParts, inv);
+  const codeBore = barrel ? boxIn([barrel], inv).getCenter(new THREE.Vector3()).y : body.getCenter(new THREE.Vector3()).y;
+  bodyParts.forEach((c) => (c.visible = false));
+
+  // Lie the model along X, muzzle forward, if it came in along Z; then match the body's length.
+  gun.add(model);
+  model.updateMatrixWorld(true);
+  let have = boxIn([model], inv).getSize(new THREE.Vector3());
   if (have.z > have.x) {
     model.rotation.y = -Math.PI / 2;
-    mb.setFromObject(model);
-    mb.getSize(have);
+    model.updateMatrixWorld(true);
+    have = boxIn([model], inv).getSize(new THREE.Vector3());
   }
-  model.scale.multiplyScalar(want.x / Math.max(have.x, 0.001));
-  mb.setFromObject(model);
-  model.position.add(body.getCenter(new THREE.Vector3()).sub(mb.getCenter(new THREE.Vector3())));
-  model.traverse((o) => ((o as THREE.Mesh).isMesh ? ((o.castShadow = true), (o.userData.slot = 'frame')) : null));
-  gun.add(model);
+  // The pack is drawn to one scale, so size from it: an SMG stays shorter than a rifle, a snub nose than a long barrel.
+  const want = handgun ? Math.min(60, Math.max(40, have.x * 27)) : Math.min(105, Math.max(62, have.x * 16));
+  model.scale.multiplyScalar(want / holder.scale.x / Math.max(have.x, 0.001));
+  model.updateMatrixWorld(true);
+  let pts = pointsIn(model, inv);
+  let mb = new THREE.Box3().setFromPoints(pts);
+  const L = mb.max.x - mb.min.x;
+  // The bore: the middle of the last sliver of the muzzle.
+  const tip = pts.filter((v) => v.x > mb.max.x - L * 0.025);
+  const tipBox = new THREE.Box3().setFromPoints(tip);
+  const bore = (tipBox.min.y + tipBox.max.y) / 2;
+  model.position.x += body.min.x - mb.min.x;
+  model.position.y += codeBore - bore;
+  model.position.z += body.getCenter(new THREE.Vector3()).z - (mb.min.z + mb.max.z) / 2;
+  model.updateMatrixWorld(true);
+  pts = pointsIn(model, inv);
+  mb = new THREE.Box3().setFromPoints(pts);
+  const slice = (a: number, b: number) => pts.filter((v) => v.x >= a && v.x <= b);
+  const top = (a: number, b: number) => slice(a, b).reduce((y, v) => Math.max(y, v.y), -Infinity);
+  const bottom = (a: number, b: number) => slice(a, b).reduce((y, v) => Math.min(y, v.y), Infinity);
+
+  // Add-ons keep their place along the gun and their size relative to it.
+  const r = (mb.max.x - mb.min.x) / Math.max(body.max.x - body.min.x, 0.001);
+  for (const c of addOns) {
+    const slot = c.userData.slot as string;
+    const before = boxIn([c], inv).getCenter(new THREE.Vector3());
+    c.scale.multiplyScalar(r);
+    c.updateMatrixWorld(true);
+    const after = boxIn([c], inv).getCenter(new THREE.Vector3());
+    c.position.x += mb.min.x + (before.x - body.min.x) * r - after.x;
+    c.position.y += codeBore + (before.y - codeBore) * r - after.y;
+    c.updateMatrixWorld(true);
+    const b = boxIn([c], inv);
+    const mid = (b.min.x + b.max.x) / 2;
+    const span = Math.max(1, (b.max.x - b.min.x) * 0.5);
+    if (slot === 'muzzle') {
+      c.position.x += mb.max.x - b.min.x - 0.2;
+    } else if (slot === 'sight') {
+      // Sit on the top of whatever's under the middle of the sight (rail, receiver or slide).
+      const t = top(mid - span / 2, mid + span / 2);
+      if (Number.isFinite(t)) c.position.y += t - b.min.y - 0.1;
+    } else if (slot === 'grip') {
+      const u = bottom(mid - span / 2, mid + span / 2);
+      if (Number.isFinite(u)) c.position.y += u - b.max.y + 0.3;
+    } else if (slot === 'stock') {
+      c.position.x += mb.min.x - b.max.x + 1;
+    }
+  }
+  const finish = restyle(spec);
+  model.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData.slot = 'frame';
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(finish) : finish(mesh.material);
+  });
+  // Centre what's showing and tell the stage its new size (for the floor and framing).
+  gun.updateMatrixWorld(true);
+  const shown = boxIn([model, ...addOns], inv);
+  gun.position.copy(shown.getCenter(new THREE.Vector3())).negate();
+  const sz = shown.getSize(new THREE.Vector3());
+  holder.userData = { ...holder.userData, height: sz.y * holder.scale.x, length: sz.x * holder.scale.x };
   return holder;
 }
 
@@ -1001,7 +1144,7 @@ function stillRenderer() {
   return still;
 }
 const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
-const keyOf = (s: GunSpec) => `${s.weaponId}|${s.cls}|${s.name}|${Object.entries(s.parts).sort().map((e) => e.join('=')).join(',')}`;
+const keyOf = (s: GunSpec) => `${s.weaponId}|${s.cls}|${s.name}|${s.model ?? '-'}|${Object.entries(s.parts).sort().map((e) => e.join('=')).join(',')}`;
 
 /** A lit 3/4 shot of a build on the bench, as an image (cached). */
 export function renderGun(spec: GunSpec, w = 480, h = 270): Promise<string> {
