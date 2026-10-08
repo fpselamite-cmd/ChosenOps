@@ -43,7 +43,6 @@ export interface NavItem {
 /** Associates see this on its own, above everything, until they're blooded in. */
 export const WELCOME_TOP: NavItem = { to: '/welcome', label: 'Welcome', icon: HandHeart, assoc: true };
 
-// Coming later, hidden until it's built: Gunrunning (Business).
 export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'HQ',
