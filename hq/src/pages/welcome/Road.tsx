@@ -2,16 +2,17 @@ import { Check, Hourglass, ListChecks, Map as MapIcon, Undo2 } from 'lucide-reac
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useHub } from '../../hooks/useHub';
-import { confirmStep, markStep, unmarkStep, type Onboarding, type WelcomeSettings } from '../../lib/welcome';
+import { fmtDate } from '../../lib/format';
+import { confirmStep, markStep, setStrikes, STRIKES, unconfirmStep, unmarkStep, wcName, type Onboarding, type WelcomeSettings } from '../../lib/welcome';
 import type { Progress } from './useWelcome';
 
 type Mode = 'path' | 'list';
 const KEY = 'welcome-view';
 const readMode = (): Mode => {
   try {
-    return localStorage.getItem(KEY) === 'list' ? 'list' : 'path';
+    return localStorage.getItem(KEY) === 'path' ? 'path' : 'list';
   } catch {
-    return 'path';
+    return 'list';
   }
 };
 
@@ -116,8 +117,14 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
     }
   };
   const stops = stopsOf(w, p, ob, memberId);
+  const { memberById } = useHub();
+  const member = memberById.get(memberId);
+  // Ready for Oath (the final line) opens once every other topic is signed off by both sides.
+  const topicsDone = w.steps.filter((t) => !t.final).every((t) => p.stamps.get(t.id)?.status === 'done');
+  const locked = (stepId: string) => !!w.steps.find((t) => t.id === stepId)?.final && !topicsDone;
   const act = (stepId: string) => {
     const s = p.stamps.get(stepId);
+    if (locked(stepId) && !s) return <span className="text-[11px] text-smoke">After every topic</span>;
     if (handler && !self) {
       if (s?.status === 'done')
         return (
@@ -125,9 +132,10 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
             <Undo2 className="inline size-3" /> Undo
           </button>
         );
+      if (!s) return <span className="text-[11px] text-smoke">Waiting on {name.split(' ')[0]}</span>;
       return (
         <button className="btn-gold btn-sm" onClick={() => confirmStep(me, memberId, stepId)}>
-          <Check className="size-3.5" /> {s ? 'Confirm' : 'Sign off'}
+          <Check className="size-3.5" /> WC sign off
         </button>
       );
     }
@@ -164,7 +172,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
             <MapIcon className="size-3.5" /> Path
           </button>
           <button className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs ${mode === 'list' ? 'bg-gold-500/15 text-gold-200' : 'text-smoke'}`} onClick={() => setM('list')}>
-            <ListChecks className="size-3.5" /> Checklist
+            <ListChecks className="size-3.5" /> Sheet
           </button>
         </div>
       </div>
@@ -190,7 +198,7 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
                     <span className="welcome-stamp-title">{t.title}</span>
                     {t.detail && <span className="welcome-stamp-detail">{t.detail}</span>}
                     <span className="welcome-stamp-foot">
-                      {s?.status === 'done' ? `Signed off · ${s.byName}` : s?.status === 'pending' ? 'Waiting on a handler' : ''}
+                      {s?.status === 'done' ? `Signed off · ${wcName(s)}` : s?.status === 'pending' ? 'Waiting on a WC' : ''}
                     </span>
                     <span className="mt-auto pt-1.5">{act(t.id)}</span>
                   </div>
@@ -202,39 +210,108 @@ export function Road({ memberId, name, w, p, ob, handler }: { memberId: string; 
           </div>
         </>
       ) : (
-        <ul className="hud divide-y divide-line-soft">
-          {[
-            { id: 'rules', title: 'Read and accept the rules', done: p.rules, tag: p.rules ? 'Done' : '', to: '/welcome?tab=rules' },
-            { id: 'sheet', title: 'Fill in your character sheet', done: p.sheet, tag: p.sheet ? 'Done' : '', to: `/members/${memberId}` },
-            ...w.steps.map((t) => {
-              const s = p.stamps.get(t.id);
-              return { id: t.id, title: t.title, detail: t.detail, done: s?.status === 'done', wait: s?.status === 'pending', tag: s?.status === 'done' ? `Signed off · ${s.byName}` : s?.status === 'pending' ? 'Waiting on a handler' : '', step: true };
-            }),
-            ...(w.repTarget ? [{ id: 'rep', title: `Earn ${w.repTarget.toLocaleString()} rep`, detail: `${p.rep.toLocaleString()} so far`, done: p.repDone, tag: p.repDone ? 'Done' : '', to: '/petty-crime' }] : []),
-            { id: 'rec', title: 'Get recommended to High Table', done: !!ob?.recommended, tag: ob?.recommended ? `By ${ob.recommended.byName}` : '' },
-          ].map((r) => {
-            const x = r as typeof r & { detail?: string; wait?: boolean; step?: boolean; to?: string };
-            return (
-              <li key={x.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <span className={`grid size-5 shrink-0 place-items-center border ${x.done ? 'border-ok bg-ok/20 text-ok' : x.wait ? 'border-yellow-400 text-yellow-300' : 'border-gold-600'}`}>
-                  {x.done ? <Check className="size-3.5" /> : x.wait ? <Hourglass className="size-3" /> : null}
-                </span>
-                <span className="min-w-0 flex-1">
-                  {x.to && self && !x.done ? (
-                    <Link to={x.to} className="text-gold-100 hover:text-gold-300">
-                      {x.title}
-                    </Link>
-                  ) : (
-                    <span className={x.done ? 'text-ash' : 'text-gold-100'}>{x.title}</span>
-                  )}
-                  {x.detail && <span className="block text-xs text-smoke">{x.detail}</span>}
-                </span>
-                {x.tag && <span className={`text-xs ${x.done ? 'text-ok' : 'text-yellow-300'}`}>{x.tag}</span>}
-                {x.step && act(x.id)}
+        <div className="space-y-4">
+          {/* The associate sheet: name, join date, warnings and strikes, then every topic with both sign-offs. */}
+          <div className="assoc-sheet">
+            <div className="assoc-head">
+              <div className="assoc-id">
+                <span className="assoc-k">Name</span>
+                <span className="assoc-v">{name}</span>
+                <span className="assoc-k">Associate join date</span>
+                <span className="assoc-v">{member?.joinedAt ? fmtDate(member.joinedAt) : '—'}</span>
+              </div>
+              <div className="assoc-strikes">
+                {STRIKES.map((x) => {
+                  const on = (ob?.strikes ?? 0) >= x.n;
+                  const can = handler && !self;
+                  return (
+                    <button
+                      key={x.n}
+                      type="button"
+                      disabled={!can}
+                      title={can ? (on ? 'Click to take back' : `Give a ${x.label.toLowerCase()}`) : ob?.strikesBy ? `Set by ${ob.strikesBy}` : x.label}
+                      onClick={() => can && setStrikes(me, memberId, (ob?.strikes ?? 0) === x.n ? x.n - 1 : x.n)}
+                      className={`assoc-strike ${on ? 'on' : ''}`}
+                      style={{ ['--c' as string]: x.color }}
+                    >
+                      <span>{x.label}</span>
+                      <i className="assoc-box">{on && <Check className="size-3.5" strokeWidth={3} />}</i>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <table className="assoc-table">
+              <thead>
+                <tr>
+                  <th>Training topic</th>
+                  <th>Associate sign off</th>
+                  <th>WC sign off</th>
+                  <th>Name of WC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {w.steps.map((t) => {
+                  const st = p.stamps.get(t.id);
+                  const lock = locked(t.id);
+                  const mineToSign = self && !st && !lock;
+                  const mineToTake = self && st?.status === 'pending';
+                  const wcCan = handler && !self && !!st;
+                  return (
+                    <tr key={t.id} className={`${t.final ? 'assoc-final' : ''} ${lock && !st ? 'assoc-locked' : ''}`}>
+                      <td>
+                        <span className="text-gold-100">{t.title}</span>
+                        {t.detail && <span className="block text-[11px] text-smoke">{t.detail}</span>}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`assoc-box ${st ? 'on' : ''}`}
+                          disabled={!(mineToSign || mineToTake)}
+                          title={mineToSign ? 'Sign off: I’ve done this' : mineToTake ? 'Take my sign-off back' : lock ? 'Opens once every topic is signed off' : st ? 'Signed off' : ''}
+                          onClick={() => (mineToSign ? markStep(me, t.id) : mineToTake ? unmarkStep(memberId, t.id) : undefined)}
+                        >
+                          {st && <Check className="size-3.5" strokeWidth={3} />}
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`assoc-box ${st?.status === 'done' ? 'on wc' : ''}`}
+                          disabled={!wcCan}
+                          title={!st ? `Waiting on ${self ? 'you' : name.split(' ')[0]} to sign first` : wcCan ? (st.status === 'done' ? 'Take the WC sign-off back' : 'WC sign off') : st.status === 'done' ? 'Signed off' : 'Waiting on a WC'}
+                          onClick={() => wcCan && (st!.status === 'done' ? unconfirmStep(memberId, t.id) : confirmStep(me, memberId, t.id))}
+                        >
+                          {st?.status === 'done' && <Check className="size-3.5" strokeWidth={3} />}
+                        </button>
+                      </td>
+                      <td className="text-sm text-gold-200">{wcName(st)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <ul className="hud divide-y divide-line-soft">
+            {[
+              { id: 'rules', title: 'Read and accept the rules', done: p.rules, to: '/welcome?tab=rules' },
+              { id: 'sheet', title: 'Fill in your character sheet', done: p.sheet, to: `/members/${memberId}` },
+              ...(w.repTarget ? [{ id: 'rep', title: `Earn ${w.repTarget.toLocaleString()} rep (${Math.min(p.rep, w.repTarget).toLocaleString()} so far)`, done: p.repDone, to: '/petty-crime' }] : []),
+              { id: 'rec', title: ob?.recommended ? `Recommended to High Table by ${ob.recommended.byName}` : 'Get recommended to High Table', done: !!ob?.recommended },
+            ].map((x) => (
+              <li key={x.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className={`grid size-5 shrink-0 place-items-center border ${x.done ? 'border-ok bg-ok/20 text-ok' : 'border-gold-600'}`}>{x.done && <Check className="size-3.5" />}</span>
+                {'to' in x && x.to && self && !x.done ? (
+                  <Link to={x.to} className="text-gold-100 hover:text-gold-300">
+                    {x.title}
+                  </Link>
+                ) : (
+                  <span className={x.done ? 'text-ash' : 'text-gold-100'}>{x.title}</span>
+                )}
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, Award, ChevronDown, Flag, HandHeart, Plus, ScrollText, Sparkles, ThumbsUp, Trash2, X } from 'lucide-react';
 import { collection, query, where } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { Empty, Field } from '../../components/Field';
@@ -19,6 +19,9 @@ import {
   removeHandlerNote,
   removeNote,
   removeVouch,
+  ASSOCIATE_CHECKLIST,
+  canvaEmbed,
+  CHECKLIST_VERSION,
   saveWelcome,
   sendNote,
   stepsFromText,
@@ -34,7 +37,7 @@ import PendingTab from '../admin/PendingTab';
 import { Road, stopsOf } from './Road';
 import { useAssociate, useAssociates, useWelcomeAccess, useWelcomeSettings } from './useWelcome';
 
-type View = 'road' | 'associates' | 'door' | 'rules' | 'setup';
+type View = 'road' | 'associates' | 'door' | 'guide' | 'rules' | 'setup';
 
 /** The Welcome Committee: everyone holding the role. */
 function useHandlers(): Member[] {
@@ -375,6 +378,8 @@ function Setup({ w }: { w: WelcomeSettings }) {
   const [again, setAgain] = useState(false);
   const [paste, setPaste] = useState('');
   const [saved, setSaved] = useState(false);
+  const [canva, setCanva] = useState(w.canva ?? '');
+  const canvaOk = !canva.trim() ? '' : canvaEmbed(canva);
   const move = (i: number, d: number) => {
     const n = [...steps];
     const [x] = n.splice(i, 1);
@@ -445,13 +450,31 @@ function Setup({ w }: { w: WelcomeSettings }) {
           </label>
         </div>
       </Panel>
+      <Panel title="Guide · a Canva design" className="xl:col-span-2">
+        <Field
+          label="Canva embed link"
+          hint={
+            <>
+              In Canva: <b>Share → More → Embed</b>, then copy the <b>smart embed link</b> (it ends in <span className="font-mono">/view?embed</span>). It shows on the Guide tab and updates by itself whenever the design changes in Canva.
+            </>
+          }
+        >
+          <input className="input font-mono text-xs" value={canva} onChange={(e) => setCanva(e.target.value)} placeholder="https://www.canva.com/design/…/view?embed" />
+        </Field>
+        {canvaOk === 'edit' && <p className="mt-2 text-sm text-red-300">That’s an edit link: anyone who sees the page could change your design. Use the embed link instead (Share → More → Embed).</p>}
+        {canvaOk === null && <p className="mt-2 text-sm text-red-300">That doesn’t look like a Canva design link.</p>}
+        {canvaOk && canvaOk !== 'edit' && <p className="mt-2 text-xs text-ok">Looks good. Save to show it on the Guide tab.</p>}
+      </Panel>
       <div className="flex items-center justify-end gap-3 xl:col-span-2">
         {saved && <span className="text-sm text-ok">Saved</span>}
         <button
           className="btn-gold"
+          disabled={canvaOk === 'edit' || canvaOk === null}
           onClick={async () => {
             await saveWelcome({
-              steps: steps.filter((s) => s.title.trim()).map((s) => ({ id: s.id, title: s.title.trim(), ...(s.detail?.trim() ? { detail: s.detail.trim() } : {}) })),
+              canva: canvaOk || '',
+              steps: steps.filter((s) => s.title.trim()).map((s) => ({ id: s.id, title: s.title.trim(), ...(s.detail?.trim() ? { detail: s.detail.trim() } : {}), ...(s.final ? { final: true } : {}) })),
+              checklistV: w.checklistV ?? CHECKLIST_VERSION,
               sections: sections.filter((s) => s.title.trim() || s.body.trim()),
               repTarget: rep,
               rulesVersion: w.rulesVersion + (again ? 1 : 0),
@@ -468,12 +491,36 @@ function Setup({ w }: { w: WelcomeSettings }) {
   );
 }
 
+/** The Canva guide, live: Canva serves the latest version every time it loads. */
+function CanvaGuide({ src }: { src: string }) {
+  return (
+    <div className="hud overflow-hidden p-2">
+      <div className="relative w-full overflow-hidden" style={{ paddingTop: '56.25%' }}>
+        <iframe title="Guide" src={src} className="absolute inset-0 size-full border-0" loading="lazy" allowFullScreen allow="fullscreen" />
+      </div>
+    </div>
+  );
+}
+
 // ---------- page ----------
+
+/** The family's associate checklist replaces the old placeholder list, once (a WC's visit does it). */
+function useChecklistUpgrade(w: WelcomeSettings, can: boolean) {
+  const { preview } = useHub();
+  const raw = useDoc<WelcomeSettings>('settings/welcome');
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!can || preview || tried.current || raw === undefined || (w.checklistV ?? 0) >= CHECKLIST_VERSION) return;
+    tried.current = true;
+    void saveWelcome({ ...w, steps: ASSOCIATE_CHECKLIST, checklistV: CHECKLIST_VERSION }).catch(() => (tried.current = false));
+  }, [can, preview, raw, w]);
+}
 
 export default function Welcome() {
   const { members } = useHub();
   const access = useWelcomeAccess();
   const w = useWelcomeSettings();
+  useChecklistUpgrade(w, access.isHandler);
   const assoc = useAssociates();
   const [params, setParams] = useSearchParams();
   const door = members.filter((m) => m.status === 'pending').length;
@@ -482,6 +529,7 @@ export default function Welcome() {
     ...(access.isAssoc ? [{ id: 'road' as View, label: 'My road' }] : []),
     ...(access.isHandler ? [{ id: 'associates' as View, label: `Associates · ${assoc.length}` }] : []),
     ...(access.canDoor ? [{ id: 'door' as View, label: `At the door${door ? ` · ${door}` : ''}` }] : []),
+    ...(w.canva ? [{ id: 'guide' as View, label: 'Guide' }] : []),
     { id: 'rules', label: 'Rules & info' },
     ...(access.isHandler ? [{ id: 'setup' as View, label: 'Setup' }] : []),
   ];
@@ -500,6 +548,7 @@ export default function Welcome() {
       {view === 'road' && <MyRoad />}
       {view === 'associates' && <Associates />}
       {view === 'door' && <PendingTab />}
+      {view === 'guide' && w.canva && <CanvaGuide src={w.canva} />}
       {view === 'rules' && <Rules w={w} />}
       {view === 'setup' && <Setup key={JSON.stringify(w)} w={w} />}
     </>

@@ -12,7 +12,36 @@ export interface WStep {
   id: string;
   title: string;
   detail?: string;
+  /** The last line (Ready for Oath): opens once every other topic is signed off by both sides. */
+  final?: boolean;
 }
+
+/** The associate checklist the family uses: each topic is signed off by the associate, then a WC. */
+export const ASSOCIATE_CHECKLIST: WStep[] = [
+  { id: 'presentation', title: 'Presentation Given' },
+  { id: 'starter', title: 'Starter Package' },
+  { id: 'petty', title: 'Petty Crime' },
+  { id: 'chopping', title: 'Chopping Cars' },
+  { id: 'atm', title: 'ATM Robberies' },
+  { id: 'stores', title: 'Store Robberies' },
+  { id: 'radio', title: 'Radio Etiquette' },
+  { id: 'resources', title: 'Resource Obtaining' },
+  { id: 'bylaws', title: 'Bylaws Knowledge' },
+  { id: 'family', title: 'Family Knowledge' },
+  { id: 'narco', title: 'Narco Knowledge' },
+  { id: 'etiquette', title: 'General Etiquette' },
+  { id: 'oath', title: 'Ready for Oath', final: true },
+];
+/** Bumped when the standard checklist changes, so the live list gets the new one once. */
+export const CHECKLIST_VERSION = 2;
+
+/** Discipline on an associate's card: a verbal warning, then strikes. */
+export const STRIKES = [
+  { n: 1, label: 'Verbal Warning', color: '#fde68a' },
+  { n: 2, label: 'Strike 1', color: '#fcd34d' },
+  { n: 3, label: 'Strike 2', color: '#fdba74' },
+  { n: 4, label: 'Strike 3', color: '#fca5a5' },
+];
 export interface WSection {
   title: string;
   body: string;
@@ -24,13 +53,24 @@ export interface WelcomeSettings {
   /** Bumped when the rules change enough that associates must accept them again. */
   rulesVersion: number;
   sections: WSection[];
+  /** A Canva design shown on the Guide tab: its view-only embed link. Canva keeps it current. */
+  canva?: string;
+  /** Which version of the standard checklist the list was last set from. */
+  checklistV?: number;
+}
+
+/**
+ * Turns whatever Canva link was pasted into its view-only embed link, or null if it isn't one.
+ * Edit links are refused: they'd let anyone who saw the page edit the design.
+ */
+export function canvaEmbed(raw: string): string | null | 'edit' {
+  const m = raw.trim().match(/^https:\/\/(?:www\.)?canva\.com\/design\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/(view|watch|edit)/);
+  if (!m) return null;
+  if (m[3] === 'edit') return 'edit';
+  return `https://www.canva.com/design/${m[1]}/${m[2]}/view?embed`;
 }
 export const DEFAULT_WELCOME: WelcomeSettings = {
-  steps: [
-    { id: 't1', title: 'Ride along on a run', detail: 'Placeholder until the real list is in.' },
-    { id: 't2', title: 'Show up to a blacksite' },
-    { id: 't3', title: 'Sit at a family dinner' },
-  ],
+  steps: ASSOCIATE_CHECKLIST,
   repTarget: 300,
   rulesVersion: 1,
   sections: [{ title: 'The rules', body: 'The rules go here. High Table or the Welcome Committee can paste them in from Setup.' }],
@@ -58,6 +98,9 @@ export interface Onboarding {
   graduatedAt?: Timestamp | null;
   /** They've seen their blooded-in moment. */
   patchSeen?: boolean;
+  /** 0 clean, 1 verbal warning, 2–4 strike 1–3. Set by the Welcome Committee. */
+  strikes?: number;
+  strikesBy?: string;
 }
 /** A stamp on the card: the associate marks it (pending), a handler confirms it (done). */
 export interface Stamp {
@@ -68,8 +111,13 @@ export interface Stamp {
   by: string;
   byName: string;
   confirmedBy?: string | null;
+  /** The WC who signed it off, and when. The associate's own sign-off stays in by/at. */
+  confirmedName?: string | null;
+  confirmedAt?: Timestamp | null;
   at?: Timestamp;
 }
+/** The WC name for a stamp (older stamps kept the WC in by/byName). */
+export const wcName = (s: Stamp | undefined) => (s?.status === 'done' ? (s.confirmedName ?? (s.by !== s.memberId ? s.byName : '')) : '');
 export interface HandlerNote {
   id: string;
   memberId: string;
@@ -111,9 +159,15 @@ export const acceptRules = (me: Me, version: number) => setDoc(doc(db, 'onboardi
 export const stampId = (memberId: string, stepId: string) => `${memberId}_${stepId}`;
 export const markStep = (me: Me, stepId: string) => setDoc(doc(db, 'welcomeStamps', stampId(me.id, stepId)), { memberId: me.id, stepId, status: 'pending', confirmedBy: null, ...stamp(me) });
 export const unmarkStep = (memberId: string, stepId: string) => deleteDoc(doc(db, 'welcomeStamps', stampId(memberId, stepId)));
-/** A handler confirms a step (or stamps it outright for them). */
+/** A WC signs off a topic the associate has signed. The associate's own sign-off is kept. */
 export const confirmStep = (me: Me, memberId: string, stepId: string) =>
-  setDoc(doc(db, 'welcomeStamps', stampId(memberId, stepId)), { memberId, stepId, status: 'done', confirmedBy: me.id, ...stamp(me) });
+  setDoc(doc(db, 'welcomeStamps', stampId(memberId, stepId)), { memberId, stepId, status: 'done', confirmedBy: me.id, confirmedName: me.name, confirmedAt: serverTimestamp() }, { merge: true });
+/** A WC takes their sign-off back; the associate's stays. */
+export const unconfirmStep = (memberId: string, stepId: string) =>
+  setDoc(doc(db, 'welcomeStamps', stampId(memberId, stepId)), { memberId, stepId, status: 'pending', confirmedBy: null, confirmedName: null, confirmedAt: null }, { merge: true });
+/** The WC sets an associate's warnings and strikes. */
+export const setStrikes = (me: Me, memberId: string, strikes: number) =>
+  setDoc(doc(db, 'onboarding', memberId), { strikes: Math.max(0, Math.min(4, strikes)), strikesBy: me.name }, { merge: true });
 
 export const addHandlerNote = (me: Me, memberId: string, text: string) => addDoc(collection(db, 'handlerNotes'), { memberId, text: text.slice(0, 500), ...stamp(me) });
 export const removeHandlerNote = (id: string) => deleteDoc(doc(db, 'handlerNotes', id));

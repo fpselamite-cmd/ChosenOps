@@ -598,13 +598,10 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   // Welcome center: the checklist, two associates on their road, notes, vouches, and a fresh patch.
   await setDoc(doc(db, 'settings', 'welcome'), {
     steps: [
-      { id: 'w1', title: 'Ride along on a weed run', detail: 'With a handler, start to finish' },
-      { id: 'w2', title: 'Hold a blacksite' },
-      { id: 'w3', title: 'Cook with the lab crew' },
-      { id: 'w4', title: 'Wash $10k with a washer' },
-      { id: 'w5', title: 'Sit at a family dinner' },
-      { id: 'w6', title: 'Run a delivery solo' },
+      ...['Presentation Given', 'Starter Package', 'Petty Crime', 'Chopping Cars', 'ATM Robberies', 'Store Robberies', 'Radio Etiquette', 'Resource Obtaining', 'Bylaws Knowledge', 'Family Knowledge', 'Narco Knowledge', 'General Etiquette'].map((title, i) => ({ id: ['presentation', 'starter', 'petty', 'chopping', 'atm', 'stores', 'radio', 'resources', 'bylaws', 'family', 'narco', 'etiquette'][i], title })),
+      { id: 'oath', title: 'Ready for Oath', final: true },
     ],
+    checklistV: 2,
     repTarget: 300,
     rulesVersion: 1,
     sections: [
@@ -616,12 +613,13 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'onboarding', jax), { rulesAccepted: 1, rulesAt: Timestamp.fromMillis(now - 90 * H) });
   await setDoc(doc(db, 'sheets', jax), { basics: { origin: 'Sandy Shores', age: '24' }, story: { backstory: 'Grew up fixing bikes for the Lost MC, wanted something bigger.' } }, { merge: true });
   await setDoc(doc(db, 'petty', jax), { rep: 180 }, { merge: true });
-  const ws = (who, step, status, back, by = kira, byName = 'Kira Lane') => setDoc(doc(db, 'welcomeStamps', `${who}_${step}`), { memberId: who, stepId: step, status, by, byName, confirmedBy: status === 'done' ? by : null, at: Timestamp.fromMillis(now - back * H) });
-  await ws(jax, 'w1', 'done', 70);
-  await ws(jax, 'w2', 'done', 40, ids['Rocco Vale'], 'Rocco Vale');
-  await ws(jax, 'w5', 'done', 30);
-  await ws(jax, 'w3', 'pending', 3, jax, 'Jax Holt');
-  await ws(mia, 'w1', 'pending', 5, mia, 'Mia Santos');
+  // Two-part sign-off: the associate signs (by/at), then a WC (confirmedName/confirmedAt).
+  const ws = (who, name, step, wc, back) =>
+    setDoc(doc(db, 'welcomeStamps', `${who}_${step}`), { memberId: who, stepId: step, status: wc ? 'done' : 'pending', by: who, byName: name, at: Timestamp.fromMillis(now - back * H), confirmedBy: wc ? ids[wc] : null, confirmedName: wc ?? null, confirmedAt: wc ? Timestamp.fromMillis(now - (back - 2) * H) : null });
+  for (const [step, wc, back] of [['presentation', 'Kira Lane', 90], ['starter', 'Kira Lane', 88], ['petty', 'Rocco Vale', 70], ['chopping', 'Kira Lane', 50], ['atm', null, 6], ['radio', null, 3]]) await ws(jax, 'Jax Holt', step, wc, back);
+  await ws(mia, 'Mia Santos', 'presentation', 'Kira Lane', 20);
+  await ws(mia, 'Mia Santos', 'starter', null, 5);
+  await setDoc(doc(db, 'onboarding', mia), { strikes: 1, strikesBy: 'Kira Lane' }, { merge: true });
   await setDoc(doc(db, 'handlerNotes', 'hn1'), { memberId: jax, text: 'Solid on the run, a little loud on comms. Keep an eye on it.', by: kira, byName: 'Kira Lane', at: Timestamp.fromMillis(now - 60 * H) });
   await setDoc(doc(db, 'vouches', 'vc1'), { memberId: jax, kind: 'vouch', text: 'Held the left side at the docks all night.', by: ids['Rocco Vale'], byName: 'Rocco Vale', at: Timestamp.fromMillis(now - 38 * H) });
   await setDoc(doc(db, 'vouches', 'vc2'), { memberId: mia, kind: 'flag', text: 'Seen talking to Vagos at the taco truck.', by: ids['Tommy Reyes'], byName: 'Tommy Reyes', at: Timestamp.fromMillis(now - 4 * H) });
