@@ -13,12 +13,14 @@ export function useCabinet(memberId: string, all = false) {
   const { narco } = useHub();
   const cabinet = useDoc<Cabinet>(`cabinets/${memberId}`);
   const q = useMemo(() => query(collection(db, 'trophies'), where('memberId', '==', memberId)), [memberId]);
-  const trophies = (useCollection<TrophyDoc>(q) ?? [])
+  const rows = useCollection<TrophyDoc>(q);
+  const trophies = (rows ?? [])
     .filter((t) => all || narco || !isNarcoTrophy(t))
     .sort((a, b) => b.tier - a.tier || (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
   const c: Cabinet = cabinet ?? { id: memberId, pedestals: 6, slots: {} };
   return {
     ready: cabinet !== undefined,
+    trophiesReady: rows !== null,
     cabinet: c,
     trophies,
     save: (next: Partial<Cabinet>) => setDoc(doc(db, 'cabinets', memberId), { pedestals: c.pedestals, slots: c.slots, ...next }),
@@ -74,10 +76,11 @@ export function useMyAchievementStats(): AchievementStats | null {
 export function AchievementWatcher() {
   const { me } = useHub();
   const stats = useMyAchievementStats();
-  const { trophies } = useCabinet(me.id, true);
+  const { trophies, trophiesReady } = useCabinet(me.id, true);
   const tried = useRef(new Set<string>());
   useEffect(() => {
-    if (!stats) return;
+    // Wait for the trophies to load, or every one already won looks missing and gets written again.
+    if (!stats || !trophiesReady) return;
     const have = new Set(trophies.filter((t) => t.kind === 'achievement').map((t) => `${t.achId}_${t.tier}`));
     for (const a of ACHIEVEMENTS) {
       const reached = tierFor(a, stats[a.stat]);
@@ -98,6 +101,6 @@ export function AchievementWatcher() {
         }).catch(() => {});
       }
     }
-  }, [stats, trophies, me.id]);
+  }, [stats, trophies, trophiesReady, me.id]);
   return null;
 }
