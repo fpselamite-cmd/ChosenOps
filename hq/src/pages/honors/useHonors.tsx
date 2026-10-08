@@ -8,6 +8,7 @@ import type { DuesPay } from '../../lib/books';
 import { records, type Blacksite } from '../../lib/blacksites';
 import { useMyAchievementStats } from '../../lib/cabinet';
 import { heistStatsOf, type Heist } from '../../lib/heists';
+import { runStatsOf, type NarcoRun } from '../../lib/runs';
 import { db } from '../../lib/firebase';
 import { CHIPS_FOR, NARCO_STATS, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
 import type { Bounty, Sighting } from '../../lib/rivals';
@@ -88,7 +89,7 @@ export function HonorsProvider({ children }: { children: ReactNode }) {
 
 /** Every number the milestones count, for the signed-in member. */
 export function useMyHonorStats(): HonorStats | null {
-  const { me } = useHub();
+  const { me, narco } = useHub();
   const { blooded } = useArchiveAccess();
   const base = useMyAchievementStats();
   const sitesQ = useMemo(() => query(collection(db, 'blacksites'), where('participants', 'array-contains', me.id)), [me.id]);
@@ -101,9 +102,11 @@ export function useMyHonorStats(): HonorStats | null {
   const reacts = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'archiveReacts'), where('memberId', '==', me.id)), [me.id]), blooded) ?? [];
   const ballots = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'pollBallots'), where('memberId', '==', me.id)), [me.id])) ?? [];
   const heists = useCollection<Heist>(useMemo(() => query(collection(db, 'heists'), where('crew', 'array-contains', me.id)), [me.id]), blooded) ?? [];
+  const runs = useCollection<NarcoRun>(useMemo(() => query(collection(db, 'narcoRuns'), where('crew', 'array-contains', me.id)), [me.id]), narco) ?? [];
   const chips = useDoc<Chips>(`chips/${me.id}`);
   if (!base || !sites || chips === undefined) return null;
   const hz = heistStatsOf(heists, me.id);
+  const nr = runStatsOf(runs, me.id);
   const r = records(sites).get(me.id);
   return {
     ...base,
@@ -124,6 +127,11 @@ export function useMyHonorStats(): HonorStats | null {
     biggestWin: chips?.biggestWin ?? 0,
     blackjacks: chips?.blackjacks ?? 0,
     jackpots: chips?.jackpots ?? 0,
+    narcoRuns: nr.narcoRuns,
+    runsClean: nr.runsClean,
+    runsBusted: nr.runsBusted,
+    runsRobbed: nr.runsRobbed,
+    bestHaul: nr.bestHaul,
     heists: hz.heists,
     heistWins: hz.heistWins,
     heistFails: hz.heistFails,

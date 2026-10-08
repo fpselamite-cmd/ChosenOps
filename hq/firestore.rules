@@ -961,7 +961,10 @@ service cloud.firestore {
         && ((can('money') && request.resource.data.source in ['manual', 'dues', 'payout', 'spend', 'goal'])
           // A heist's undistributed take going into the bank, by leadership running it.
           || (lead() && request.resource.data.source == 'heist' && request.resource.data.dir == 'in' && request.resource.data.ref is string
-            && heist(request.resource.data.ref).status == 'done'));
+            && heist(request.resource.data.ref).status == 'done')
+          // A Narco run's cash nobody was handed, by leadership.
+          || (lead() && request.resource.data.source == 'run' && request.resource.data.dir == 'in' && request.resource.data.ref is string
+            && exists(/databases/$(database)/documents/narcoRuns/$(request.resource.data.ref))));
       allow delete: if active() && can('money');
     }
     match /payouts/{id} {
@@ -1253,6 +1256,30 @@ service cloud.firestore {
             && request.resource.data.collected[myId()] <= resource.data.get('assigned', {}).get(myId(), 0)));
         allow delete: if blooded() && lead();
       }
+    }
+
+    // ---------- Narco Runs ----------
+    // Narco (and High Table) only. Logged by whoever ran it; edited by them or leadership.
+    match /narcoRuns/{id} {
+      function validRun(d) {
+        return d.crew is list && d.crew.size() > 0 && d.crew.size() <= 12 && d.lines is list && d.lines.size() <= 12
+          && d.outcome in ['clean', 'busted', 'robbed', 'off'] && d.cash is int && d.cash >= 0
+          && str(d.postal, 10) && str(d.note, 300) && str(d.get('badNote', ''), 200) && str(d.from, 80);
+      }
+      allow read: if narco();
+      allow create: if narco() && validRun(request.resource.data) && request.resource.data.by == myId()
+        && request.resource.data.get('banked', false) == false && request.resource.data.get('cashGiven', {}).size() == 0;
+      allow update: if narco() && (
+        // The record (never the product, stash or what came off it), by whoever logged it or leadership.
+        ((resource.data.by == myId() || lead()) && validRun(request.resource.data)
+          && onlyChanges(['crew', 'cash', 'postal', 'note', 'outcome', 'badNote', 'rivalId'])
+          && (request.resource.data.outcome == 'off') == (resource.data.outcome == 'off'))
+        // Leadership hands out the cash and banks the rest.
+        || (lead() && onlyChanges(['cashGiven', 'banked']))
+        // Putting my cut in my own money: never more than I was given.
+        || (onlyChanges(['cashCollected']) && ownKeyOnly('cashCollected')
+          && request.resource.data.cashCollected[myId()] <= resource.data.get('cashGiven', {}).get(myId(), 0)));
+      allow delete: if narco() && (resource.data.by == myId() || lead());
     }
 
     // ---------- Radio ----------

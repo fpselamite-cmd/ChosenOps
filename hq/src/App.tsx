@@ -23,6 +23,7 @@ import Archives from './pages/archives/Archives';
 import Casino from './pages/casino/Casino';
 import Polls from './pages/polls/Polls';
 import Heists from './pages/Heists';
+import NarcoRuns from './pages/NarcoRuns';
 import { useWelcomeAccess } from './pages/welcome/useWelcome';
 import { HonorsProvider } from './pages/honors/useHonors';
 import { PartyProvider } from './pages/parties/Parties';
@@ -153,6 +154,7 @@ function MemberRoutes() {
         <Route path="casino" element={<Casino />} />
         <Route path="polls" element={<BloodedOnly><Polls /></BloodedOnly>} />
         <Route path="heists" element={<BloodedOnly><Heists /></BloodedOnly>} />
+        <Route path="narco-runs" element={<BloodedOnly><Gate page="narcotics"><NarcoRuns /></Gate></BloodedOnly>} />
         <Route
           path="gear"
           element={<Gate page="gear"><Gear /></Gate>}

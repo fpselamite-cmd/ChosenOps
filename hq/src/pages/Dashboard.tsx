@@ -57,6 +57,7 @@ import { OpenPolls } from './polls/PollsBits';
 import { useAttention } from './admin/useAttention';
 import { PartyBanner } from './parties/Parties';
 import { LiveHeistBanner } from './Heists';
+import { RunsTile } from './NarcoRuns';
 import { useWelcomeAccess, useWelcomeAttention } from './welcome/useWelcome';
 
 const money = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -677,11 +678,12 @@ export default function Dashboard() {
         <Spotlight />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-flow-col lg:auto-cols-fr">
         <Stat label="Family" value={roster.length} sub={`${ranks.length} ranks`} />
         <Stat label="Online now" value={<span className="text-ok">{online.length}</span>} />
         <Stat label="Family rep" value={familyRep.toLocaleString('en-US')} sub="Petty rep sent in + blacksites" />
         <MoneyTile />
+        <RunsTile />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

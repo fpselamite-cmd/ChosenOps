@@ -66,6 +66,11 @@ export const STATS = [
   { id: 'biggestWin', label: 'Biggest single win', group: 'Casino' },
   { id: 'blackjacks', label: 'Blackjacks dealt', group: 'Casino' },
   { id: 'jackpots', label: 'Slot jackpots', group: 'Casino' },
+  { id: 'narcoRuns', label: 'Narco runs', group: 'Narco runs' },
+  { id: 'runsClean', label: 'Clean runs', group: 'Narco runs' },
+  { id: 'runsBusted', label: 'Runs busted', group: 'Narco runs' },
+  { id: 'runsRobbed', label: 'Runs robbed', group: 'Narco runs' },
+  { id: 'bestHaul', label: 'Biggest run haul ($)', group: 'Narco runs' },
   { id: 'heists', label: 'Heists pulled', group: 'Heists' },
   { id: 'heistWins', label: 'Heists got away with', group: 'Heists' },
   { id: 'heistFails', label: 'Heists gone wrong', group: 'Heists' },
@@ -77,7 +82,7 @@ export const STATS = [
 ] as const;
 export type StatId = (typeof STATS)[number]['id'];
 /** Narcotics stats (coke runs, harvests, cooks, bricks, product sold): honors on them are Narco only. */
-export const NARCO_STATS = new Set<string>(['runs', 'harvests', 'cooks', 'pressed', 'sold']);
+export const NARCO_STATS = new Set<string>(['runs', 'harvests', 'cooks', 'pressed', 'sold', 'narcoRuns', 'runsClean', 'runsBusted', 'runsRobbed', 'bestHaul']);
 export const statsFor = (narco: boolean) => STATS.filter((s) => narco || !NARCO_STATS.has(s.id));
 export type HonorStats = Record<StatId, number>;
 
@@ -389,7 +394,22 @@ DEFAULT_HONORS.push(
 );
 
 /** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
-export const HONORS_VERSION = 6;
+/** Wave 5: Narco runs (Narco only, like every narcotics honor). */
+DEFAULT_HONORS.push(
+  m('nr-first', 'badge', 'First Drop', 'common', 'narcoRuns', 1, 'Your first Narco run.', { icon: 'Package', shape: 'gem' }),
+  m('nr-10', 'badge', 'Runner', 'uncommon', 'narcoRuns', 10, 'Ten Narco runs.', { icon: 'Car', shape: 'shield' }),
+  m('nr-50', 'badge', 'The Pipeline', 'epic', 'narcoRuns', 50, 'Fifty Narco runs.', { icon: 'Car', shape: 'hex' }),
+  m('nr-200', 'title', 'El Transportador', 'legendary', 'narcoRuns', 200, 'Two hundred Narco runs.'),
+  m('nr-clean', 'badge', 'Clean Hands', 'rare', 'runsClean', 25, 'Twenty-five clean runs.', { icon: 'Shield', shape: 'shield' }),
+  m('nr-busted', 'badge', 'Hot Potato', 'common', 'runsBusted', 1, 'A run that got busted. It happens.', { icon: 'Flame', shape: 'gem' }),
+  m('nr-jailbird', 'title', 'Jailbird', 'epic', 'runsBusted', 5, 'Five runs busted, and still running.'),
+  m('nr-jumped', 'badge', 'Jumped', 'common', 'runsRobbed', 1, 'A run that got robbed.', { icon: 'Skull', shape: 'hex' }),
+  m('nr-easy-target', 'title', 'Easy Target', 'rare', 'runsRobbed', 5, 'Robbed five times. Maybe bring backup.'),
+  m('nr-big-bag', 'badge', 'Big Bag', 'rare', 'bestHaul', 100000, 'A run that brought home $100,000.', { icon: 'Coins', shape: 'gem' }),
+  m('nr-cartel', 'title', 'Cartel Money', 'legendary', 'bestHaul', 500000, 'A single run worth half a million.', { secret: true }),
+);
+
+export const HONORS_VERSION = 7;
 
 // ---------- writes ----------
 

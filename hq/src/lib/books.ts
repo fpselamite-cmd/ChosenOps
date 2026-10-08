@@ -20,7 +20,7 @@ export interface BookEntry {
   /** A member it was paid to or came from. */
   memberId?: string | null;
   /** What made it: dues, payout, spend, goal, manual. */
-  source: 'manual' | 'dues' | 'payout' | 'spend' | 'goal' | 'heist';
+  source: 'manual' | 'dues' | 'payout' | 'spend' | 'goal' | 'heist' | 'run';
   ref?: string | null;
   by: string;
   byName: string;
