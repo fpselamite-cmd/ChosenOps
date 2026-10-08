@@ -24,6 +24,7 @@ import {
   Trash2,
   Users,
   X,
+  Gem,
 } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
@@ -43,6 +44,8 @@ import { Vault } from './honors/Vault';
 import { useHub } from '../hooks/useHub';
 import { AuthError, changePin } from '../lib/auth';
 import { records, type Blacksite } from '../lib/blacksites';
+import { useWelcomeAccess } from './welcome/useWelcome';
+import { heistStatsOf, type Heist, type HeistStats } from '../lib/heists';
 import { monthKey, ranked, useBoards } from '../lib/boards';
 import { useCabinet } from '../lib/cabinet';
 import { db } from '../lib/firebase';
@@ -139,10 +142,17 @@ function Box({ title, children, right }: { title: ReactNode; children: ReactNode
 
 // ---------- the locked stat block ----------
 
+const favRole = (h: HeistStats) => {
+  const r = ([['Driver', h.asDriver], ['Hacker', h.asHacker], ['Gunman', h.asGunman]] as const).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])[0];
+  return r ? r[0] : '—';
+};
+
 function useStats(m: Member) {
   const { narco } = useHub();
   const boards = useBoards();
   const sites = useCollection<Blacksite>('blacksites');
+  const { isAssoc } = useWelcomeAccess();
+  const heists = useCollection<Heist>('heists', !isAssoc);
   const petty = useDoc<{ rep?: number }>(`petty/${m.id}`);
   const tq = useMemo(() => query(collection(db, 'repTransfers'), where('memberId', '==', m.id)), [m.id]);
   const transfers = useCollection<{ amount: number; status: string }>(tq);
@@ -180,6 +190,19 @@ function useStats(m: Member) {
         ['K/D', r ? (r.kills / Math.max(1, r.downs)).toFixed(1) : '—'],
         ['MVPs', r?.mvps ?? 0],
       ],
+      ...(!isAssoc && {
+        Heists: (() => {
+          const h = heistStatsOf(heists ?? [], m.id);
+          return [
+            ['Heists', h.heists],
+            ['Got away', h.heistWins],
+            ['Best take', money(h.bestTake)],
+            ['Cash earned', money(h.heistCash)],
+            ['Best streak', h.heistStreak],
+            ['Fav role', favRole(h)],
+          ];
+        })(),
+      }),
       Street: [
         ['Petty rep', (petty?.rep ?? 0).toLocaleString('en-US')],
         ['Rep sent to family', sent.toLocaleString('en-US')],
@@ -190,7 +213,7 @@ function useStats(m: Member) {
         ...(narco ? [['Best finish', best ? `#${best}` : '—'] as [string, string]] : []),
       ],
     } as Record<string, [string, string | number][]>;
-  }, [boards, sites, petty, transfers, trophies, m.id, m.joinedAt, narco]);
+  }, [boards, sites, heists, isAssoc, petty, transfers, trophies, m.id, m.joinedAt, narco]);
 }
 
 function StatBlock({ m }: { m: Member }) {
@@ -198,6 +221,11 @@ function StatBlock({ m }: { m: Member }) {
   const noel = useNoelOpsStats(m.name, narco);
   const stats = { ...useStats(m), ...(narco && { NoelOps: noel }) };
   const links: Record<string, ReactNode> = {
+    Heists: (
+      <Link to="/heists" className="text-smoke hover:text-gold-300" title="Heists">
+        <Gem className="size-3" />
+      </Link>
+    ),
     War: (
       <Link to="/blacksites" className="text-smoke hover:text-gold-300" title="Blacksites">
         <Crosshair className="size-3" />

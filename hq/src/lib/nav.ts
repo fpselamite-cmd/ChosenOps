@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Cannabis,
   Crosshair,
+  Gem,
   Dices,
   FolderSearch,
   HandCoins,
@@ -32,33 +33,33 @@ export interface NavItem {
   href?: string;
   /** Only the Welcome Committee (and leadership) see it here; associates get it at the very top instead. */
   handlers?: boolean;
-  /** Hidden from associates until they're blooded in. */
-  archives?: boolean;
+  /** Associates can open it. They see nothing else in the menu until they're blooded in. */
+  assoc?: boolean;
   /** Points at the signed-in member's own character page. */
   me?: boolean;
 }
 
 /** Associates see this on its own, above everything, until they're blooded in. */
-export const WELCOME_TOP: NavItem = { to: '/welcome', label: 'Welcome', icon: HandHeart };
+export const WELCOME_TOP: NavItem = { to: '/welcome', label: 'Welcome', icon: HandHeart, assoc: true };
 
-// Coming later, hidden until they're built: Gunrunning (Business) and Heists (Operations).
+// Coming later, hidden until it's built: Gunrunning (Business).
 export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'HQ',
     items: [
-      { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard, assoc: true },
       { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
-      { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
-      { to: '/casino', label: 'Casino', icon: Dices },
+      { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime', assoc: true },
+      { to: '/casino', label: 'Casino', icon: Dices, assoc: true },
     ],
   },
   {
     group: 'Me',
     items: [
-      { to: '/me', label: 'Me', icon: UserRound, me: true },
-      { to: '/locker', label: 'My Locker', icon: Lock },
-      { to: '/gear', label: 'Gear & Loadouts', icon: Swords, page: 'gear' },
-      { to: '/money', label: 'Money', icon: Banknote },
+      { to: '/me', label: 'Me', icon: UserRound, me: true, assoc: true },
+      { to: '/locker', label: 'My Locker', icon: Lock, assoc: true },
+      { to: '/gear', label: 'Gear & Loadouts', icon: Swords, page: 'gear', assoc: true },
+      { to: '/money', label: 'Money', icon: Banknote, assoc: true },
     ],
   },
   {
@@ -72,6 +73,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Operations',
     items: [
       { to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' },
+      { to: '/heists', label: 'Heists', icon: Gem },
       { to: '/welcome', label: 'Welcome', icon: HandHeart, handlers: true },
     ],
   },
@@ -80,7 +82,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/family', label: 'Family', icon: Network, page: 'family' },
       { to: '/rivals', label: 'Rivals', icon: FolderSearch },
-      { to: '/archives', label: 'Archives', icon: Library, archives: true },
+      { to: '/archives', label: 'Archives', icon: Library },
       { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },

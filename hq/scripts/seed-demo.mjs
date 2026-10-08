@@ -795,6 +795,35 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'radio', 'associate'), { freq: '555.12', password: 'demo-assoc', note: 'Stay on this until you are blooded in.', byName: 'Kira Lane', at: Timestamp.now() });
   await setDoc(doc(db, 'radio', 'main'), { freq: '777.07', password: 'demo-family', note: '', byName: 'Don Vito', at: Timestamp.now() });
   await setDoc(doc(db, 'radio', 'heist'), { freq: '913.13', password: 'demo-heist', note: 'Fleeca job tonight. Stay off it otherwise.', active: true, byName: 'Don Vito', at: Timestamp.now() });
+  // Heists: one live, one planned, one done.
+  const hz = (id, h, back) => setDoc(doc(db, 'heists', id), { notes: '', size: 4, when: null, requests: {}, crew: [], roles: {}, status: 'planned', outcome: null, take: 0, cashGiven: {}, cashCollected: {}, banked: false, report: '', stashTo: 'main', by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), liveAt: null, doneAt: null, ...h });
+  const ask = (role, note = '') => ({ role, note, at: now - 5 * H });
+  await hz('hz1', {
+    name: 'Friday Fleeca', target: 'Fleeca bank', status: 'live', when: Timestamp.fromMillis(now - 0.3 * H), liveAt: Timestamp.fromMillis(now - 0.3 * H),
+    requests: { [ids['Rocco Vale']]: ask('Driller'), [ids['Dani Cruz']]: ask('Driver', 'Sultan is tuned'), [ids['Kira Lane']]: ask('Lookout'), [ids['Ghost']]: ask('Hacker', 'Can do the panel if needed') },
+    crew: ['Rocco Vale', 'Dani Cruz', 'Kira Lane'].map((n) => ids[n]),
+    roles: { [ids['Rocco Vale']]: 'Driller', [ids['Dani Cruz']]: 'Driver', [ids['Kira Lane']]: 'Lookout' },
+    notes: 'Rocco drills, Dani drives the Sultan, Kira on the door. Meet at the pier.',
+  }, 20);
+  await hz('hz2', {
+    name: 'Paleto score', target: 'Paleto bank', size: 6, when: Timestamp.fromMillis(now + 50 * H),
+    requests: { [ids['Nico Bruno']]: ask('Gunman'), [ids['Ghost']]: ask('Hacker', 'Bringing the laptop'), [ids['Dani Cruz']]: ask('Driver') },
+    crew: [ids['Nico Bruno']], roles: { [ids['Nico Bruno']]: 'Gunman' },
+    notes: 'Need two shooters and a boat.',
+  }, 10);
+  await hz('hz3', {
+    name: 'Vangelico smash', target: 'Jewelry store', status: 'done', outcome: 'success', take: 284000, report: 'In and out in 90 seconds.',
+    crew: ['Rocco Vale', 'Tommy Reyes', 'Kira Lane'].map((n) => ids[n]),
+    roles: { [ids['Rocco Vale']]: 'Gunman', [ids['Tommy Reyes']]: 'Driver', [ids['Kira Lane']]: 'Hacker' },
+    cashGiven: { [ids['Rocco Vale']]: 60000, [ids['Kira Lane']]: 45000 }, cashCollected: { [ids['Rocco Vale']]: 60000 },
+    doneAt: Timestamp.fromMillis(now - 70 * H),
+  }, 80);
+  await setDoc(doc(db, 'heists', 'hz3', 'loot', 'l1'), { item: 'lockpick', label: 'Lockpick', qty: 6, assigned: { [ids['Kira Lane']]: 2 }, collected: {} });
+  await hz('hz4', {
+    name: 'Humane Labs breach', target: 'Humane Labs', status: 'done', outcome: 'failed', take: 0, report: 'Alarm tripped on the second door. Everyone made it out.',
+    crew: ['Rocco Vale', 'Kira Lane'].map((n) => ids[n]), roles: { [ids['Rocco Vale']]: 'Gunman', [ids['Kira Lane']]: 'Driver' }, banked: true,
+    doneAt: Timestamp.fromMillis(now - 200 * H),
+  }, 220);
   // Polls: a dinner spot, a scheduling poll, a sealed motion still open, and a closed official one.
   const opt = (...l) => ({ options: l.map((label, i) => ({ id: String.fromCharCode(97 + i), label })), ids: l.map((_, i) => String.fromCharCode(97 + i)) });
   const poll = (id, p, back) => setDoc(doc(db, 'polls', id), { note: '', audience: 'members', anonymous: false, reveal: 'live', official: false, closesAt: null, status: 'open', voters: [], logged: false, by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), ...p });

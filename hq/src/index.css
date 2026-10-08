@@ -2281,3 +2281,30 @@ button.assoc-box:not(:disabled):active { transform: scale(0.9); }
 .radio-grille { position: absolute; left: 14px; right: 14px; bottom: 8px; height: 10px; background: repeating-linear-gradient(90deg, #050505 0 3px, transparent 3px 6px); opacity: 0.8; border-radius: 2px; }
 .radio-heist-dot { position: absolute; top: -2px; right: 2px; width: 9px; height: 9px; border-radius: 999px; background: #ef4444; box-shadow: 0 0 0 2px #050505; animation: poll-pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .radio-led, .radio-heist-dot { animation: none; } }
+
+/* ---------- Heists ---------- */
+.heist { position: relative; padding: 16px; border: 1px solid rgb(var(--acc) / 0.25); background: linear-gradient(160deg, #15130e, #0b0a07 70%); box-shadow: inset 0 0 0 3px #0b0a07, inset 0 0 0 4px rgb(var(--acc) / 0.1); }
+.heist-live { border-color: rgba(239, 68, 68, 0.6); box-shadow: inset 0 0 0 3px #0b0a07, inset 0 0 0 4px rgba(239, 68, 68, 0.25), 0 0 24px rgba(239, 68, 68, 0.15); }
+.heist-over { opacity: 0.8; }
+.heist-icon { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 8px; color: var(--color-gold-200); background: radial-gradient(circle at 35% 30%, rgb(var(--acc) / 0.35), rgb(var(--acc) / 0.08)); border: 1px solid rgb(var(--acc) / 0.35); }
+.heist-live .heist-icon { color: #fecaca; background: radial-gradient(circle at 35% 30%, rgba(239, 68, 68, 0.45), rgba(239, 68, 68, 0.1)); border-color: rgba(239, 68, 68, 0.5); }
+.heist-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; font: 700 10px var(--font-hud); letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid rgb(var(--acc) / 0.35); color: var(--color-gold-200); }
+.heist-status.s-live { border-color: #ef4444; color: #fecaca; background: rgba(239, 68, 68, 0.15); animation: poll-pulse 1.8s ease-in-out infinite; }
+.heist-status.s-done { border-color: rgba(74, 222, 128, 0.5); color: #bbf7d0; }
+.heist-status.s-cancelled { border-color: rgba(168, 162, 158, 0.4); color: #a8a29e; }
+.heist-status.s-failed { border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+.heist-mine { border-color: rgb(var(--acc) / 0.6); }
+.heist-member { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 8px; border: 1px solid var(--color-line-soft); background: rgb(0 0 0 / 0.25); }
+.heist-member.me { border-color: rgb(var(--acc) / 0.6); background: rgb(var(--acc) / 0.08); }
+.heist-role { padding: 1px 6px; font: 700 9px var(--font-hud); letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-300); background: rgb(var(--acc) / 0.12); }
+.heist-rewards { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-line-soft); }
+.heist-pick { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--color-line-soft); }
+.heist-pick-on { border-color: rgb(var(--acc) / 0.55); background: rgb(var(--acc) / 0.07); }
+.heist-pick button:disabled { opacity: 0.45; }
+.heist-tick { width: 14px; height: 14px; flex-shrink: 0; border: 1px solid rgb(var(--acc) / 0.5); }
+.heist-tick.on { background: var(--color-gold-400); box-shadow: inset 0 0 0 2px #0b0a07; }
+.heist-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(239, 68, 68, 0.4); background: linear-gradient(100deg, rgba(239, 68, 68, 0.12), #0b0a07 60%); transition: border-color 0.2s; }
+.heist-banner:hover { border-color: rgba(239, 68, 68, 0.7); }
+.heist-banner .heist-icon { color: #fecaca; background: radial-gradient(circle at 35% 30%, rgba(239, 68, 68, 0.45), rgba(239, 68, 68, 0.1)); border-color: rgba(239, 68, 68, 0.5); animation: poll-pulse 1.8s ease-in-out infinite; }
+.heist-banner-mine { border-color: rgb(var(--acc) / 0.8); box-shadow: 0 0 0 1px rgb(var(--acc) / 0.4), 0 0 28px rgba(239, 68, 68, 0.18); background: linear-gradient(100deg, rgba(239, 68, 68, 0.2), rgb(var(--acc) / 0.08) 50%, #0b0a07); }
+@media (prefers-reduced-motion: reduce) { .heist-banner .heist-icon, .heist-status.s-live { animation: none; } }

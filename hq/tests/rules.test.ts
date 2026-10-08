@@ -1410,3 +1410,35 @@ describe('admin is separate from rank', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'hqRanks/capo'), { name: 'x' }));
   });
 });
+
+describe('heists', () => {
+  const h = { name: 'Fleeca', target: 'Fleeca bank', notes: '', size: 4, when: null, requests: {}, crew: [], roles: {}, status: 'planned', outcome: null, take: 0, cashGiven: {}, cashCollected: {}, banked: false, report: '', by: 'boss', byName: 'Boss', at: serverTimestamp(), liveAt: null, doneAt: null };
+  const seedAssoc = () =>
+    env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'hqRanks/associate'), { name: 'Associate', order: 9, permissions: {} });
+      await setDoc(doc(ctx.firestore(), 'members/assoc'), member('Assoc', 'associate'));
+    });
+  it('lets leadership plan and pick the crew; members only ask for themselves; never associates', async () => {
+    await seedAssoc();
+    await assertSucceeds(setDoc(doc(as('boss'), 'heists/h1'), h));
+    await assertFails(setDoc(doc(as('sol'), 'heists/h2'), { ...h, by: 'sol' }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'heists/h1'), { 'requests.sol': { role: 'Driver', note: 'I can drive', at: 1 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'heists/h1'), { 'requests.sol2': { role: 'Driver', note: '', at: 1 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'heists/h1'), { crew: ['sol'] }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'heists/h1'), { crew: ['sol'], roles: { sol: 'Driver' } }));
+    await assertFails(getDoc(doc(as('assoc'), 'heists/h1')));
+  });
+  it('pays out cash and items: members collect only what they were given; the rest goes to the bank', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'heists/h1'), { ...h, status: 'done', take: 1000, crew: ['sol'], cashGiven: { sol: 300 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'heists/h1'), { 'cashCollected.sol': 500 }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'heists/h1'), { 'cashCollected.sol': 300 }));
+    await assertFails(updateDoc(doc(as('sol2'), 'heists/h1'), { 'cashCollected.sol': 0 }));
+    const entry = { dir: 'in', cash: 'dirty', amount: 700, category: 'Heist', note: 'Heist: Fleeca', memberId: null, source: 'heist', ref: 'h1', by: 'boss', byName: 'Boss', at: serverTimestamp() };
+    await assertSucceeds(setDoc(doc(as('boss'), 'gangBook/g1'), entry));
+    await assertFails(setDoc(doc(as('sol'), 'gangBook/g2'), { ...entry, by: 'sol' }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'heists/h1/loot/l1'), { item: 'gold', label: 'Gold bar', qty: 5, assigned: {}, collected: {} }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'heists/h1/loot/l1'), { qty: 3, assigned: { sol: 2 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'heists/h1/loot/l1'), { 'collected.sol': 3 }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'heists/h1/loot/l1'), { 'collected.sol': 2 }));
+  });
+});

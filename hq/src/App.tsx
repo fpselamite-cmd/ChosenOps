@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { logout } from './lib/auth';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { NOELOPS_URL } from './lib/noelops';
 import type { PageId } from './lib/types';
 import { AppShell } from './components/AppShell';
@@ -22,6 +22,8 @@ import Welcome from './pages/welcome/Welcome';
 import Archives from './pages/archives/Archives';
 import Casino from './pages/casino/Casino';
 import Polls from './pages/polls/Polls';
+import Heists from './pages/Heists';
+import { useWelcomeAccess } from './pages/welcome/useWelcome';
 import { HonorsProvider } from './pages/honors/useHonors';
 import { PartyProvider } from './pages/parties/Parties';
 import Gear from './pages/Gear';
@@ -100,6 +102,20 @@ function MeRedirect() {
   return <Navigate to={`/members/${me.id}`} replace />;
 }
 
+/** Soldiers and up only: associates go back to the Dashboard. */
+function BloodedOnly({ children }: { children: ReactNode }) {
+  const { isAssoc } = useWelcomeAccess();
+  return isAssoc ? <Navigate to="/" replace /> : children;
+}
+
+/** Associates only ever see their own character page. */
+function OwnPageOnly({ children }: { children: ReactNode }) {
+  const { me } = useHub();
+  const { isAssoc } = useWelcomeAccess();
+  const { id } = useParams();
+  return isAssoc && id !== me.id ? <Navigate to={`/members/${me.id}`} replace /> : children;
+}
+
 /** Sends people back to the Dashboard if their rank and roles don't open this page. */
 function Gate({ page, children }: { page: PageId; children: ReactNode }) {
   const { canSee } = useHub();
@@ -122,69 +138,31 @@ function MemberRoutes() {
       >
         <Route index element={<Dashboard />} />
         <Route path="me" element={<MeRedirect />} />
-        <Route path="hall-of-fame" element={<HallOfFame />} />
-        <Route path="narcotics" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
-        <Route
-          path="stash"
-          element={
-            <Gate page="stash">
-              <Stash />
-            </Gate>
-          }
-        />
-        <Route path="timers" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
-        <Route path="meth" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
-        <Route path="coke" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
-        <Route
-          path="blackmarket"
-          element={
-            <Gate page="blackmarket">
-              <BlackMarket />
-            </Gate>
-          }
-        />
+        <Route path="hall-of-fame" element={<BloodedOnly><HallOfFame /></BloodedOnly>} />
+        <Route path="narcotics" element={<BloodedOnly><Gate page="narcotics"><OpenNoelOps /></Gate></BloodedOnly>} />
+        <Route path="stash" element={<BloodedOnly><Gate page="stash"><Stash /></Gate></BloodedOnly>} />
+        <Route path="timers" element={<BloodedOnly><Gate page="narcotics"><OpenNoelOps /></Gate></BloodedOnly>} />
+        <Route path="meth" element={<BloodedOnly><Gate page="narcotics"><OpenNoelOps /></Gate></BloodedOnly>} />
+        <Route path="coke" element={<BloodedOnly><Gate page="narcotics"><OpenNoelOps /></Gate></BloodedOnly>} />
+        <Route path="blackmarket" element={<BloodedOnly><Gate page="blackmarket"><BlackMarket /></Gate></BloodedOnly>} />
         <Route path="money" element={<Money />} />
-        <Route
-          path="blacksites"
-          element={
-            <Gate page="blacksites">
-              <Blacksites />
-            </Gate>
-          }
-        />
-        <Route path="rivals" element={<Rivals />} />
+        <Route path="blacksites" element={<BloodedOnly><Gate page="blacksites"><Blacksites /></Gate></BloodedOnly>} />
+        <Route path="rivals" element={<BloodedOnly><Rivals /></BloodedOnly>} />
         <Route path="welcome" element={<Welcome />} />
-        <Route path="archives" element={<Archives />} />
+        <Route path="archives" element={<BloodedOnly><Archives /></BloodedOnly>} />
         <Route path="casino" element={<Casino />} />
-        <Route path="polls" element={<Polls />} />
+        <Route path="polls" element={<BloodedOnly><Polls /></BloodedOnly>} />
+        <Route path="heists" element={<BloodedOnly><Heists /></BloodedOnly>} />
         <Route
           path="gear"
-          element={
-            <Gate page="gear">
-              <Gear />
-            </Gate>
-          }
+          element={<Gate page="gear"><Gear /></Gate>}
         />
         <Route path="petty-crime" element={<Gate page="pettycrime"><PettyCrime /></Gate>} />
         <Route path="locker" element={<Locker />} />
-        <Route path="members/:id" element={<Profile />} />
-        <Route path="family" element={<Gate page="family"><Family /></Gate>} />
-        <Route
-          path="map"
-          element={
-            <Gate page="map">
-              <MapPage />
-            </Gate>
-          }
-        />
-        <Route
-          path="calendar"
-          element={
-            <Gate page="calendar">
-              <CalendarPage />
-            </Gate>
-          }
-        />
+        <Route path="members/:id" element={<OwnPageOnly><Profile /></OwnPageOnly>} />
+        <Route path="family" element={<BloodedOnly><Gate page="family"><Family /></Gate></BloodedOnly>} />
+        <Route path="map" element={<BloodedOnly><Gate page="map"><MapPage /></Gate></BloodedOnly>} />
+        <Route path="calendar" element={<BloodedOnly><Gate page="calendar"><CalendarPage /></Gate></BloodedOnly>} />
         <Route path="admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

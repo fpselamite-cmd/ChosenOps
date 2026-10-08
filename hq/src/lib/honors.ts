@@ -66,6 +66,14 @@ export const STATS = [
   { id: 'biggestWin', label: 'Biggest single win', group: 'Casino' },
   { id: 'blackjacks', label: 'Blackjacks dealt', group: 'Casino' },
   { id: 'jackpots', label: 'Slot jackpots', group: 'Casino' },
+  { id: 'heists', label: 'Heists pulled', group: 'Heists' },
+  { id: 'heistWins', label: 'Heists got away with', group: 'Heists' },
+  { id: 'heistFails', label: 'Heists gone wrong', group: 'Heists' },
+  { id: 'bestTake', label: 'Biggest heist take ($)', group: 'Heists' },
+  { id: 'heistStreak', label: 'Clean heists in a row', group: 'Heists' },
+  { id: 'asDriver', label: 'Heists as Driver', group: 'Heists' },
+  { id: 'asHacker', label: 'Heists as Hacker', group: 'Heists' },
+  { id: 'asGunman', label: 'Heists as Gunman', group: 'Heists' },
 ] as const;
 export type StatId = (typeof STATS)[number]['id'];
 /** Narcotics stats (coke runs, harvests, cooks, bricks, product sold): honors on them are Narco only. */
@@ -359,8 +367,29 @@ DEFAULT_HONORS.push(
   m('v-hue', 'hue', 'Ballot Blue', 'rare', 'votes', 25, 'Twenty-five polls voted on.', { color: '#3b82f6' }),
 );
 
+/** Wave 4: heists. The ladder, then the fun ones. */
+DEFAULT_HONORS.push(
+  m('hz-first', 'badge', 'First Score', 'common', 'heists', 1, 'Your first heist with the crew.', { icon: 'Gem', shape: 'gem' }),
+  m('hz-five', 'badge', 'Crew Regular', 'uncommon', 'heists', 5, 'Five heists pulled.', { icon: 'Gem', shape: 'shield' }),
+  m('hz-25', 'badge', 'Professional', 'epic', 'heists', 25, 'Twenty-five heists pulled.', { icon: 'Gem', shape: 'hex' }),
+  m('hz-100', 'title', 'The Mastermind', 'legendary', 'heists', 100, 'A hundred heists pulled.'),
+  // Big takes
+  m('hz-gold-fever', 'badge', 'Gold Fever', 'rare', 'bestTake', 250000, 'On a heist that brought home $250,000 or more.', { icon: 'Coins', shape: 'gem' }),
+  m('hz-seven-figures', 'title', 'Seven Figures', 'legendary', 'bestTake', 1000000, 'On a heist that brought home a million dollars.'),
+  // Close calls
+  m('hz-lucky-escape', 'badge', 'Lucky Escape', 'common', 'heistFails', 1, 'Walked away from a heist that went wrong.', { icon: 'Ghost', shape: 'shield' }),
+  m('hz-still-breathing', 'title', 'Still Breathing', 'epic', 'heistFails', 5, 'Five heists gone wrong, and still here.'),
+  // Roles
+  m('hz-wheelman', 'title', 'Wheelman', 'rare', 'asDriver', 10, 'Drove ten heists.'),
+  m('hz-ghost-wire', 'title', 'Ghost in the Wire', 'rare', 'asHacker', 10, 'Hacked ten heists.'),
+  m('hz-hired-gun', 'badge', 'Hired Gun', 'rare', 'asGunman', 10, 'Gunman on ten heists.', { icon: 'Crosshair', shape: 'hex' }),
+  // Streaks
+  m('hz-clean-sweep', 'badge', 'Clean Sweep', 'epic', 'heistStreak', 5, 'Five heists in a row without a hitch.', { icon: 'Zap', shape: 'gem' }),
+  m('hz-untouchable', 'effect', 'Untouchable', 'legendary', 'heistStreak', 10, 'Ten clean heists in a row.', { effect: 'shimmer', secret: true }),
+);
+
 /** Bump when new defaults are added, so High Table's next sign-in adds the missing ones. */
-export const HONORS_VERSION = 5;
+export const HONORS_VERSION = 6;
 
 // ---------- writes ----------
 

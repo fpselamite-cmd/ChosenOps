@@ -4,17 +4,19 @@ import { useCollection } from '../hooks/useCollection';
 import { mvps, type Blacksite } from './blacksites';
 import { monthKey, useBoards } from './boards';
 import { db } from './firebase';
+import type { Heist } from './heists';
 import type { RepTransfer } from './types';
 
 /** Every Hall of Fame board: month → member → value. */
-export type HallBoardId = 'sales' | 'bricks' | 'mvps' | 'rep';
+export type HallBoardId = 'sales' | 'bricks' | 'mvps' | 'heists' | 'rep';
 /** Boards about narcotics (drug sales, bricks pressed): Narco and High Table only. */
 export const NARCO_BOARDS = new Set<string>(['sales', 'bricks']);
 
-export const HALL_BOARDS: { id: HallBoardId; name: string; title: string; unit: (v: number) => string; design: 'moneybag' | 'brick' | 'crosshair' | 'crest' }[] = [
+export const HALL_BOARDS: { id: HallBoardId; name: string; title: string; unit: (v: number) => string; design: 'moneybag' | 'brick' | 'crosshair' | 'mask' | 'crest' }[] = [
   { id: 'sales', name: 'Top Sellers', title: 'Top Seller', unit: (v) => `$${Math.round(v).toLocaleString('en-US')}`, design: 'moneybag' },
   { id: 'bricks', name: 'Brick Press', title: 'Top Presser', unit: (v) => `${v.toLocaleString('en-US')} ${v === 1 ? 'brick' : 'bricks'}`, design: 'brick' },
   { id: 'mvps', name: 'Blacksite MVPs', title: 'Blacksite MVP', unit: (v) => `${v} MVP${v === 1 ? '' : 's'}`, design: 'crosshair' },
+  { id: 'heists', name: 'Top Heisters', title: 'Top Heister', unit: (v) => `${v} heist${v === 1 ? '' : 's'}`, design: 'mask' },
   { id: 'rep', name: 'Petty Rep', title: 'Rep Giver', unit: (v) => `${v.toLocaleString('en-US')} rep`, design: 'crest' },
 ];
 export type Ranked = { memberId: string; value: number; place: number };
@@ -28,8 +30,9 @@ export function useHall() {
   const boards = useBoards();
   const sites = useCollection<Blacksite>('blacksites');
   const reps = useCollection<RepTransfer & { decidedAt?: Timestamp }>('repTransfers');
+  const heists = useCollection<Heist>('heists');
   return useMemo(() => {
-    const data: Record<HallBoardId, Map<string, Record<string, number>>> = { sales: new Map(), bricks: new Map(), mvps: new Map(), rep: new Map() };
+    const data: Record<HallBoardId, Map<string, Record<string, number>>> = { sales: new Map(), bricks: new Map(), mvps: new Map(), heists: new Map(), rep: new Map() };
     const add = (b: HallBoardId, ym: string, who: string, v: number) => {
       const m = data[b].get(ym) ?? {};
       m[who] = (m[who] ?? 0) + v;
@@ -40,6 +43,8 @@ export function useHall() {
       if (m.bricks) data.bricks.set(m.id, { ...m.bricks });
     });
     (sites ?? []).forEach((s) => mvps(s).ids.forEach((id) => add('mvps', monthKey(s.at), id, 1)));
+    // Every finished heist (success or not) counts for each member of the crew.
+    (heists ?? []).filter((h) => h.status === 'done').forEach((h) => h.crew.forEach((id) => add('heists', monthKey(h.doneAt ?? h.at ?? Date.now()), id, 1)));
     (reps ?? []).filter((r) => r.status === 'confirmed').forEach((r) => add('rep', monthKey(r.decidedAt ?? r.at ?? Date.now()), r.memberId, r.amount));
     const months = [...new Set(HALL_BOARDS.flatMap((b) => [...data[b.id].keys()]))].sort().reverse();
     const allTime = (b: HallBoardId) => {
@@ -48,7 +53,7 @@ export function useHall() {
       return rankMap(t);
     };
     return { ready: boards.ready && !!sites && !!reps, data, months, allTime, at: (b: HallBoardId, ym: string) => rankMap(data[b].get(ym)) };
-  }, [boards, sites, reps]);
+  }, [boards, sites, reps, heists]);
 }
 
 // ---------- MVP of the month ----------

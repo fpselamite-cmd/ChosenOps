@@ -7,6 +7,7 @@ import type { DinnerNote, Lore } from '../../lib/archives';
 import type { DuesPay } from '../../lib/books';
 import { records, type Blacksite } from '../../lib/blacksites';
 import { useMyAchievementStats } from '../../lib/cabinet';
+import { heistStatsOf, type Heist } from '../../lib/heists';
 import { db } from '../../lib/firebase';
 import { CHIPS_FOR, NARCO_STATS, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
 import type { Bounty, Sighting } from '../../lib/rivals';
@@ -99,8 +100,10 @@ export function useMyHonorStats(): HonorStats | null {
   const bounties = useCollection<Bounty>(useMemo(() => query(collection(db, 'bounties'), where('claimBy', '==', me.id)), [me.id])) ?? [];
   const reacts = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'archiveReacts'), where('memberId', '==', me.id)), [me.id]), blooded) ?? [];
   const ballots = useCollection<{ id: string }>(useMemo(() => query(collection(db, 'pollBallots'), where('memberId', '==', me.id)), [me.id])) ?? [];
+  const heists = useCollection<Heist>(useMemo(() => query(collection(db, 'heists'), where('crew', 'array-contains', me.id)), [me.id]), blooded) ?? [];
   const chips = useDoc<Chips>(`chips/${me.id}`);
   if (!base || !sites || chips === undefined) return null;
+  const hz = heistStatsOf(heists, me.id);
   const r = records(sites).get(me.id);
   return {
     ...base,
@@ -121,6 +124,14 @@ export function useMyHonorStats(): HonorStats | null {
     biggestWin: chips?.biggestWin ?? 0,
     blackjacks: chips?.blackjacks ?? 0,
     jackpots: chips?.jackpots ?? 0,
+    heists: hz.heists,
+    heistWins: hz.heistWins,
+    heistFails: hz.heistFails,
+    bestTake: hz.bestTake,
+    heistStreak: hz.heistStreak,
+    asDriver: hz.asDriver,
+    asHacker: hz.asHacker,
+    asGunman: hz.asGunman,
   };
 }
 

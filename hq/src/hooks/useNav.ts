@@ -9,7 +9,7 @@ export function useNav() {
   return NAV.map((g) => ({
     ...g,
     items: g.items
-      .filter((i) => (!i.page || canSee(i.page)) && (!i.handlers || (isHandler && !isAssoc)) && (!i.archives || !isAssoc))
+      .filter((i) => (!i.page || canSee(i.page)) && (!i.handlers || (isHandler && !isAssoc)) && (!isAssoc || i.assoc))
       .map((i) => (i.me ? { ...i, to: `/members/${me.id}` } : i)),
   })).filter((g) => g.items.length);
 }

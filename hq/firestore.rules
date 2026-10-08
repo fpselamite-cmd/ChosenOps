@@ -901,11 +901,14 @@ service cloud.firestore {
     function treasury() { return can('money') || lead(); }
     match /gangBook/{id} {
       allow read: if active() && treasury();
-      allow create: if active() && can('money') && request.resource.data.by == myId() && request.resource.data.at == request.time
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
         && request.resource.data.dir in ['in', 'out'] && request.resource.data.cash in ['dirty', 'clean']
         && request.resource.data.amount is int && request.resource.data.amount > 0
         && str(request.resource.data.category, 30) && str(request.resource.data.get('note', ''), 140)
-        && request.resource.data.source in ['manual', 'dues', 'payout', 'spend', 'goal'];
+        && ((can('money') && request.resource.data.source in ['manual', 'dues', 'payout', 'spend', 'goal'])
+          // A heist's undistributed take going into the bank, by leadership running it.
+          || (lead() && request.resource.data.source == 'heist' && request.resource.data.dir == 'in' && request.resource.data.ref is string
+            && heist(request.resource.data.ref).status == 'done'));
       allow delete: if active() && can('money');
     }
     match /payouts/{id} {
@@ -1156,6 +1159,36 @@ service cloud.firestore {
       match /hands/{mid} {
         allow read: if active() && (mid == myId() || get(/databases/$(database)/documents/casinoTables/$(tid)).data.host == myId());
         allow write: if active() && get(/databases/$(database)/documents/casinoTables/$(tid)).data.host == myId();
+      }
+    }
+
+    // ---------- Heists ----------
+    // Leadership plans and runs them; soldiers and up see them and ask to join. Associates never see heists.
+    function heist(id) { return get(/databases/$(database)/documents/heists/$(id)).data; }
+    match /heists/{id} {
+      allow read: if blooded();
+      allow create: if blooded() && lead() && request.resource.data.by == myId() && str(request.resource.data.name, 60)
+        && request.resource.data.name.size() > 0 && str(request.resource.data.notes, 1000) && request.resource.data.crew is list
+        && request.resource.data.status == 'planned';
+      allow update: if blooded() && (
+        (lead() && request.resource.data.status in ['planned', 'live', 'done', 'cancelled'] && str(request.resource.data.name, 60) && request.resource.data.crew is list)
+        // Asking to join (or withdrawing): only my own request, and only before it's over.
+        || (onlyChanges(['requests']) && resource.data.status in ['planned', 'live'] && ownKeyOnly('requests')
+          && (!(myId() in request.resource.data.requests) || str(request.resource.data.requests[myId()].note, 120)))
+        // Putting my cut in my own money: never more than I was given.
+        || (onlyChanges(['cashCollected']) && ownKeyOnly('cashCollected')
+          && request.resource.data.cashCollected[myId()] <= resource.data.get('cashGiven', {}).get(myId(), 0)));
+      allow delete: if blooded() && lead();
+
+      // Items it brought home: leadership splits them, the crew collects into their lockers.
+      match /loot/{lid} {
+        allow read: if blooded();
+        allow create: if blooded() && lead() && str(request.resource.data.label, 60) && request.resource.data.qty is int && request.resource.data.qty > 0;
+        allow update: if blooded() && (
+          (lead() && onlyChanges(['qty', 'assigned', 'dumped']) && request.resource.data.qty is int && request.resource.data.qty >= 0 && request.resource.data.qty <= resource.data.qty)
+          || (onlyChanges(['collected']) && mapOnlyMine(request.resource.data.get('collected', {}), resource.data.get('collected', {}))
+            && request.resource.data.collected[myId()] <= resource.data.get('assigned', {}).get(myId(), 0)));
+        allow delete: if blooded() && lead();
       }
     }
 
