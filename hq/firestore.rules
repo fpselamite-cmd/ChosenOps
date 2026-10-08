@@ -997,7 +997,11 @@ service cloud.firestore {
     match /settings/welcome {
       allow read: if active();
       allow write: if active() && handler() && request.resource.data.steps is list && request.resource.data.steps.size() <= 40
-        && request.resource.data.sections is list && request.resource.data.sections.size() <= 20 && request.resource.data.rulesVersion is int;
+        && request.resource.data.sections is list && request.resource.data.sections.size() <= 20 && request.resource.data.rulesVersion is int
+        // The Guide: a Canva view-only embed link (never an edit link), or blank.
+        && (!('canva' in request.resource.data) || request.resource.data.canva == ''
+          || (request.resource.data.canva is string && request.resource.data.canva.size() <= 300
+            && request.resource.data.canva.matches('https://www[.]canva[.]com/design/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/view[?]embed')));
     }
     match /onboarding/{mid} {
       allow read: if active() && (mid == myId() || handler());

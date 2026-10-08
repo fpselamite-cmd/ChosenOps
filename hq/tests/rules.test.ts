@@ -1366,3 +1366,13 @@ describe('party cards', () => {
     await assertSucceeds(deleteDoc(doc(as('sol2'), 'partyNotes/birthday_sol_2026_sol2')));
   });
 });
+
+describe('welcome guide', () => {
+  const base = { steps: [], sections: [], rulesVersion: 1, repTarget: 0 };
+  it('takes a Canva view-only embed link, never an edit link', async () => {
+    await assertSucceeds(setDoc(doc(as('boss'), 'settings/welcome'), { ...base, canva: 'https://www.canva.com/design/DAHP38j5-V0/abc_123/view?embed' }));
+    await assertSucceeds(setDoc(doc(as('boss'), 'settings/welcome'), { ...base, canva: '' }));
+    await assertFails(setDoc(doc(as('boss'), 'settings/welcome'), { ...base, canva: 'https://www.canva.com/design/DAHP38j5-V0/abc_123/edit' }));
+    await assertFails(setDoc(doc(as('boss'), 'settings/welcome'), { ...base, canva: 'https://evil.example/x' }));
+  });
+});
