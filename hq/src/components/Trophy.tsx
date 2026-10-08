@@ -194,59 +194,170 @@ function Figure({ design, m, t, k }: { design: TrophyDesign; m: string; t: strin
           <path d="M40 84 H60 L63 92 H37 Z" fill={m} {...s} />
         </g>
       );
+    case 'revolver':
+      return (
+        <g>
+          <g transform="rotate(-14 50 44)">
+            <rect x="10" y="30" width="46" height="9" rx="2" fill={m} {...s} />
+            <rect x="12" y="26.5" width="40" height="4.5" rx="1" fill={m} {...s} />
+            <rect x="12" y="22.5" width="3.5" height="5" fill={m} {...s} />
+            <path d="M54 25 H74 L79 35 V47 H54 Z" fill={m} {...s} />
+            <rect x="47" y="28" width="18" height="16" rx="5" fill={m} {...s} />
+            {[51, 56, 61].map((x) => (
+              <line key={x} x1={x} y1="29.5" x2={x} y2="42.5" stroke={k} strokeWidth="1.2" opacity="0.55" />
+            ))}
+            <path d="M73 25 L82 18 L85 22 L78 30 Z" fill={m} {...s} />
+            <path d="M58 47 Q57 60 67 60 L69 52" fill="none" stroke={m} strokeWidth="3" />
+            <path d="M63 47 L64 55" stroke={k} strokeWidth="2" strokeLinecap="round" />
+            <path d="M68 46 H80 L89 72 Q83 79 74 75 L66 52 Z" fill={m} {...s} />
+            <path d="M71 52 L82 70 M75 50 L85 68 M70 58 L78 72" stroke={k} strokeWidth="1" opacity="0.5" />
+            <circle cx="77" cy="58" r="2" fill={k} opacity="0.6" />
+          </g>
+          <rect x="44" y="72" width="12" height="12" fill={m} {...s} />
+          <path d="M30 84 H70 L74 92 H26 Z" fill={m} {...s} />
+        </g>
+      );
+    case 'ledger':
+      return (
+        <g>
+          <path d="M28 14 H72 Q78 14 78 20 V80 H34 Q28 80 28 74 Z" fill={m} {...s} />
+          <rect x="72" y="18" width="7" height="60" fill="#f4ecd8" stroke={t} strokeWidth="1" />
+          {[24, 30, 36, 42, 48, 54, 60, 66, 72].map((y) => (
+            <line key={y} x1="72.5" y1={y} x2="78.5" y2={y} stroke="#b9ab88" strokeWidth="0.6" />
+          ))}
+          <rect x="22" y="14" width="11" height="66" rx="3" fill={m} {...s} />
+          {[24, 40, 56, 70].map((y) => (
+            <rect key={y} x="22" y={y} width="11" height="2.4" fill={k} opacity="0.45" />
+          ))}
+          <rect x="40" y="26" width="30" height="22" rx="2" fill="none" stroke={k} strokeWidth="1.4" opacity="0.6" />
+          <text x="55" y="43" fontSize="17" fontWeight="900" textAnchor="middle" fill={k} opacity="0.65" fontFamily="Cinzel, serif">
+            $
+          </text>
+          <rect x="28" y="56" width="50" height="6" fill={k} opacity="0.35" />
+          <path d="M34 84 H66 L70 92 H30 Z" fill={m} {...s} />
+        </g>
+      );
+    case 'dice':
+      return (
+        <g>
+          <path d="M30 14 H70 L63 60 H37 Z" fill={m} {...s} />
+          <ellipse cx="50" cy="14" rx="20" ry="4.5" fill={m} {...s} />
+          <ellipse cx="50" cy="14" rx="15" ry="2.6" fill={k} opacity="0.55" />
+          <path d="M34 30 H66 M35.5 40 H64.5" stroke={k} strokeWidth="1.2" opacity="0.45" />
+          <g transform="rotate(-14 32 72)">
+            <rect x="20" y="60" width="22" height="22" rx="4" fill={m} {...s} />
+            {[[26, 66], [36, 76], [31, 71]].map(([x, y]) => (
+              <circle key={`${x}${y}`} cx={x} cy={y} r="2.1" fill={k} opacity="0.85" />
+            ))}
+          </g>
+          <g transform="rotate(12 66 72)">
+            <rect x="55" y="62" width="20" height="20" rx="4" fill={m} {...s} />
+            {[[60, 67], [70, 67], [60, 77], [70, 77]].map(([x, y]) => (
+              <circle key={`${x}${y}`} cx={x} cy={y} r="1.9" fill={k} opacity="0.85" />
+            ))}
+          </g>
+          <path d="M26 86 H74 L77 92 H23 Z" fill={m} {...s} />
+        </g>
+      );
+    case 'duffel':
+      return (
+        <g>
+          <path d="M32 40 Q32 18 50 18 Q68 18 68 40" fill="none" stroke={t} strokeWidth="7" strokeLinecap="round" />
+          <path d="M32 40 Q32 18 50 18 Q68 18 68 40" fill="none" stroke={m} strokeWidth="4.5" strokeLinecap="round" />
+          <path d="M12 50 Q12 38 26 38 H74 Q88 38 88 50 V74 Q88 84 76 84 H24 Q12 84 12 74 Z" fill={m} {...s} />
+          <ellipse cx="13.5" cy="61" rx="4" ry="12" fill={m} {...s} />
+          <ellipse cx="86.5" cy="61" rx="4" ry="12" fill={m} {...s} />
+          <path d="M22 44 H78" stroke={k} strokeWidth="2" strokeDasharray="2 1.6" opacity="0.6" />
+          <rect x="70" y="41" width="6" height="7" rx="1" fill={k} opacity="0.6" />
+          <path d="M26 38 L30 30 H40 L44 38" fill="#2f7d32" stroke={t} strokeWidth="1" />
+          <path d="M44 38 L47 28 H57 L58 38" fill="#3c9a40" stroke={t} strokeWidth="1" />
+          <text x="50" y="72" fontSize="16" fontWeight="900" textAnchor="middle" fill={k} opacity="0.55" fontFamily="Cinzel, serif">
+            $
+          </text>
+          <path d="M20 84 H80 L84 92 H16 Z" fill={m} {...s} />
+        </g>
+      );
   }
 }
 
 /**
- * A trophy in bronze, silver, gold or onyx, standing on a small black marble base with a
- * nameplate. Sized to sit on a cabinet pedestal.
+ * A trophy in bronze, silver, gold or onyx on a stepped black-marble plinth with an engraved brass
+ * plaque. Lit from the top left, shaded bottom right; gold and onyx catch a passing glint.
  */
 export function Trophy({ design, tier, size = 96, title }: { design: TrophyDesign; tier: Tier; size?: number; title?: string }) {
-  const id = useId().replace(/:/g, '');
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const metal = METALS[tier];
   const m = `url(#m${id})`;
   return (
-    <svg
-      viewBox="0 0 100 120"
-      width={size}
-      height={size * 1.2}
-      role="img"
-      aria-label={title ?? `${design} trophy`}
-      style={tier === 4 ? { filter: 'drop-shadow(0 0 8px rgba(212,175,55,0.45))' } : tier === 3 ? { filter: 'drop-shadow(0 0 6px rgba(212,175,55,0.25))' } : undefined}
-    >
-      <defs>
-        <linearGradient id={`m${id}`} x1="0" y1="0" x2="1" y2="1">
-          {metal.stops.map((c, i) => (
-            <stop key={i} offset={`${(i / (metal.stops.length - 1)) * 100}%`} stopColor={c} />
+    <span className={`tr tr-t${tier}`} style={{ width: size, height: size * 1.2 }}>
+      <svg viewBox="0 0 100 120" width={size} height={size * 1.2} role="img" aria-label={title ?? `${design} trophy`}>
+        <defs>
+          <linearGradient id={`m${id}`} x1="0" y1="0" x2="1" y2="1">
+            {metal.stops.map((c, i) => (
+              <stop key={i} offset={`${(i / (metal.stops.length - 1)) * 100}%`} stopColor={c} />
+            ))}
+          </linearGradient>
+          <radialGradient id={`hl${id}`} cx="0.3" cy="0.2" r="0.7">
+            <stop offset="0" stopColor="#fff" stopOpacity={tier === 4 ? 0.25 : 0.55} />
+            <stop offset="0.6" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id={`sd${id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0.55" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.45" />
+          </linearGradient>
+          <linearGradient id={`b${id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#34343a" />
+            <stop offset="45%" stopColor="#16161a" />
+            <stop offset="55%" stopColor="#24242a" />
+            <stop offset="100%" stopColor="#08080a" />
+          </linearGradient>
+          <linearGradient id={`pl${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#f4dc94" />
+            <stop offset="0.5" stopColor="#b8913a" />
+            <stop offset="1" stopColor="#7a5a1c" />
+          </linearGradient>
+          <linearGradient id={`g${id}`} x1="0" x2="1">
+            <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0.8" />
+            <stop offset="0.65" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+          <mask id={`fm${id}`}>
+            <Figure design={design} m="#fff" t="#fff" k="#fff" />
+          </mask>
+        </defs>
+        {/* soft shadow on the plinth */}
+        <ellipse cx="50" cy="92.5" rx="30" ry="3" fill="#000" opacity="0.55" />
+        <g className="tr-fig">
+          <Figure design={design} m={m} t={metal.trim} k={metal.ink} />
+          {/* light from the top left, shade bottom right, only on the metal */}
+          <rect x="0" y="0" width="100" height="94" fill={`url(#hl${id})`} mask={`url(#fm${id})`} />
+          <rect x="0" y="0" width="100" height="94" fill={`url(#sd${id})`} mask={`url(#fm${id})`} />
+          {tier >= 3 && (
+            <g mask={`url(#fm${id})`}>
+              <rect className="tr-glint" x="-50" y="0" width="45" height="94" fill={`url(#g${id})`} />
+            </g>
+          )}
+        </g>
+        {/* stepped marble plinth with an engraved plaque */}
+        <path d="M24 93 H76 L78 99 H22 Z" fill={`url(#b${id})`} stroke="#000" strokeWidth="0.8" />
+        <path d="M18 99 H82 L85 117 H15 Z" fill={`url(#b${id})`} stroke="#000" strokeWidth="0.8" />
+        <path d="M18 99 H82 L82.5 101 H17.5 Z" fill="#45454c" />
+        <path d="M30 104 L34 109 M62 112 L70 106" stroke="#fff" strokeOpacity="0.07" strokeWidth="0.6" />
+        <rect x="27" y="102.5" width="46" height="11" rx="1.2" fill={`url(#pl${id})`} stroke="#4a3510" strokeWidth="0.7" />
+        <circle cx="29.5" cy="108" r="0.9" fill="#4a3510" />
+        <circle cx="70.5" cy="108" r="0.9" fill="#4a3510" />
+        <text x="50" y="110" textAnchor="middle" fontSize="5.6" fontWeight="800" fill="#3a2508" fontFamily="Cinzel, serif" letterSpacing="1.2">
+          {['', 'BRONZE', 'SILVER', 'GOLD', 'ONYX'][tier]} · {ROMAN[tier]}
+        </text>
+        {tier === 4 &&
+          [
+            [16, 16],
+            [86, 30],
+            [80, 6],
+          ].map(([x, y], i) => (
+            <path key={`${x}${y}`} className="tr-star" style={{ animationDelay: `${i * 0.7}s` }} d={`M${x} ${y - 4} L${x + 1} ${y - 1} L${x + 4} ${y} L${x + 1} ${y + 1} L${x} ${y + 4} L${x - 1} ${y + 1} L${x - 4} ${y} L${x - 1} ${y - 1} Z`} fill="#f8e7a8" />
           ))}
-        </linearGradient>
-        <linearGradient id={`b${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2a2a2e" />
-          <stop offset="100%" stopColor="#0a0a0b" />
-        </linearGradient>
-        <linearGradient id={`sh${id}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0" />
-          <stop offset="50%" stopColor="#fff" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <g>
-        <Figure design={design} m={m} t={metal.trim} k={metal.ink} />
-      </g>
-      {/* marble base and nameplate */}
-      <path d="M22 94 H78 L82 116 H18 Z" fill={`url(#b${id})`} stroke="#000" strokeWidth="1" />
-      <path d="M22 94 H78 L79 98 H21 Z" fill="#3a3a40" />
-      <rect x="34" y="101" width="32" height="10" rx="1.5" fill={m} stroke={metal.trim} strokeWidth="0.8" />
-      <text x="50" y="108.6" textAnchor="middle" fontSize="7" fontWeight="800" fill={metal.ink} fontFamily="Cinzel, serif" letterSpacing="1">
-        {ROMAN[tier]}
-      </text>
-      {tier === 4 &&
-        [
-          [18, 18],
-          [84, 30],
-          [80, 8],
-        ].map(([x, y]) => <path key={`${x}${y}`} d={`M${x} ${y - 4} L${x + 1} ${y - 1} L${x + 4} ${y} L${x + 1} ${y + 1} L${x} ${y + 4} L${x - 1} ${y + 1} L${x - 4} ${y} L${x - 1} ${y - 1} Z`} fill="#f8e7a8" />)}
-      <rect x="0" y="0" width="100" height="94" fill={`url(#sh${id})`} opacity="0.25" style={{ mixBlendMode: 'overlay' }} />
-    </svg>
+      </svg>
+    </span>
   );
 }

@@ -17,7 +17,11 @@ export type TrophyDesign =
   | 'star'
   | 'laurel'
   | 'cup'
-  | 'crosshair';
+  | 'crosshair'
+  | 'revolver'
+  | 'ledger'
+  | 'dice'
+  | 'duffel';
 
 export const TIERS = [
   { tier: 1, name: 'Bronze', roman: 'I' },
@@ -90,6 +94,10 @@ export const AWARD_DESIGNS: { design: TrophyDesign; name: string }[] = [
   { design: 'brick', name: 'Brick' },
   { design: 'coins', name: 'Coin Stack' },
   { design: 'mask', name: 'Mask' },
+  { design: 'revolver', name: 'Golden Revolver' },
+  { design: 'ledger', name: 'The Ledger' },
+  { design: 'dice', name: 'Dice Cup' },
+  { design: 'duffel', name: 'Heist Duffel' },
 ];
 
 /** The tier a number reaches (0 = none yet). */

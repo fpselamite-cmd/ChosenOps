@@ -14,12 +14,12 @@ export type HallBoardId = 'sales' | 'bricks' | 'runs' | 'mvps' | 'heists' | 'rep
 /** Boards about narcotics (drug sales, bricks pressed): Narco and High Table only. */
 export const NARCO_BOARDS = new Set<string>(['sales', 'bricks', 'runs']);
 
-export const HALL_BOARDS: { id: HallBoardId; name: string; title: string; unit: (v: number) => string; design: 'moneybag' | 'brick' | 'crosshair' | 'mask' | 'crest' }[] = [
+export const HALL_BOARDS: { id: HallBoardId; name: string; title: string; unit: (v: number) => string; design: 'moneybag' | 'brick' | 'crosshair' | 'mask' | 'duffel' | 'crest' }[] = [
   { id: 'sales', name: 'Top Sellers', title: 'Top Seller', unit: (v) => `$${Math.round(v).toLocaleString('en-US')}`, design: 'moneybag' },
   { id: 'bricks', name: 'Brick Press', title: 'Top Presser', unit: (v) => `${v.toLocaleString('en-US')} ${v === 1 ? 'brick' : 'bricks'}`, design: 'brick' },
   { id: 'runs', name: 'Top Runners', title: 'Top Runner', unit: (v) => `${v} run${v === 1 ? '' : 's'}`, design: 'moneybag' },
   { id: 'mvps', name: 'Blacksite MVPs', title: 'Blacksite MVP', unit: (v) => `${v} MVP${v === 1 ? '' : 's'}`, design: 'crosshair' },
-  { id: 'heists', name: 'Top Heisters', title: 'Top Heister', unit: (v) => `${v} heist${v === 1 ? '' : 's'}`, design: 'mask' },
+  { id: 'heists', name: 'Top Heisters', title: 'Top Heister', unit: (v) => `${v} heist${v === 1 ? '' : 's'}`, design: 'duffel' },
   { id: 'rep', name: 'Petty Rep', title: 'Rep Giver', unit: (v) => `${v.toLocaleString('en-US')} rep`, design: 'crest' },
 ];
 export type Ranked = { memberId: string; value: number; place: number };
