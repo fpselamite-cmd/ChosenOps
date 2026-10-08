@@ -2340,3 +2340,24 @@ button.assoc-box:not(:disabled):active { transform: scale(0.9); }
 .sig-clear { position: absolute; right: 6px; top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font: 700 10px var(--font-hud); letter-spacing: 0.1em; text-transform: uppercase; color: #5c4620; background: rgba(239, 226, 194, 0.9); border: 1px solid #a88a52; }
 .sig-thumb { height: 22px; width: auto; padding: 1px 4px; background: #e9d9b0; border: 1px solid #a88a52; }
 @media (max-width: 640px) { .sig-pad { height: 110px; } }
+
+/* ---------- Narco Runs: a ledger ---------- */
+.run-log { border-top: 1px solid var(--color-line-soft); }
+.run-row { border-bottom: 1px solid var(--color-line-soft); }
+.run-row.open { background: rgb(var(--acc) / 0.04); }
+.run-head { display: flex; width: 100%; align-items: center; gap: 12px; padding: 10px 6px; text-align: left; }
+.run-head:hover { background: rgb(var(--acc) / 0.05); }
+.run-date { width: 76px; flex-shrink: 0; font: 600 11px var(--font-mono); color: var(--color-gold-200); }
+.run-date span { display: block; font-weight: 400; color: var(--color-smoke); }
+.run-cash { width: 92px; flex-shrink: 0; text-align: right; font: 600 13px var(--font-mono); color: #fecaca; }
+.run-outcome { width: 86px; flex-shrink: 0; padding: 2px 6px; border: 1px solid; text-align: center; font: 700 10px var(--font-hud); letter-spacing: 0.12em; text-transform: uppercase; }
+.run-owed { padding: 1px 6px; font: 700 9px var(--font-hud); letter-spacing: 0.12em; text-transform: uppercase; color: #0a0a0b; background: var(--color-gold-300); }
+.run-body { padding: 4px 8px 14px 94px; }
+@media (max-width: 640px) {
+  .run-head { flex-wrap: wrap; gap: 6px 10px; }
+  .run-date { width: auto; }
+  .run-date span { display: inline; margin-left: 6px; }
+  .run-head > .flex-1 { flex-basis: 100%; order: 3; }
+  .run-cash { margin-left: auto; }
+  .run-body { padding-left: 8px; }
+}

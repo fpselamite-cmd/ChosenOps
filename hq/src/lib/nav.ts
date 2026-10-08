@@ -13,6 +13,7 @@ import {
   Library,
   Map,
   Network,
+  Route,
   Trophy,
   UserRound,
   Swords,
@@ -74,6 +75,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' },
       { to: '/heists', label: 'Heists', icon: Gem },
+      { to: '/narco-runs', label: 'Narco Runs', icon: Route, page: 'narcotics' },
       { to: '/welcome', label: 'Welcome', icon: HandHeart, handlers: true },
     ],
   },

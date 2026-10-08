@@ -46,6 +46,7 @@ import { AuthError, changePin } from '../lib/auth';
 import { records, type Blacksite } from '../lib/blacksites';
 import { useWelcomeAccess } from './welcome/useWelcome';
 import { heistStatsOf, type Heist, type HeistStats } from '../lib/heists';
+import { runStatsOf, type NarcoRun } from '../lib/runs';
 import { monthKey, ranked, useBoards } from '../lib/boards';
 import { useCabinet } from '../lib/cabinet';
 import { db } from '../lib/firebase';
@@ -153,6 +154,7 @@ function useStats(m: Member) {
   const sites = useCollection<Blacksite>('blacksites');
   const { isAssoc } = useWelcomeAccess();
   const heists = useCollection<Heist>('heists', !isAssoc);
+  const runs = useCollection<NarcoRun>('narcoRuns', narco);
   const petty = useDoc<{ rep?: number }>(`petty/${m.id}`);
   const tq = useMemo(() => query(collection(db, 'repTransfers'), where('memberId', '==', m.id)), [m.id]);
   const transfers = useCollection<{ amount: number; status: string }>(tq);
@@ -203,6 +205,20 @@ function useStats(m: Member) {
           ];
         })(),
       }),
+      // Narco Runs: Narco (and High Table) viewers only.
+      ...(narco && {
+        Runs: (() => {
+          const r = runStatsOf(runs ?? [], m.id);
+          return [
+            ['Runs', r.narcoRuns],
+            ['Clean', r.runsClean],
+            ['Busted', r.runsBusted],
+            ['Robbed', r.runsRobbed],
+            ['Biggest haul', money(r.bestHaul)],
+            ['Cash earned', money(r.runCash)],
+          ];
+        })(),
+      }),
       Street: [
         ['Petty rep', (petty?.rep ?? 0).toLocaleString('en-US')],
         ['Rep sent to family', sent.toLocaleString('en-US')],
@@ -213,7 +229,7 @@ function useStats(m: Member) {
         ...(narco ? [['Best finish', best ? `#${best}` : '—'] as [string, string]] : []),
       ],
     } as Record<string, [string, string | number][]>;
-  }, [boards, sites, heists, isAssoc, petty, transfers, trophies, m.id, m.joinedAt, narco]);
+  }, [boards, sites, heists, runs, isAssoc, petty, transfers, trophies, m.id, m.joinedAt, narco]);
 }
 
 function StatBlock({ m }: { m: Member }) {

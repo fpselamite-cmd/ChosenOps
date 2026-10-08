@@ -1517,3 +1517,30 @@ describe('associate lockdown', () => {
     await assertSucceeds(getDoc(doc(as('sol'), 'events/e1')));
   });
 });
+
+describe('narco runs', () => {
+  const run = (by: string, extra: Record<string, unknown> = {}) => ({ crew: [by], lines: [{ product: 'meth', qty: 5 }], from: 'main', taken: [], cash: 20000, cashGiven: {}, cashCollected: {}, banked: false, postal: '8061', note: '', outcome: 'clean', badNote: '', rivalId: null, by, byName: by, at: serverTimestamp(), ...extra });
+  const mkNarco = () => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'roleHolders/sol'), { roles: ['narco'], perms: {}, pages: { narcotics: true }, lead: false }));
+  it('keeps runs to Narco and High Table', async () => {
+    await mkNarco();
+    await assertSucceeds(setDoc(doc(as('sol'), 'narcoRuns/r1'), run('sol')));
+    await assertSucceeds(getDoc(doc(as('boss'), 'narcoRuns/r1')));
+    await assertFails(getDoc(doc(as('sol2'), 'narcoRuns/r1')));
+    await assertFails(setDoc(doc(as('sol2'), 'narcoRuns/r2'), run('sol2')));
+    // No pre-handed cash, no logging for someone else.
+    await assertFails(setDoc(doc(as('sol'), 'narcoRuns/r3'), run('sol', { cashGiven: { sol: 5 } })));
+    await assertFails(setDoc(doc(as('sol'), 'narcoRuns/r4'), run('boss')));
+  });
+  it('lets the logger fix the record but not the product; leadership splits the cash', async () => {
+    await mkNarco();
+    await assertSucceeds(setDoc(doc(as('sol'), 'narcoRuns/r1'), run('sol')));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { cash: 25000, outcome: 'robbed', badNote: 'Jumped' }));
+    await assertFails(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { lines: [{ product: 'meth', qty: 1 }] }));
+    await assertFails(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { outcome: 'off' }));
+    await assertFails(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { cashGiven: { sol: 25000 } }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'narcoRuns/r1'), { cashGiven: { sol: 10000 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { 'cashCollected.sol': 20000 }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'narcoRuns/r1'), { 'cashCollected.sol': 10000 }));
+    await assertSucceeds(deleteDoc(doc(as('sol'), 'narcoRuns/r1')));
+  });
+});

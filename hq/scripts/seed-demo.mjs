@@ -796,6 +796,14 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'radio', 'main'), { freq: '777.07', password: 'demo-family', note: '', byName: 'Don Vito', at: Timestamp.now() });
   await setDoc(doc(db, 'radio', 'heist'), { freq: '913.13', password: 'demo-heist', note: 'Fleeca job tonight. Stay off it otherwise.', active: true, byName: 'Don Vito', at: Timestamp.now() });
   // Heists: one live, one planned, one done.
+  // Narco runs (Narco and High Table only).
+  const nr = (id, by, crew, lines, cash, outcome, back, extra = {}) =>
+    setDoc(doc(db, 'narcoRuns', id), { crew: crew.map((n) => ids[n]), lines, from: 'main', taken: outcome === 'off' ? [] : lines.map((l) => ({ loc: 'main', field: l.product === 'meth' || l.product.startsWith('coke') ? l.product : 'bricks', delta: -l.qty })), cash, cashGiven: {}, cashCollected: {}, banked: false, postal: '', note: '', outcome, badNote: '', rivalId: null, by: ids[by], byName: by, at: Timestamp.fromMillis(now - back * H), ...extra });
+  await nr('nr1', 'Marco Gallo', ['Marco Gallo', 'Sal Moretti'], [{ product: 'meth', qty: 8 }], 64000, 'clean', 5, { postal: '8061', note: 'Vinewood drop, smooth.' });
+  await nr('nr2', 'Marco Gallo', ['Marco Gallo'], [{ product: 'cokeSmall', qty: 4 }], 0, 'robbed', 30, { postal: '9182', badNote: 'Two cars boxed us in on Grove.' });
+  await nr('nr3', 'Sal Moretti', ['Sal Moretti', 'Marco Gallo'], [{ product: 'cokeLarge', qty: 3 }, { product: 'meth', qty: 2 }], 118000, 'clean', 60, { postal: '7078', cashGiven: { [ids['Marco Gallo']]: 40000 }, cashCollected: {} });
+  await nr('nr4', 'Marco Gallo', ['Marco Gallo'], [{ product: 'meth', qty: 6 }], 0, 'busted', 100, { postal: '6104', badNote: 'Pulled over on the highway.' });
+  await nr('nr5', 'Sal Moretti', ['Sal Moretti'], [{ product: 'meth', qty: 4 }], 0, 'off', 150, { note: 'Buyer never showed.' });
   const hz = (id, h, back) => setDoc(doc(db, 'heists', id), { notes: '', size: 4, when: null, requests: {}, crew: [], roles: {}, status: 'planned', outcome: null, take: 0, cashGiven: {}, cashCollected: {}, banked: false, report: '', stashTo: 'main', by: vito, byName: 'Don Vito', at: Timestamp.fromMillis(now - back * H), liveAt: null, doneAt: null, ...h });
   const ask = (role, note = '') => ({ role, note, at: now - 5 * H });
   await hz('hz1', {
