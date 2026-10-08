@@ -681,6 +681,20 @@ describe('blacksites', () => {
   });
 });
 
+describe('casino big wins', () => {
+  const win = (by: string) => ({ by, name: 'Sol', game: 'slots', amount: 5000, note: 'Jackpot', at: serverTimestamp() });
+  it('lets members post their own big wins and read the ticker', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'casinoWins/w1'), win('sol')));
+    await assertFails(setDoc(doc(as('sol'), 'casinoWins/w2'), win('sol2')));
+    await assertFails(setDoc(doc(as('sol'), 'casinoWins/w3'), { ...win('sol'), game: 'craps' }));
+    await assertFails(setDoc(doc(as('sol'), 'casinoWins/w4'), { ...win('sol'), amount: -5 }));
+    await assertSucceeds(getDoc(doc(as('sol2'), 'casinoWins/w1')));
+    await assertFails(updateDoc(doc(as('sol'), 'casinoWins/w1'), { amount: 99999 }));
+    await assertFails(deleteDoc(doc(as('sol'), 'casinoWins/w1')));
+    await assertSucceeds(deleteDoc(doc(as('boss'), 'casinoWins/w1')));
+  });
+});
+
 describe('gear & loadouts', () => {
   const build = (by: string) => ({ name: 'Blacksite rifleman', weaponId: 'w_mk18_rifle', parts: { sight: 'a1' }, notes: '', by, byName: by, likes: {} });
   it('lets anyone share a build; only the maker edits; anyone likes for themselves', async () => {

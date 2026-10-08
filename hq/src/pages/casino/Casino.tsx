@@ -1,7 +1,7 @@
 import { Cherry, Coins, Crown, Dices, Gift, Settings, ShoppingBag, Spade, Sparkles, Trophy } from 'lucide-react';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, limit, orderBy, query, where } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Field } from '../../components/Field';
 import { FancyName, Framed, HonorPic, RarityChip } from '../../components/HonorArt';
@@ -9,14 +9,15 @@ import { PageHeader, Panel, Tabs } from '../../components/Page';
 import { useCollection } from '../../hooks/useCollection';
 import { useWelcomeAccess } from '../welcome/useWelcome';
 import { useHub } from '../../hooks/useHub';
-import { buyHonor, chipsFmt, grantChips, saveCasino, sendChips, weekKey, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
+import { buyHonor, chipsFmt, GAME_NAMES, grantChips, saveCasino, sendChips, weekKey, type BigWin, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
 import { db } from '../../lib/firebase';
 import { ago } from '../../lib/format';
 import { KINDS, RARITIES } from '../../lib/honors';
 import { sfx } from '../../lib/sound';
 import { useHonors } from '../honors/useHonors';
 import Blackjack from './Blackjack';
-import { SoundToggle, useChips } from './common';
+import './casino.css';
+import { CHIP_VALUES, compact, preload, SoundToggle, useChips, useRoom, useSprite } from './common';
 import Roulette from './Roulette';
 import Slots from './Slots';
 import VideoPoker from './VideoPoker';
@@ -30,6 +31,45 @@ const GAMES: { id: View; name: string; icon: typeof Spade; blurb: string }[] = [
   { id: 'poker', name: 'Video Poker', icon: Crown, blurb: 'Jacks or Better. Hold, draw, get paid.' },
 ];
 
+/** A little picture of each table in the backroom: its felt under a lamp, with its pieces on it. */
+function TableArt({ game }: { game: View }) {
+  const chips = useSprite({ kind: 'chip', value: 100 });
+  const chips2 = useSprite({ kind: 'chip', value: 500 });
+  const a = useSprite(game === 'blackjack' ? { kind: 'card', r: 'A', s: '♠' } : game === 'poker' ? { kind: 'card', r: 'K', s: '♥' } : game === 'slots' ? { kind: 'symbol', id: 'crown' } : { kind: 'prop', id: 'whiskey' });
+  const b = useSprite(game === 'blackjack' ? { kind: 'card', r: 'K', s: '♦' } : game === 'poker' ? { kind: 'card', r: 'Q', s: '♥' } : game === 'slots' ? { kind: 'symbol', id: 'cherry' } : { kind: 'prop', id: 'ashtray' });
+  return (
+    <span className="floor-art" aria-hidden>
+      <span className="floor-lamp" />
+      <span className="mini-felt" />
+      {a && <img src={a} alt="" style={game === 'blackjack' || game === 'poker' ? { width: 40, top: 40, left: '36%', transform: 'rotate(-12deg)' } : { width: 60, top: 30, left: '24%' }} />}
+      {b && <img src={b} alt="" style={game === 'blackjack' || game === 'poker' ? { width: 40, top: 44, left: '50%', transform: 'rotate(10deg)' } : { width: 56, top: 40, right: '22%' }} />}
+      {chips && <img src={chips} alt="" style={{ width: 30, top: 70, left: '22%' }} />}
+      {chips2 && <img src={chips2} alt="" style={{ width: 30, top: 66, right: '26%' }} />}
+    </span>
+  );
+}
+
+/** The family's latest big wins, scrolling along. */
+function BigWins() {
+  const q = useMemo(() => query(collection(db, 'casinoWins'), orderBy('at', 'desc'), limit(20)), []);
+  const wins = useCollection<BigWin>(q) ?? [];
+  if (!wins.length) return null;
+  const row = wins.map((w) => (
+    <span key={w.id}>
+      <b>{w.name}</b> won <b>{chipsFmt(w.amount)}</b> at {GAME_NAMES[w.game] ?? w.game}
+      {w.note ? ` · ${w.note}` : ''} · {ago(w.at)}
+    </span>
+  ));
+  return (
+    <div className="wins-ticker" style={{ ['--t' as string]: `${Math.max(24, wins.length * 6)}s` }}>
+      <div>
+        {row}
+        {row.map((r) => ({ ...r, key: `${r.key}-2` }))}
+      </div>
+    </div>
+  );
+}
+
 function Floor({ go, openTable }: { go: (v: View) => void; openTable: (id: string) => void }) {
   const { settings, event } = useChips();
   return (
@@ -38,14 +78,15 @@ function Floor({ go, openTable }: { go: (v: View) => void; openTable: (id: strin
         <div className="hud flex items-center gap-3 border-gold-400/70 p-4">
           <Sparkles className="size-5 text-gold-300" />
           <p className="flex-1 text-gold-100">
-            <b>{settings.eventName || 'Dice night'}</b> is on: max bet {chipsFmt(settings.eventMax)}, +{settings.eventBonus}% on every win until {settings.eventUntil?.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
+            <b>{settings.eventName || 'Dice night'}</b> is on: max bet {compact(settings.eventMax)}, +{settings.eventBonus}% on every win until {settings.eventUntil?.toDate().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.
           </p>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <BigWins />
+      <div className="floor-room">
         {GAMES.map((g) => (
-          <button key={g.id} className="casino-tile" onClick={() => go(g.id)}>
-            <g.icon className="size-10 text-gold-300" strokeWidth={1.5} />
+          <button key={g.id} className="floor-table" onClick={() => go(g.id)}>
+            <TableArt game={g.id} />
             <b>{g.name}</b>
             <span>{g.blurb}</span>
           </button>
@@ -251,6 +292,9 @@ function Cashier() {
 
 export default function Casino() {
   const { balance, chips } = useChips();
+  useRoom();
+  // Get the chips and the deck's backs rendered before the first bet.
+  useEffect(() => preload([...CHIP_VALUES.map((value) => ({ kind: 'chip' as const, value })), { kind: 'back' }, { kind: 'coin' }]), []);
   const [params, setParams] = useSearchParams();
   const tabs: { id: View; label: string }[] = [
     { id: 'floor', label: 'The floor' },
@@ -262,6 +306,13 @@ export default function Casino() {
   const view = tabs.find((t) => t.id === params.get('tab'))?.id ?? 'floor';
   const go = (v: View) => setParams(v === 'floor' ? {} : { tab: v });
   const table = params.get('table');
+  // On phones, opening a game takes you straight to its table.
+  useEffect(() => {
+    if (view === 'floor' && !table) return;
+    if (!matchMedia('(max-width: 767px)').matches) return;
+    const t = setTimeout(() => document.querySelector('.backroom')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+    return () => clearTimeout(t);
+  }, [view, table]);
   return (
     <>
       <PageHeader

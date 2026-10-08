@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useHub } from '../../../hooks/useHub';
 import { chipsFmt, rand, stake } from '../../../lib/casino';
 import { sfx } from '../../../lib/sound';
 import { placeBets, setRound, type LiveTable } from '../../../lib/tables';
-import { Felt, Result, useChips } from '../common';
-import { Board, colorOf, payout, Wheel, WHEEL } from '../Roulette';
+import { BetBar, Felt, fly, Result, useChips } from '../common';
+import { Board, colorOf, History, payout, settleSpots, spotEl, useNarrow, WHEEL, WheelStage, type WheelHandle } from '../Roulette';
 import { now, useHostLoop, useSettle } from './useLive';
 
 export interface RouletteRound {
@@ -39,24 +39,39 @@ export default function LiveRoulette({ t, isHost }: { t: LiveTable<RouletteRound
   const mine = t.bets[me.id]?.n === r.n ? t.bets[me.id] : undefined;
   const [chip, setChip] = useState(25);
   const [spots, setSpots] = useState<Record<string, number>>({});
-  const [angle, setAngle] = useState(0);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
+  const upright = useNarrow();
+  const wheel = useRef<WheelHandle>(null);
   const total = Object.values(spots).reduce((s, v) => s + v, 0);
   useEffect(() => {
     const i = setInterval(() => setTick((x) => x + 1), 500);
     return () => clearInterval(i);
   }, []);
   useEffect(() => setSpots({}), [r.n]);
-  // Spin the wheel to the result when the dealer spins.
+  // Spin the wheel up close when the dealer spins; then my chips pay out or get raked.
+  const spun = useRef(-1);
   useEffect(() => {
-    if (r.phase !== 'spin' || r.result == null) return;
-    const step = 360 / WHEEL.length;
-    const i = WHEEL.indexOf(r.result);
-    setAngle((a) => a - (a % 360) + 360 * 6 + (360 - i * step));
-    const ticks = setInterval(sfx.tick, 120);
-    const stop = setTimeout(() => clearInterval(ticks), 4200);
-    return () => (clearInterval(ticks), clearTimeout(stop));
-  }, [r.phase, r.result]);
+    if (r.phase !== 'spin' || r.result == null || spun.current === r.n) return;
+    spun.current = r.n;
+    void wheel.current?.spin(r.result);
+  }, [r.phase, r.result, r.n]);
+  const paidRound = useRef(-1);
+  useEffect(() => {
+    if (r.phase !== 'paid' || r.result == null || !mine || paidRound.current === r.n) return;
+    paidRound.current = r.n;
+    void settleSpots(mine.spots ?? {}, r.result);
+  }, [r.phase, r.result, r.n, mine]);
+  // Everyone else's chips fly in from their seat as they bet.
+  const seen = useRef<Record<string, number>>({});
+  useEffect(() => {
+    for (const [id, b] of Object.entries(t.bets)) {
+      if (id === me.id || b.n !== r.n) continue;
+      const k = `${id}:${b.n}`;
+      if (seen.current[k]) continue;
+      seen.current[k] = 1;
+      Object.entries(b.spots ?? {}).forEach(([spot, a], i) => void fly(document.querySelector(`[data-seat="${id}"]`), spotEl(spot), a, { delay: i * 80, size: 26 }));
+    }
+  }, [t.bets, r.n, me.id]);
   useSettle(
     t,
     (x) => (x.bets[me.id]?.n === x.round.n ? x.bets[me.id]!.total : null),
@@ -64,56 +79,55 @@ export default function LiveRoulette({ t, isHost }: { t: LiveTable<RouletteRound
   );
   const myPaid = mine && r.phase === 'paid' ? Object.entries(mine.spots ?? {}).reduce((s, [k, a]) => s + payout(k, a, r.result ?? -1), 0) : 0;
   const left = Math.max(0, Math.ceil(((r.closesAt ?? 0) - now()) / 1000));
-  void tick;
+  const cap = Math.min(max, balance);
+  // Everyone's chips on the board: mine, plus what the others have placed.
+  const onBoard: Record<string, number> = { ...(mine?.spots ?? spots) };
+  for (const [id, b] of Object.entries(t.bets)) if (id !== me.id && b.n === r.n) for (const [k, a] of Object.entries(b.spots ?? {})) onBoard[k] = (onBoard[k] ?? 0) + a;
   return (
-    <Felt className="space-y-5">
-      <div className="grid items-center gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="flex flex-col items-center gap-3">
-          <Wheel angle={angle} spinning={r.phase === 'spin'} />
-          <div className="flex flex-wrap justify-center gap-1">
-            {(r.history ?? []).map((n, i) => (
-              <span key={i} className={`rb-hist ${colorOf(n)}`}>
-                {n}
-              </span>
-            ))}
+    <div>
+      <Felt>
+        <div className="grid items-start gap-6 lg:grid-cols-[300px_1fr]">
+          <WheelStage ref={wheel}>
+            <History list={r.history ?? []} />
+          </WheelStage>
+          <div className="space-y-3">
+            <p className="felt-label text-center">{r.phase === 'bets' ? `Place your bets · ${left}s` : r.phase === 'spin' ? 'No more bets' : r.phase === 'paid' ? `${r.result} ${colorOf(r.result ?? 0)}` : 'Opening the table…'}</p>
+            {upright && <History list={(r.history ?? []).slice(0, 10)} />}
+            <Board
+              bets={onBoard}
+              upright={upright}
+              place={(k, el) => {
+                if (r.phase !== 'bets' || mine || total + chip > cap) return;
+                void fly(document.querySelector('.bb-chip.picked'), el, chip);
+                setSpots({ ...spots, [k]: (spots[k] ?? 0) + chip });
+              }}
+              last={r.phase === 'paid' ? r.result : null}
+            />
+            {r.phase === 'paid' && mine && <Result text={myPaid > mine.total ? `You win +${chipsFmt(myPaid - mine.total)}` : myPaid === mine.total ? 'Even.' : `−${chipsFmt(mine.total - myPaid)}`} tone={myPaid > mine.total ? 'win' : myPaid === mine.total ? 'push' : 'lose'} />}
+            <BetsAtTable t={t} />
           </div>
         </div>
-        <div className="space-y-3">
-          <p className="felt-label text-center">{r.phase === 'bets' ? `Place your bets · ${left}s` : r.phase === 'spin' ? 'No more bets' : r.phase === 'paid' ? `${r.result} ${colorOf(r.result ?? 0)}` : 'Opening the table…'}</p>
-          <Board bets={mine?.spots ?? spots} place={(k) => r.phase === 'bets' && !mine && total + chip <= Math.min(max, balance) && (sfx.chip(), setSpots({ ...spots, [k]: (spots[k] ?? 0) + chip }))} last={r.phase === 'paid' ? r.result : null} />
-          {r.phase === 'paid' && mine && <Result text={myPaid > mine.total ? `You win +${chipsFmt(myPaid - mine.total)}` : myPaid === mine.total ? 'Even.' : `−${chipsFmt(mine.total - myPaid)}`} tone={myPaid > mine.total ? 'win' : myPaid === mine.total ? 'push' : 'lose'} />}
-          <div className="flex flex-wrap items-center gap-2">
-            {[10, 25, 50, 100, 250].map((v) => (
-              <button key={v} className={`casino-chip v${v} ${chip === v ? 'picked' : ''}`} onClick={() => setChip(v)} disabled={!!mine}>
-                {v}
-              </button>
-            ))}
-            <span className="font-hud text-lg text-gold-100">
-              {mine ? `Your bets are in: ${chipsFmt(mine.total)}` : `On the table ${chipsFmt(total)}`}
-            </span>
-            {!mine && (
-              <>
-                <button className="btn-ghost btn-sm ml-auto" onClick={() => setSpots({})} disabled={!total}>
-                  Clear
-                </button>
-                <button
-                  className="btn-gold"
-                  disabled={r.phase !== 'bets' || total < min || total > balance}
-                  onClick={async () => {
-                    await stake(me.id, total);
-                    await placeBets(t, me.id, r.n, total, spots);
-                    sfx.chip();
-                  }}
-                >
-                  Place bets
-                </button>
-              </>
-            )}
-          </div>
-          <BetsAtTable t={t} />
-        </div>
-      </div>
-    </Felt>
+      </Felt>
+      <BetBar bet={mine ? mine.total : total} min={min} max={max} balance={balance} mode="pick" picked={chip} onPick={setChip} locked={!!mine || r.phase !== 'bets'} betLabel={mine ? 'Your bets' : 'On the table'} onClear={() => setSpots({})}>
+        {mine ? (
+          <button className="btn-ghost" disabled>
+            Bets are in
+          </button>
+        ) : (
+          <button
+            className="btn-gold"
+            disabled={r.phase !== 'bets' || total < min || total > balance}
+            onClick={async () => {
+              await stake(me.id, total);
+              await placeBets(t, me.id, r.n, total, spots);
+              sfx.chip();
+            }}
+          >
+            Place bets
+          </button>
+        )}
+      </BetBar>
+    </div>
   );
 }
 
