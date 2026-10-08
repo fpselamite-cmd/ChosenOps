@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Camera,
   Crosshair,
-  Crown,
   Download,
   ExternalLink,
   Eye,
@@ -29,7 +28,7 @@ import {
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
-import { CrewChip, RankBadge } from '../components/Badges';
+import { RankBadge } from '../components/Badges';
 import { Cabinet } from '../components/Cabinet';
 import { FamilyCard, MiniFamilyCard } from '../components/FamilyCard';
 import { ErrorText, Field } from '../components/Field';
@@ -824,7 +823,7 @@ type Draft = Omit<Sheet, 'id'> & { alias: string; phone: string; bMonth: number;
 
 export default function Profile() {
   const { id = '' } = useParams();
-  const { memberById, rankById, crewsOf, me, isOnline, presence, roster, isAdmin, can } = useHub();
+  const { memberById, rankById, me, isOnline, presence, roster, isAdmin, can } = useHub();
   const m = memberById.get(id);
   const sheet = useDoc<Sheet>(`sheets/${id}`);
   const past = useDoc<Past>(`pastMembers/${id}`);
@@ -843,7 +842,6 @@ export default function Profile() {
 
   if (!m) return <Navigate to="/family" replace />;
   const mine = m.id === me.id;
-  const crews = crewsOf(m.id);
   const boss = m.reportsTo ? memberById.get(m.reportsTo) : undefined;
   const reports = roster.filter((x) => x.reportsTo === m.id);
   const on = isOnline(m.id);
@@ -946,12 +944,6 @@ export default function Profile() {
               <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 sm:justify-start">
                 <RankBadge rank={rankById.get(m.rankId ?? '')} size="lg" />
                 <RoleChips memberId={m.id} size="lg" />
-                {crews.map((c) => (
-                  <span key={c.id} className="inline-flex items-center gap-1">
-                    {c.leaderId === m.id && <Crown className="size-3.5" style={{ color: c.color }} />}
-                    <CrewChip crew={c} full />
-                  </span>
-                ))}
               </div>
               <p className="mt-2 text-sm text-smoke">
                 {on ? <span className="text-ok">● {status || 'Online now'}</span> : status ? <>Mood: {status} · last seen {ago(presence.get(m.id)?.at)}</> : `Last seen ${ago(presence.get(m.id)?.at)}`}

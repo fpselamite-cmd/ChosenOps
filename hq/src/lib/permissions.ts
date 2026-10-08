@@ -1,4 +1,4 @@
-import type { Crew, Member, PageId, Permission, Rank } from './types';
+import type { PageId, Permission, Rank } from './types';
 
 /** The top rank (order 0) always has every permission. */
 export function rankCan(rank: Rank | undefined, p: Permission) {
@@ -12,12 +12,8 @@ export const rankOrder = (rank: Rank | undefined) => rank?.order ?? Number.POSIT
 /** Officers can only act on people ranked strictly below them. */
 export const outranks = (mine: Rank | undefined, theirs: Rank | undefined) => rankOrder(mine) < rankOrder(theirs);
 
-export const leadsCrew = (crew: Crew, me: Member) => crew.leaderId === me.id;
-export const inCrew = (crew: Crew, memberId: string) => crew.memberIds.includes(memberId);
-
-/** Rank decides the defaults; every crew you're in can unlock more pages on top. */
-export function pageOpen(page: PageId, rank: Rank | undefined, crews: Crew[]) {
+/** Rank decides which pages open (roles can add more, see useHub). */
+export function pageOpen(page: PageId, rank: Rank | undefined) {
   if (!rank) return false;
-  if (rank.order === 0 || rank.pages?.[page]) return true;
-  return crews.some((c) => c.pages?.[page]);
+  return rank.order === 0 || rank.pages?.[page] === true;
 }

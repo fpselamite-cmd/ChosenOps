@@ -8,7 +8,7 @@ import { setCityClock } from '../lib/format';
 import { setReadOnly } from '../lib/guard/state';
 import type { Role, RoleHolder } from '../lib/roles';
 import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
-import type { Announcement, Crew, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
+import type { Announcement, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
 import { useAuth } from './useAuth';
 import { useCollection, useDoc } from './useCollection';
 
@@ -32,11 +32,6 @@ interface Hub {
   memberById: Map<string, Member>;
   ranks: Rank[];
   rankById: Map<string, Rank>;
-  crews: Crew[];
-  crewById: Map<string, Crew>;
-  /** Crews the signed-in member belongs to. */
-  myCrews: Crew[];
-  crewsOf: (memberId: string) => Crew[];
   presence: Map<string, Presence>;
   isOnline: (memberId: string) => boolean;
   settings: GangSettings;
@@ -44,7 +39,7 @@ interface Hub {
   /** Family gang rep: confirmed petty rep transfers plus blacksite rep. */
   familyRep: number;
   can: (p: Permission) => boolean;
-  /** Whether my rank or one of my crew roles opens this page. */
+  /** Whether my rank or one of my roles opens this page. */
   canSee: (page: PageId) => boolean;
   /** Admin access (the admin password, or given by an owner): every power except acting on the top rank. */
   isAdmin: boolean;
@@ -65,7 +60,7 @@ interface Hub {
   /** Whether I can act on people in, or edit, this rank. */
   actsOn: (rank?: Rank) => boolean;
   /**
-   * What opened a page for me: 'rank', or the id of a crew whose role grants it.
+   * What opened a page for me: 'rank' or 'role'.
    * Every ops write carries it as `_via` so the security rules can check it.
    */
   viaFor: (page: PageId) => string | null;
@@ -77,8 +72,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const members = useCollection<Member>('members');
   const ranks = useCollection<Rank>('hqRanks');
-  // Crews were retired: nothing in HQ is grouped by crew any more (old crew data is left alone).
-  const crews: Crew[] = useMemo(() => [], []);
   const presenceRows = useCollection<Presence>('presence');
   const settings = useDoc<GangSettings>('settings/gang');
   const announcement = useDoc<Announcement>('settings/announcement');
@@ -101,7 +94,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
     applyPrefs(cachedPrefs());
   }, [settings]);
 
-  // Check in while the page is open so the crew can see who's around.
+  // Check in while the page is open so the family can see who's around.
   useEffect(() => {
     if (!me) return;
     const beat = () => {
@@ -130,7 +123,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Hub | null>(() => {
     if (!me) return null;
     const ready =
-      !!members && !!ranks && !!crews && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined && defaults !== undefined && !!roleRows && !!holderRows;
+      !!members && !!ranks && !!presenceRows && settings !== undefined && announcement !== undefined && familyRep !== undefined && defaults !== undefined && !!roleRows && !!holderRows;
     // The city clock, before anything shows a time.
     if (defaults) setCallInCost(defaults.callInCost);
     if (defaults) setCityClock(defaults.zone, defaults.zoneLabel, defaults.nightFrom != null && defaults.nightTo != null ? { from: defaults.nightFrom, to: defaults.nightTo } : undefined);
@@ -138,7 +131,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const rankById = new Map(sortedRanks.map((r) => [r.id, r]));
     const allMembers = members ?? [];
     const memberById = new Map(allMembers.map((m) => [m.id, m]));
-    const sortedCrews = [...(crews ?? [])].sort((a, b) => a.name.localeCompare(b.name));
     const presence = new Map((presenceRows ?? []).map((p) => [p.id, p]));
     const realMe = memberById.get(me.id) ?? me;
     const realAdmin = realMe.admin === true;
@@ -158,8 +150,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const myRoles = preview && realAdmin && !preview.memberId ? undefined : holderOf.get(liveMe.id);
     const roleCan = (p: Permission) => myRoles?.perms?.[p] === true;
     const rolePage = (page: PageId) => myRoles?.pages?.[page] === true;
-    const crewsOf = (id: string) => sortedCrews.filter((c) => c.memberIds?.includes(id));
-    const myCrews = crewsOf(me.id);
     return {
       ready,
       me: liveMe,
@@ -175,10 +165,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
       memberById,
       ranks: sortedRanks,
       rankById,
-      crews: sortedCrews,
-      crewById: new Map(sortedCrews.map((c) => [c.id, c])),
-      myCrews,
-      crewsOf,
       presence,
       isOnline: (id) => {
         const at = presence.get(id)?.at?.toMillis();
@@ -188,13 +174,13 @@ export function HubProvider({ children }: { children: ReactNode }) {
       announcement: announcement ?? null,
       familyRep: familyRep?.total ?? 0,
       can: (p) => liveMe.admin === true || rankCan(myRank, p) || roleCan(p),
-      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank, myCrews) || rolePage(page),
+      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank) || rolePage(page),
       viaFor: (page) =>
         liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page]))
           ? 'rank'
           : rolePage(page)
             ? 'role'
-            : (myCrews.find((c) => c.pages?.[page])?.id ?? null),
+            : null,
       isAdmin: liveMe.admin === true,
       isLead: liveMe.admin === true || (!!myRank && (myRank.order === 0 || !!myRank.leadership)) || myRoles?.lead === true,
       roles: sortedRoles,
@@ -207,7 +193,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
       realMe,
       actsOn: (rank) => (liveMe.admin === true ? rankOrder(rank) > 0 : outranks(myRank, rank)),
     };
-  }, [me, members, ranks, crews, presenceRows, settings, announcement, familyRep, owner, defaults, preview, roleRows, holderRows]);
+  }, [me, members, ranks, presenceRows, settings, announcement, familyRep, owner, defaults, preview, roleRows, holderRows]);
 
   if (!value) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -7,7 +7,7 @@ import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
 import { TZ, TZ_LABEL } from '../lib/format';
 import { useWelcomeAccess, useWelcomeAttention } from '../pages/welcome/useWelcome';
-import { ADMIN_NAV, HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
+import { HEADER_NAV, NAV, themeFor, type NavItem } from '../lib/nav';
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
 import { StreakKeeper } from './Streak';
@@ -20,7 +20,6 @@ import { AchievementWatcher } from '../lib/cabinet';
 import { MonthlyAwarder } from '../lib/boards';
 import { useApplyPrefs } from '../lib/appearance';
 import { ShootingStars } from './ShootingStars';
-import { useAttention } from '../pages/admin/useAttention';
 import { PollsButton } from '../pages/polls/PollsBits';
 import { PollKeeper } from '../pages/polls/usePolls';
 
@@ -119,10 +118,7 @@ function useNav() {
 }
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
-  const { can } = useHub();
   const nav = useNav();
-  const admin = can('approveMembers') || can('manageMembers') || can('manageCrews') || can('manageRanks') || can('manageSettings');
-  const waiting = useAttention().reduce((t, a) => t + a.n, 0);
   const wl = useWelcomeAttention();
   const liveTables = (useCollection<{ id: string; status: string }>('casinoTables') ?? []).filter((t) => t.status === 'open').length;
   return (
@@ -137,12 +133,6 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
       ))}
-      {admin && (
-        <div>
-          <p className="label mb-1 px-3 text-[10px] text-gold-700">Command</p>
-          <NavLinkItem item={ADMIN_NAV} onClick={onNavigate} badge={waiting} />
-        </div>
-      )}
     </nav>
   );
 }

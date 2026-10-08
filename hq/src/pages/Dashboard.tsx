@@ -53,6 +53,7 @@ import { Podium } from './HallOfFame';
 import { MoodPicker } from './Profile';
 import { MyProgress, NewlyPatched, PatchMoment } from './welcome/DashboardBits';
 import { OpenPolls } from './polls/PollsBits';
+import { useAttention } from './admin/useAttention';
 import { PartyBanner } from './parties/Parties';
 import { useWelcomeAttention } from './welcome/useWelcome';
 
@@ -618,7 +619,9 @@ function WordFromTheTop() {
 }
 
 export default function Dashboard() {
-  const { me, roster, isOnline, rankById, ranks, settings, familyRep } = useHub();
+  const { me, roster, isOnline, rankById, ranks, settings, familyRep, can } = useHub();
+  const canAdmin = can('approveMembers') || can('manageMembers') || can('manageRanks') || can('manageSettings');
+  const waiting = useAttention().reduce((t, a) => t + a.n, 0);
   const online = roster.filter((m) => isOnline(m.id));
   const leadership = roster.filter((m) => rankById.get(m.rankId ?? '')?.leadership);
   const hour = Number(new Date().toLocaleString('en-US', { timeZone: TZ, hour: 'numeric', hour12: false }));
@@ -693,7 +696,7 @@ export default function Dashboard() {
       </div>
       <footer className="mt-10 flex items-center justify-center gap-3 text-[11px] text-smoke/60">
         <span className="h-px w-16 bg-gradient-to-r from-transparent to-gold-700/40" />
-        <AdminLock signedIn={{ id: me.id, admin: me.admin }} />
+        <AdminLock signedIn={{ id: me.id, admin: me.admin }} canOpen={canAdmin} badge={canAdmin || me.admin ? waiting : 0} />
         <span className="h-px w-16 bg-gradient-to-l from-transparent to-gold-700/40" />
       </footer>
     </>

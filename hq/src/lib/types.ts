@@ -8,7 +8,6 @@ export const PERMISSIONS = {
   approveMembers: 'Approve new members',
   manageMembers: 'Manage members (rank, status, chain of command)',
   resetPins: 'Reset member PINs',
-  manageCrews: 'Create crews and pick crew leaders',
   manageRanks: 'Edit ranks & permissions',
   manageSettings: 'Edit gang settings',
   postAnnouncements: 'Post the Word from the Top',
@@ -24,7 +23,7 @@ export const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS;
 export type PermissionMap = Partial<Record<Permission, boolean>>;
 
-/** Pages that can be shown or hidden per rank and per crew role. The Dashboard is always open. */
+/** Pages that can be shown or hidden per rank (and roles). The Dashboard is always open. */
 export const PAGES = {
   narcotics: 'Narcotics',
   stash: 'Stash',
@@ -39,7 +38,7 @@ export const PAGES = {
 export type PageId = keyof typeof PAGES;
 export type PageMap = Partial<Record<PageId, boolean>>;
 
-/** What everyone below Lieutenant sees unless a crew role unlocks more. */
+/** What everyone below Lieutenant sees unless a role unlocks more. */
 export const BASIC_PAGES: PageId[] = ['blacksites', 'gear', 'pettycrime', 'family'];
 const pages = (ids: PageId[]): PageMap => Object.fromEntries(ids.map((p) => [p, true]));
 const ALL_PAGES = pages(Object.keys(PAGES) as PageId[]);
@@ -72,8 +71,6 @@ export interface Member {
   phone?: string;
   bio?: string;
   joinedAt?: Timestamp;
-  /** Crews they're in (kept in sync from the crews, used to share pins and events by crew). */
-  crewIds?: string[];
   /** Has admin access (admin password, or given by an owner). Never shown on profiles. */
   admin?: boolean;
   /** How the HQ looks to them (Profile → Appearance). */
@@ -84,23 +81,6 @@ export interface Member {
   past?: import('./hall').Past | null;
   /** Sign-in account currently bound to this member; absent means the original one. */
   authUid?: string;
-}
-
-export interface Crew {
-  id: string;
-  name: string;
-  /** Hex color used for the crew's chips, cards and ops. */
-  color: string;
-  /** Short tag shown on chips, e.g. "GRW". */
-  tag: string;
-  motto?: string;
-  emblem?: string | null;
-  leaderId: string | null;
-  /** Everyone in the crew, leader included. People can be in several crews. */
-  memberIds: string[];
-  /** Crews work as roles: pages being in this crew unlocks, on top of rank. */
-  pages?: PageMap;
-  createdAt?: Timestamp;
 }
 
 /** A member's own petty crime rep, as it stands in the city. */
@@ -172,7 +152,6 @@ export interface Announcement {
 
 export const PRESENCE_STATUSES = ['At the lab', 'Growing', 'Selling', 'On a run', 'At a blacksite', 'Busy', 'AFK'];
 
-export const CREW_COLORS = ['#d4af37', '#c0392b', '#2e86de', '#27ae60', '#8e44ad', '#e67e22', '#16a085', '#e84393', '#95a5a6'];
 
 const all = (): PermissionMap => Object.fromEntries(Object.keys(PERMISSIONS).map((k) => [k, true]));
 

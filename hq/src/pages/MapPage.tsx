@@ -41,7 +41,7 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
   const [stashId, setStashId] = useState<string | null>(pin?.stashId ?? null);
   const { storage, locLabel } = useNarcotics();
   const photoRef = useRef<HTMLInputElement>(null);
-  const [aud, setAud] = useState<AudienceDraft>(pin ? { scope: pin.scope, ranks: pin.ranks, crewIds: pin.crewIds, minRank: pin.minRank ?? null } : { ...GANG });
+  const [aud, setAud] = useState<AudienceDraft>(pin ? { scope: pin.scope, ranks: pin.ranks, crewIds: [], minRank: pin.minRank ?? null } : { ...GANG });
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -116,7 +116,7 @@ function PinDialog({ pin, at, onClose }: { pin?: Pin; at?: { x: number; y: numbe
         <div>
           <span className="label mb-1.5 block">Who can see it</span>
           <AudiencePicker value={aud} onChange={setAud} limited={lead} />
-          {!lead && <p className="mt-1 text-xs text-smoke">Leadership can also limit pins to certain ranks or crews.</p>}
+          {!lead && <p className="mt-1 text-xs text-smoke">Leadership can also limit pins to certain ranks.</p>}
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={onClose}>
@@ -222,7 +222,7 @@ const LAYERS = [
 ];
 
 function MapPage() {
-  const { me, rankById, crewById } = useHub();
+  const { me, rankById } = useHub();
   const lead = useLead();
   const pins = useVisible<Pin>('pins');
   const rivals = useCollection<Rival>('rivals') ?? [];
@@ -471,7 +471,7 @@ function MapPage() {
                   <div className="min-w-0 flex-1">
                     <p className="font-hud text-lg leading-tight font-bold text-gold-100">{sel.name}</p>
                     <p className="text-xs text-smoke">
-                      {pinType(sel.type).label} · {audienceLabel(sel, rankById, crewById)}
+                      {pinType(sel.type).label} · {audienceLabel(sel, rankById)}
                     </p>
                     {sel.postal && (
                       <button
@@ -578,7 +578,7 @@ function MapPage() {
                       <span className="block truncate text-sm font-semibold text-gold-100">{p.name}</span>
                       <span className="block truncate text-[11px] text-smoke">
                         {p.postal ? `postal ${p.postal} · ` : ''}
-                        {audienceLabel(p, rankById, crewById)}
+                        {audienceLabel(p, rankById)}
                       </span>
                     </span>
                     {p.scope === 'personal' ? <Lock className="size-3.5 text-smoke" /> : p.scope === 'limited' ? <ShieldHalf className="size-3.5 text-smoke" /> : null}

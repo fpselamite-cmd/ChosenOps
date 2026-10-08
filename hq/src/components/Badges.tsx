@@ -3,8 +3,7 @@ import { useMemo } from 'react';
 import { useHub } from '../hooks/useHub';
 import type { Role } from '../lib/roles';
 import type React from 'react';
-import { Link } from 'react-router-dom';
-import type { Crew, Rank } from '../lib/types';
+import type { Rank } from '../lib/types';
 
 /**
  * Rank seals: wax pressed with a gem. The look comes from the rank's place in the chain of command,
@@ -103,18 +102,3 @@ export function RoleRibbon({ role, size = 'sm' }: { role: Role; size?: 'sm' | 'l
   );
 }
 
-/** Crew chip in the crew's own color. Links to the crew page. */
-export function CrewChip({ crew, link = true, full = false }: { crew: Crew; link?: boolean; full?: boolean }) {
-  const body = (
-    <span className="seal" style={{ '--seal': crew.color } as React.CSSProperties} title={crew.name}>
-      {full ? crew.name : crew.tag}
-    </span>
-  );
-  return link ? (
-    <Link to={`/crews?crew=${crew.id}`} className="hover:brightness-110">
-      {body}
-    </Link>
-  ) : (
-    body
-  );
-}
