@@ -218,7 +218,7 @@ function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; in
           return (
             <button key={o.id} type="button" className={`part-tile ${on ? 'on' : ''}`} onClick={() => setParts({ ...parts, [cur]: on ? '' : o.id })} title={o.name}>
               <PartThumb spec={specOf(cat, weaponId, { [cur]: o.id })} slot={cur} />
-              <span className="part-name">{o.name.replace(new RegExp(`^${(w?.name ?? '').split(' ')[0]}\\s+`, 'i'), '')}</span>
+              <span className="part-name">{o.name}</span>
               <span className="part-meta">
                 {owned.get(o.id) ? <span className="text-ok">have {owned.get(o.id)}</span> : prices[o.id] ? <span className="text-gold-300">{money(prices[o.id]!)}</span> : <span className="text-smoke">—</span>}
                 {on && <Check className="size-3.5 text-gold-300" />}
