@@ -398,7 +398,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     notes: 'Held through two pushes. Families showed up late.',
     loggedBy: ids['Rocco Vale'], loggedByName: 'Rocco Vale', repStatus: 'pending',
   });
-  await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MX-18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
+  await setDoc(doc(db, 'blacksites/bs3/loot/l1'), { label: 'MK18 Rifle', item: 'w_mk18_rifle', strain: null, field: 'meth', qty: 1, claims: {} });
   await setDoc(doc(db, 'blacksites/bs3/loot/l2'), { label: 'Armor Plate', item: 'ar_armor_plate', strain: null, field: 'meth', qty: 4, claims: {}, assigned: { [ids['Kira Lane']]: 2, [ids['Don Vito']]: 2 }, collected: { [ids['Kira Lane']]: 2 } });
   await setDoc(doc(db, 'blacksites/bs3/loot/l3'), { label: '9x19mm Box', item: 'ammo_9x19mm_box', strain: null, field: 'meth', qty: 3, claims: {} });
   await setDoc(doc(db, 'blacksites/bs3/loot/l4'), { label: 'Machete', item: 'm_machete', strain: null, field: 'meth', qty: 1, claims: {} });
