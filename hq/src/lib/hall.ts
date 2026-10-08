@@ -8,6 +8,9 @@ import type { RepTransfer } from './types';
 
 /** Every Hall of Fame board: month → member → value. */
 export type HallBoardId = 'sales' | 'bricks' | 'mvps' | 'rep';
+/** Boards about narcotics (drug sales, bricks pressed): Narco and High Table only. */
+export const NARCO_BOARDS = new Set<string>(['sales', 'bricks']);
+
 export const HALL_BOARDS: { id: HallBoardId; name: string; title: string; unit: (v: number) => string; design: 'moneybag' | 'brick' | 'crosshair' | 'crest' }[] = [
   { id: 'sales', name: 'Top Sellers', title: 'Top Seller', unit: (v) => `$${Math.round(v).toLocaleString('en-US')}`, design: 'moneybag' },
   { id: 'bricks', name: 'Brick Press', title: 'Top Presser', unit: (v) => `${v.toLocaleString('en-US')} ${v === 1 ? 'brick' : 'bricks'}`, design: 'brick' },

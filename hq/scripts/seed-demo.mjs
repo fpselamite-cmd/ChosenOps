@@ -542,14 +542,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await role('washer', 3, 'Washer', { perms: { washMoney: true }, pages: { blackmarket: true }, note: 'Takes and finishes wash requests.' });
   await role('event_planner', 4, 'Event Planner', { perms: { manageEvents: true }, pages: { calendar: true }, note: "Edits and removes anyone's gang events." });
   await role('archivist', 5, 'Archivist', { perms: { hallOfFame: true }, note: 'Keeps the Hall of Fame.' });
-  await role('enforcer', 6, 'Enforcer', { honor: true });
-  await role('cop_killer', 7, 'Cop Killer', { honor: true });
-  await role('founder', 8, 'Founder', { honor: true });
+  await role('narco', 6, 'Narco', { pages: { narcotics: true }, note: 'Opens Narcotics and every drug detail in HQ. Hidden from everyone else (High Table always sees it).' });
+  await role('enforcer', 7, 'Enforcer', { honor: true });
+  await role('cop_killer', 8, 'Cop Killer', { honor: true });
+  await role('founder', 9, 'Founder', { honor: true });
   const hold = (who, roles, perms = {}, pages = {}, lead = false) => setDoc(doc(db, 'roleHolders', ids[who]), { roles, perms, pages, lead });
   await hold('Don Vito', ['founder']);
   await hold('Rocco Vale', ['enforcer', 'cop_killer', 'rep_keeper'], { confirmRep: true }, { pettycrime: true, blacksites: true });
   await hold('Kira Lane', ['welcome', 'event_planner'], { approveMembers: true, manageEvents: true }, { calendar: true });
-  await hold('Marco Gallo', ['washer'], { washMoney: true }, { blackmarket: true });
+  await hold('Marco Gallo', ['washer', 'narco'], { washMoney: true }, { blackmarket: true, narcotics: true });
   await hold('Sal Moretti', ['high_table', 'archivist'], all, {}, true);
   // Money: dinner dues (Sundays), the gang books, payouts, a budget, savings goals and requests.
   const etDay = (back) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(now - back * 86400_000));

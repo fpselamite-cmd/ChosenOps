@@ -65,6 +65,12 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'veteran', name: 'Veteran', design: 'shield', unit: 'days in the family', stat: 'days', at: [30, 90, 180, 365] },
   { id: 'nightwatch', name: 'Night Watch', design: 'star', unit: 'days in a row in HQ', stat: 'streak', at: [7, 30, 100, 365] },
 ];
+/** Achievements about narcotics: Narco and High Table only. */
+export const NARCO_ACH = new Set(['harvester', 'press', 'cook', 'snowman', 'plug']);
+export const achievementsFor = (narco: boolean) => (narco ? ACHIEVEMENTS : ACHIEVEMENTS.filter((a) => !NARCO_ACH.has(a.id)));
+/** A trophy won for narcotics: a drug achievement or a sales/bricks month. */
+export const isNarcoTrophy = (t: Pick<TrophyDoc, 'kind' | 'achId' | 'board'>) =>
+  (t.kind === 'achievement' && NARCO_ACH.has(t.achId ?? '')) || (t.kind === 'monthly' && (t.board === 'sales' || t.board === 'bricks'));
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
 /** Designs leadership can hand out (plus every achievement design). */

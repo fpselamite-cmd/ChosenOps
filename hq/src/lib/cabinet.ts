@@ -3,15 +3,19 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
 import { db } from './firebase';
-import { ACHIEVEMENTS, TIERS, tierFor, type AchievementStats, type Cabinet, type Pedestal, type Tier, type TrophyDesign, type TrophyDoc } from './trophies';
+import { ACHIEVEMENTS, isNarcoTrophy, TIERS, tierFor, type AchievementStats, type Cabinet, type Pedestal, type Tier, type TrophyDesign, type TrophyDoc } from './trophies';
 import { useMoney } from './money';
 import type { PettyCrime, RepTransfer } from './types';
 
 /** A member's cabinet and trophies (anyone in the family can look). */
-export function useCabinet(memberId: string) {
+/** Someone's cabinet and trophies. Narcotics trophies only show to Narco (pass `all` for bookkeeping). */
+export function useCabinet(memberId: string, all = false) {
+  const { narco } = useHub();
   const cabinet = useDoc<Cabinet>(`cabinets/${memberId}`);
   const q = useMemo(() => query(collection(db, 'trophies'), where('memberId', '==', memberId)), [memberId]);
-  const trophies = (useCollection<TrophyDoc>(q) ?? []).sort((a, b) => b.tier - a.tier || (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
+  const trophies = (useCollection<TrophyDoc>(q) ?? [])
+    .filter((t) => all || narco || !isNarcoTrophy(t))
+    .sort((a, b) => b.tier - a.tier || (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0));
   const c: Cabinet = cabinet ?? { id: memberId, pedestals: 6, slots: {} };
   return {
     ready: cabinet !== undefined,
@@ -70,7 +74,7 @@ export function useMyAchievementStats(): AchievementStats | null {
 export function AchievementWatcher() {
   const { me } = useHub();
   const stats = useMyAchievementStats();
-  const { trophies } = useCabinet(me.id);
+  const { trophies } = useCabinet(me.id, true);
   const tried = useRef(new Set<string>());
   useEffect(() => {
     if (!stats) return;

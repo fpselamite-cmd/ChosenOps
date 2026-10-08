@@ -87,7 +87,6 @@ function NoFileYet() {
   );
 }
 
-/** Sends people back to the Dashboard if their rank and roles don't open this page. */
 /** Old Narcotics links: NoelOps runs the grows and cooks now, so open it in a new tab. */
 function OpenNoelOps() {
   useEffect(() => {
@@ -101,6 +100,7 @@ function MeRedirect() {
   return <Navigate to={`/members/${me.id}`} replace />;
 }
 
+/** Sends people back to the Dashboard if their rank and roles don't open this page. */
 function Gate({ page, children }: { page: PageId; children: ReactNode }) {
   const { canSee } = useHub();
   return canSee(page) ? children : <Navigate to="/" replace />;
@@ -123,7 +123,7 @@ function MemberRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="me" element={<MeRedirect />} />
         <Route path="hall-of-fame" element={<HallOfFame />} />
-        <Route path="narcotics" element={<OpenNoelOps />} />
+        <Route path="narcotics" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
         <Route
           path="stash"
           element={
@@ -132,9 +132,9 @@ function MemberRoutes() {
             </Gate>
           }
         />
-        <Route path="timers" element={<OpenNoelOps />} />
-        <Route path="meth" element={<OpenNoelOps />} />
-        <Route path="coke" element={<OpenNoelOps />} />
+        <Route path="timers" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
+        <Route path="meth" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
+        <Route path="coke" element={<Gate page="narcotics"><OpenNoelOps /></Gate>} />
         <Route
           path="blackmarket"
           element={

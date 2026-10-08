@@ -461,7 +461,7 @@ function Deposit({ place, onClose }: { place: Place; onClose: () => void }) {
 // ---------- stash settings ----------
 
 function StashSettings({ place, onClose }: { place: Place; onClose: () => void }) {
-  const { ranks, me, isLead } = useHub();
+  const { ranks, me, isLead, narco } = useHub();
   const ops = useOps('stash');
   const lead = isLead;
   const loc = place.loc!;
@@ -499,13 +499,16 @@ function StashSettings({ place, onClose }: { place: Place; onClose: () => void }
       >
         {loc.kind === 'stash' && (
           <>
-            <div className="grid grid-cols-[1fr_120px] gap-3">
+            <div className={`grid gap-3 ${narco ? 'grid-cols-[1fr_120px]' : ''}`}>
               <Field label="Name">
                 <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
               </Field>
-              <Field label="Postal">
-                <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} maxLength={12} />
-              </Field>
+              {/* Postals are Narco only (a blank one never wipes the saved postal). */}
+              {narco && (
+                <Field label="Postal">
+                  <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} maxLength={12} />
+                </Field>
+              )}
             </div>
             <Field label="Note">
               <input className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} />
@@ -553,7 +556,7 @@ function StashSettings({ place, onClose }: { place: Place; onClose: () => void }
 // ---------- new stash wizard ----------
 
 function NewStash({ onClose, onMade }: { onClose: () => void; onMade: (key: string) => void }) {
-  const { me, ranks } = useHub();
+  const { me, ranks, narco } = useHub();
   const ops = useOps('stash');
   const locker = useLocker();
   const toast = useToast();
@@ -638,13 +641,15 @@ function NewStash({ onClose, onMade }: { onClose: () => void; onMade: (key: stri
           <p className="text-xs text-smoke">
             {kind === 'gang' ? 'A gang stash house: you own it, and leadership runs it with you. It shows in NoelOps too.' : 'A personal stash is one of your My Locker storages. Only you can see it.'}
           </p>
-          <div className="grid grid-cols-[1fr_120px] gap-3">
+          <div className={`grid gap-3 ${narco ? 'grid-cols-[1fr_120px]' : ''}`}>
             <Field label="Name">
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={kind === 'gang' ? 40 : 30} autoFocus placeholder={kind === 'gang' ? 'e.g. Docks warehouse' : 'e.g. Garage'} />
             </Field>
-            <Field label="Postal">
-              <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} maxLength={12} placeholder="Optional" />
-            </Field>
+            {narco && (
+              <Field label="Postal">
+                <input className="input font-mono" value={postal} onChange={(e) => setPostal(e.target.value)} maxLength={12} placeholder="Optional" />
+              </Field>
+            )}
           </div>
           {kind === 'gang' && (
             <>
@@ -753,7 +758,7 @@ function NewStash({ onClose, onMade }: { onClose: () => void; onMade: (key: stri
 // ---------- one stash ----------
 
 function StashView({ place, access, places, onSettings }: { place: Place; access: { manage: boolean; take: boolean }; places: Place[]; onSettings: () => void }) {
-  const { me } = useHub();
+  const { me, narco } = useHub();
   const ops = useOps('stash');
   const toast = useToast();
   const { noelDown } = useNarcotics();
@@ -771,7 +776,7 @@ function StashView({ place, access, places, onSettings }: { place: Place; access
   const mins = place.loc?.mins ?? {};
   const low = (t: Thing) => (mins[thingKey(t)] ?? 0) > t.qty;
   const worth = things.reduce((s, t) => s + unitValue(t, place.loc, prices) * t.qty, 0);
-  const missing = Object.entries(mins).filter(([k]) => !things.some((t) => thingKey(t) === k));
+  const missing = Object.entries(mins).filter(([k]) => (narco || names.byId.has(k)) && !things.some((t) => thingKey(t) === k));
 
   async function addCounts(c: { item: string; qty: number }[]) {
     await ops.applyDeltas(c.map((x) => ({ loc: place.key, field: 'meth' as const, item: x.item, delta: x.qty })));
@@ -850,7 +855,7 @@ function StashView({ place, access, places, onSettings }: { place: Place; access
               ))}
             </div>
           </div>
-          {noelDown && <p className="mb-2 text-xs text-amber-200">Can’t reach NoelOps: drug counts aren’t showing.</p>}
+          {noelDown && narco && <p className="mb-2 text-xs text-amber-200">Can’t reach NoelOps: drug counts aren’t showing.</p>}
           {shown.length ? (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {shown.map((t) => (
@@ -975,16 +980,18 @@ function SignedOutTab({ places }: { places: Place[] }) {
 
 /** Everything under its minimum, across the stashes I can see. */
 export function useRestock(places: Place[]) {
+  const { narco } = useHub();
   const names = useNames();
   return useMemo(
     () =>
       places.flatMap((p) =>
-        Object.entries(p.loc?.mins ?? {}).flatMap(([key, min]) => {
+        // Drug minimums are Narco only (their counts never load for anyone else).
+        Object.entries(p.loc?.mins ?? {}).filter(([key]) => narco || names.byId.has(key)).flatMap(([key, min]) => {
           const have = thingsIn(p.stock, names.name).find((t) => thingKey(t) === key)?.qty ?? 0;
           return have < min ? [{ place: p, key, have, min, label: names.keyLabel(key) }] : [];
         }),
       ),
-    [places, names],
+    [places, names, narco],
   );
 }
 
@@ -1027,7 +1034,7 @@ function RestockTab({ places }: { places: Place[] }) {
 const MOVE_LABEL: Record<MoveKind, string> = { take: 'took', return: 'returned', deposit: 'gave', edit: 'changed', transfer: 'moved', lost: 'lost', seized: 'had seized', sold: 'sold', loot: 'brought in loot', create: 'stocked' };
 
 function LogTab({ places }: { places: Place[] }) {
-  const { roster } = useHub();
+  const { roster, narco } = useHub();
   const logQ = useMemo(() => query(collection(db, 'stashLog'), orderBy('at', 'desc'), limit(400)), []);
   const moves = useCollection<StashMove>(logQ) ?? [];
   const snapsQ = useMemo(() => query(collection(db, 'stashSnaps'), orderBy('day', 'desc'), limit(120)), []);
@@ -1044,7 +1051,8 @@ function LogTab({ places }: { places: Place[] }) {
     const cutoff = keyOf(Date.now() - keep * 86400e3);
     snaps.filter((s) => s.day < cutoff).forEach((s) => void removeSnap(s.id).catch(() => {}));
   }, [snaps, keep]);
-  const list = moves.filter((m) => (!stash || m.from === stash || m.to === stash) && (!who || m.by === who) && (!q || m.label.toLowerCase().includes(q.toLowerCase())));
+  // Drug moves and counts are Narco only; everyone else sees items.
+  const list = moves.filter((m) => (narco || names.byId.has(m.key)) && (!stash || m.from === stash || m.to === stash) && (!who || m.by === who) && (!q || m.label.toLowerCase().includes(q.toLowerCase())));
   const snap = snaps.find((s) => s.day === day) ?? snaps[0];
   const prev = snap ? snaps.find((s) => s.day < snap.day) : undefined;
   const changes = snap
@@ -1053,7 +1061,7 @@ function LogTab({ places }: { places: Place[] }) {
         .flatMap((p) => {
           const a = prev?.counts[p.key] ?? {};
           const b = snap.counts[p.key] ?? {};
-          return [...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => ({ p, k, d: (b[k] ?? 0) - (a[k] ?? 0), now: b[k] ?? 0 })).filter((x) => x.d);
+          return [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => narco || names.byId.has(k)).map((k) => ({ p, k, d: (b[k] ?? 0) - (a[k] ?? 0), now: b[k] ?? 0 })).filter((x) => x.d);
         })
         .sort((x, y) => x.d - y.d)
     : [];

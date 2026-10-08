@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useHub } from '../hooks/useHub';
 import { useCollection } from '../hooks/useCollection';
 import { NOEL_MAIN, hqIdOf, setKnownBuckets, useNoel, type NoelBucket, type NoelGrow, type NoelStash } from '../lib/noelops';
 import { BRICK_SIZE, BUD_FIELDS, MAIN_STASH, ROOT_FIELDS, STRAINS, budCell, toCount, type BudCell, type OpsLocation, type RootField, type StockDoc, type StrainId } from './data';
@@ -107,11 +108,14 @@ function noelPlaces(main: { name?: string; excludeTotals?: boolean } | null | un
 }
 
 export function NarcoticsProvider({ children }: { children: ReactNode }) {
+  // Without the Narco role (or High Table) none of the drug side loads: no drug counts, no grows,
+  // no postals. Stashes still show, with the items in them.
+  const { narco } = useHub();
   const hqLocations = useCollection<OpsLocation>('locations');
   const hqStock = useCollection<StockDoc>('stock');
-  const nStock = useNoel<Record<string, NoelBucket>>('stock');
+  const nStock = useNoel<Record<string, NoelBucket>>('stock', narco);
   const nStashes = useNoel<Record<string, NoelStash>>('stashes');
-  const nGrows = useNoel<Record<string, NoelGrow>>('locations');
+  const nGrows = useNoel<Record<string, NoelGrow>>('locations', narco);
   const nMain = useNoel<{ name?: string; excludeTotals?: boolean }>('settings/mainStash');
   // If NoelOps doesn't answer, don't hold the page forever: show the HQ side and say so.
   const [slow, setSlow] = useState(false);
@@ -127,13 +131,13 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const noelLoaded = [nStock, nStashes, nGrows, nMain].every((x) => x.data !== undefined);
+  const noelLoaded = [nStashes, nMain, ...(narco ? [nStock, nGrows] : [])].every((x) => x.data !== undefined);
   const noelDown = [nStock, nStashes, nGrows, nMain].some((x) => x.error) || (!noelLoaded && slow);
 
   const value = useMemo<Narcotics>(() => {
     const stashes = nStashes.data ?? {};
-    const grows = nGrows.data ?? {};
-    const buckets = nStock.data ?? {};
+    const grows = narco ? (nGrows.data ?? {}) : {};
+    const buckets = narco ? (nStock.data ?? {}) : {};
     setKnownBuckets([...Object.keys(stashes).map((id) => `%h${id}`), ...Object.keys(grows)]);
 
     const extras = new Map((hqLocations ?? []).map((l) => [l.id, l]));
@@ -146,7 +150,9 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
     const noelIds = new Set(fromNoel.map((l) => l.id));
     // Places only the HQ has (items only, or drugs kept the old way).
     const hqOnly = (hqLocations ?? []).filter((l) => !noelIds.has(l.id) && !noelShaped(l.id));
-    const locations = [...fromNoel, ...hqOnly].sort(
+    const all = [...fromNoel, ...hqOnly];
+    const shown = narco ? all : all.filter((l) => l.kind !== 'grow').map((l) => ({ ...l, postal: undefined }));
+    const locations = shown.sort(
       (a, b) =>
         (a.id === MAIN_STASH ? -1 : b.id === MAIN_STASH ? 1 : 0) ||
         (a.kind === b.kind ? 0 : a.kind === 'stash' ? -1 : 1) ||
@@ -163,7 +169,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         const key = l.id === MAIN_STASH ? NOEL_MAIN : l.id.startsWith('noel_') ? `%h${l.id.slice(5)}` : Object.keys(grows).find((k) => hqIdOf(k) === l.id);
         const drugs = key ? buckets[key] : undefined;
         stock.set(l.id, { ...(drugs ?? {}), id: l.id, items: hq?.items ?? {} });
-      } else if (hq) stock.set(l.id, hq);
+      } else if (hq) stock.set(l.id, narco ? hq : { id: hq.id, items: hq.items ?? {} } as StockDoc);
     }
 
     // Crews are gone from HQ, so every location shows.
@@ -199,7 +205,7 @@ export function NarcoticsProvider({ children }: { children: ReactNode }) {
         return l.kind === 'grow' ? `Postal ${l.postal ?? l.name}` : l.name;
       },
     };
-  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter]);
+  }, [hqLocations, hqStock, nStock.data, nStashes.data, nGrows.data, nMain.data, noelLoaded, noelDown, crewFilter, narco]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

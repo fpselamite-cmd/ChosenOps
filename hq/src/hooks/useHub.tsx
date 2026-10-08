@@ -6,9 +6,9 @@ import { db } from '../lib/firebase';
 import { setCallInCost } from '../lib/blacksites';
 import { setCityClock } from '../lib/format';
 import { setReadOnly } from '../lib/guard/state';
-import type { Role, RoleHolder } from '../lib/roles';
+import { NARCO_ROLE, type Role, type RoleHolder } from '../lib/roles';
 import { outranks, pageOpen, rankCan, rankOrder } from '../lib/permissions';
-import type { Announcement, FamilyRep, GangSettings, Member, PageId, Permission, Presence, Rank } from '../lib/types';
+import { NARCO_MOODS, type Announcement, type FamilyRep, type GangSettings, type Member, type PageId, type Permission, type Presence, type Rank } from '../lib/types';
 import { useAuth } from './useAuth';
 import { useCollection, useDoc } from './useCollection';
 
@@ -45,6 +45,11 @@ interface Hub {
   isAdmin: boolean;
   /** Leadership powers: a leadership rank, the top rank, or admin (admin is out-of-character, so any rank). */
   isLead: boolean;
+  /**
+   * Sees narcotics: the Narco role, or High Table (leadership). Everyone else never sees drugs, grows,
+   * labs, stash postals, drug sales or drug stats anywhere in HQ.
+   */
+  narco: boolean;
   /** An owner of the HQ (set from GitHub): hands out admin. */
   isOwner: boolean;
   /** Roles (jobs and honors held on top of rank). */
@@ -131,7 +136,6 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const rankById = new Map(sortedRanks.map((r) => [r.id, r]));
     const allMembers = members ?? [];
     const memberById = new Map(allMembers.map((m) => [m.id, m]));
-    const presence = new Map((presenceRows ?? []).map((p) => [p.id, p]));
     const realMe = memberById.get(me.id) ?? me;
     const realAdmin = realMe.admin === true;
     // Previewing: everything below is worked out for them, with no admin powers.
@@ -150,6 +154,11 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const myRoles = preview && realAdmin && !preview.memberId ? undefined : holderOf.get(liveMe.id);
     const roleCan = (p: Permission) => myRoles?.perms?.[p] === true;
     const rolePage = (page: PageId) => myRoles?.pages?.[page] === true;
+    const isLead = liveMe.admin === true || (!!myRank && (myRank.order === 0 || !!myRank.leadership)) || myRoles?.lead === true;
+    const narco = isLead || (myRoles?.roles ?? []).includes(NARCO_ROLE);
+    const presence = new Map(
+      (presenceRows ?? []).map((p) => [p.id, !narco && p.status && NARCO_MOODS.has(p.status) ? { ...p, status: 'Busy' } : p]),
+    );
     return {
       ready,
       me: liveMe,
@@ -174,7 +183,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
       announcement: announcement ?? null,
       familyRep: familyRep?.total ?? 0,
       can: (p) => liveMe.admin === true || rankCan(myRank, p) || roleCan(p),
-      canSee: (page) => liveMe.admin === true || pageOpen(page, myRank) || rolePage(page),
+      // Narcotics opens only for the Narco role and High Table, whatever a rank's page list says.
+      canSee: (page) => (page === 'narcotics' ? narco : liveMe.admin === true || pageOpen(page, myRank) || rolePage(page)),
       viaFor: (page) =>
         liveMe.admin === true || (myRank && (myRank.order === 0 || myRank.pages?.[page]))
           ? 'rank'
@@ -182,7 +192,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
             ? 'role'
             : null,
       isAdmin: liveMe.admin === true,
-      isLead: liveMe.admin === true || (!!myRank && (myRank.order === 0 || !!myRank.leadership)) || myRoles?.lead === true,
+      isLead,
+      narco,
       roles: sortedRoles,
       roleById,
       holders,

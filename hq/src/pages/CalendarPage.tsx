@@ -6,6 +6,7 @@ import { Field } from '../components/Field';
 import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Panel } from '../components/Page';
+import { pinShows } from '../lib/pins';
 import { useHub } from '../hooks/useHub';
 import { audienceLabel, GANG, useVisible, type AudienceDraft } from '../lib/audience';
 import { useCollection } from '../hooks/useCollection';
@@ -57,7 +58,8 @@ function EventDialog({ event, day, onClose }: { event?: CalEvent; day: string; o
   const [repeat, setRepeat] = useState<Repeat>(event?.repeat ?? 'none');
   const [place, setPlace] = useState(event?.place ?? '');
   const [pinId, setPinId] = useState<string | null>(event?.pinId ?? null);
-  const pins = useVisible<Pin>('pins') ?? [];
+  const { narco } = useHub();
+  const pins = (useVisible<Pin>('pins') ?? []).filter((p) => pinShows(p, narco));
   const spots = (useCollection<Spot>('blacksiteSpots') ?? []).filter((x) => x.x != null);
   const [note, setNote] = useState(event?.note ?? '');
   const [aud, setAud] = useState<AudienceDraft>(event ? { scope: event.scope, ranks: event.ranks, crewIds: [], minRank: event.minRank ?? null } : { ...GANG });

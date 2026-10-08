@@ -1,5 +1,8 @@
 import { ChevronDown, ExternalLink, Eye, LayoutDashboard, LogOut, Menu, Palette, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { NARCO_ROLE, NARCO_ROLE_DOC } from '../lib/roles';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
@@ -211,6 +214,19 @@ function PhoneBar({ onMenu }: { onMenu: () => void }) {
   );
 }
 
+/** Leadership's sign-in adds the Narco role if this HQ set up its roles before it existed. */
+function EnsureNarcoRole() {
+  const { isLead, preview, roles, roleById } = useHub();
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!isLead || preview || tried.current || !roles.length || roleById.has(NARCO_ROLE)) return;
+    tried.current = true;
+    const { id, ...data } = NARCO_ROLE_DOC;
+    void setDoc(doc(db, 'hqRoles', id), { ...data, order: roles.length }).catch(() => (tried.current = false));
+  }, [isLead, preview, roles, roleById]);
+  return null;
+}
+
 function MeCard() {
   const { me, myRank } = useHub();
   const [look, setLook] = useState(false);
@@ -281,6 +297,7 @@ export function AppShell() {
       <MonthlyAwarder />
       <NoelDirectorySync />
       <PollKeeper />
+      <EnsureNarcoRole />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col gap-6 border-r border-line sky-glass px-3 py-5 backdrop-blur lg:flex">
         <div className="px-2">

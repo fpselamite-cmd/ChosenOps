@@ -36,6 +36,16 @@ export interface RoleHolder {
 const allPerms = (): PermissionMap => Object.fromEntries(Object.keys(PERMISSIONS).map((k) => [k, true]));
 const allPages = (): PageMap => Object.fromEntries(Object.keys(PAGES).map((k) => [k, true]));
 
+/** The Narco role: the only way (besides High Table) to see anything narcotics in HQ. */
+export const NARCO_ROLE = 'narco';
+export const NARCO_ROLE_DOC: Omit<Role, 'order'> = {
+  id: NARCO_ROLE,
+  name: 'Narco',
+  perms: {},
+  pages: { narcotics: true },
+  note: 'Opens Narcotics and every drug detail in HQ: grows, labs, stash postals, drug stock, sales and stats. Hidden from everyone else (High Table always sees it).',
+};
+
 export const DEFAULT_ROLES: Omit<Role, 'order'>[] = [
   { id: 'high_table', name: 'High Table', lead: true, perms: allPerms(), pages: allPages(), note: 'Leadership powers, whatever their rank.' },
   { id: 'welcome', name: 'Welcome Committee', perms: { approveMembers: true }, pages: {}, note: 'Lets newcomers in and sends welcome notes. Will run the associate section and welcome center.' },
@@ -43,6 +53,7 @@ export const DEFAULT_ROLES: Omit<Role, 'order'>[] = [
   { id: 'washer', name: 'Washer', perms: { washMoney: true }, pages: { blackmarket: true }, note: 'Takes and finishes wash requests.' },
   { id: 'event_planner', name: 'Event Planner', perms: { manageEvents: true }, pages: { calendar: true }, note: 'Edits and removes anyone’s gang events.' },
   { id: 'archivist', name: 'Archivist', perms: { hallOfFame: true }, pages: {}, note: 'Keeps the Hall of Fame (lore page and trophy approvals coming).' },
+  NARCO_ROLE_DOC,
   { id: 'enforcer', name: 'Enforcer', honor: true, perms: {}, pages: {} },
   { id: 'cop_killer', name: 'Cop Killer', honor: true, perms: {}, pages: {} },
   { id: 'founder', name: 'Founder', honor: true, perms: {}, pages: {} },
