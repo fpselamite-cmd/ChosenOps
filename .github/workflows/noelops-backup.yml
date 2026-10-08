@@ -1,0 +1,64 @@
+name: NoelOps backup
+
+# Nightly encrypted backup of NoelOps' data to the `noelops-backups` branch. The repo is public, so each
+# backup is encrypted with the NOELOPS_BACKUP_KEY secret: without that key the files are unreadable.
+# Restoring is in hq/README.md → "NoelOps backups".
+on:
+  schedule:
+    - cron: '17 7 * * *' # every day at 07:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: noelops-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the backup key
+        env:
+          KEY: ${{ secrets.NOELOPS_BACKUP_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Missing NOELOPS_BACKUP_KEY secret. See 'NoelOps backups' in hq/README.md."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hq/package-lock.json
+      - run: npm ci
+        working-directory: hq
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Back up, encrypt and keep 90 days
+        env:
+          KEY: ${{ secrets.NOELOPS_BACKUP_KEY }}
+          REMOTE: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          node hq/scripts/backup-noelops.mjs --live > "$WORK/backup.json"
+          TODAY=$(date -u +%F)
+          if git clone --quiet --depth 1 --branch noelops-backups "$REMOTE" "$WORK/store" 2>/dev/null; then :; else
+            git init --quiet "$WORK/store"
+            git -C "$WORK/store" checkout --quiet -b noelops-backups
+            git -C "$WORK/store" remote add origin "$REMOTE"
+            printf '# NoelOps backups\n\nEncrypted with the NOELOPS_BACKUP_KEY secret. See hq/README.md on main to restore.\n' > "$WORK/store/README.md"
+          fi
+          mkdir -p "$WORK/store/backups"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:KEY -in "$WORK/backup.json" -out "$WORK/store/backups/$TODAY.json.enc"
+          ls "$WORK/store/backups" | sort | head -n -90 | while read -r f; do rm -f "$WORK/store/backups/$f"; done
+          cd "$WORK/store"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit --quiet -m "NoelOps backup $TODAY" || { echo "No change"; exit 0; }
+          git push --quiet origin noelops-backups

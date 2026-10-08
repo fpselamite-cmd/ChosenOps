@@ -6,6 +6,7 @@ import { NARCO_ROLE, NARCO_ROLE_DOC } from '../lib/roles';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useCollection } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
+import { NoelAccessSync } from './NoelAccessSync';
 import { NoelDirectorySync } from './NoelDirectorySync';
 import { logout } from '../lib/auth';
 import { TZ, TZ_LABEL } from '../lib/format';
@@ -324,6 +325,7 @@ export function AppShell() {
       <ShootingStars enabled />
       <MonthlyAwarder />
       <NoelDirectorySync />
+      <NoelAccessSync />
       <PollKeeper />
       <EnsureNarcoRole />
       <HeistCall />

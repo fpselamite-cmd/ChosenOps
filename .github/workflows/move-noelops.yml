@@ -1,0 +1,51 @@
+name: Move NoelOps
+
+# Copies NoelOps' data from its old, open database into the HQ's own Realtime Database, once.
+# Make the old database read-only first (hq/README.md → "Moving NoelOps"), then run this.
+# Leave "dry run" ticked first to see what it would do and who won't get in.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (write nothing)
+        type: boolean
+        default: true
+      force:
+        description: Copy even if the new database already has NoelOps data (overwrites it)
+        type: boolean
+        default: false
+      source:
+        description: Where to copy from (the old database, or a decrypted backup file's URL)
+        default: https://noelops-default-rtdb.firebaseio.com/noelops.json
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hq/package-lock.json
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Move
+        env:
+          SOURCE: ${{ inputs.source }}
+          DRY: ${{ inputs.dry_run }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          ARGS=(--live "--from=$SOURCE")
+          [ "$DRY" = "true" ] && ARGS+=(--dry-run)
+          [ "$FORCE" = "true" ] && ARGS+=(--force)
+          node scripts/move-noelops.mjs "${ARGS[@]}"

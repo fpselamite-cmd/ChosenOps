@@ -184,9 +184,13 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     cooks: { c1: { who: 'Nico Bruno', size: 5, mins: 90, ts: now - 40 * 60000 } },
     runs: { r1: { who: 'Rocco Vale', crew: 'Hit squad', size: 'small', n: 2, mins: 120, ts: now - 30 * 60000 } },
   };
-  const RULES = readFileSync(new URL('../noelops.rules.json', import.meta.url), 'utf8');
-  await fetch('http://127.0.0.1:9000/.settings/rules.json?ns=noelops-default-rtdb', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: RULES });
-  const rtdb = await fetch('http://127.0.0.1:9000/noelops.json?ns=noelops-default-rtdb', { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(noel) });
+  // NoelOps' data lives in the HQ's own Realtime Database, behind database.rules.json. Don Vito (leadership) starts
+  // on the access list; his HQ page fills in everyone else when he signs in.
+  const NS = 'ns=demo-chosenops-default-rtdb';
+  const RULES = readFileSync(new URL('../database.rules.json', import.meta.url), 'utf8');
+  await fetch(`http://127.0.0.1:9000/.settings/rules.json?${NS}`, { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: RULES });
+  const tree = { noelops: noel, access: { [ids['Don Vito']]: { m: ids['Don Vito'], n: 'Don Vito', lvl: 'manage', ops: true } } };
+  const rtdb = await fetch(`http://127.0.0.1:9000/.json?${NS}`, { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: JSON.stringify(tree) });
   if (!rtdb.ok) throw new Error(`NoelOps emulator: ${rtdb.status} ${await rtdb.text()}`);
   // The family's item catalog (src/data/catalog.json), plus a lockpick that isn't in it.
   const CATALOG = JSON.parse(readFileSync(new URL('../src/data/catalog.json', import.meta.url), 'utf8'));

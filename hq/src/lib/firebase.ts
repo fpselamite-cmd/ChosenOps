@@ -16,7 +16,7 @@ const CHOSENOPS = {
   appId: '1:307081883016:web:41ff5ca66640d148e45e3d',
 };
 
-const app = initializeApp(
+export const app = initializeApp(
   env.VITE_FIREBASE_PROJECT_ID
     ? {
         apiKey: env.VITE_FIREBASE_API_KEY,
