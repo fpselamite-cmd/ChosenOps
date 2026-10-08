@@ -12,7 +12,6 @@ import {
   Library,
   Map,
   Network,
-  ShieldCheck,
   Trophy,
   UserRound,
   Swords,
@@ -31,23 +30,25 @@ export interface NavItem {
   page?: PageId;
   /** Opens another site in a new tab instead of a page here. */
   href?: string;
-  /** Only associates and the Welcome Committee see it. */
-  welcome?: boolean;
+  /** Only the Welcome Committee (and leadership) see it here; associates get it at the very top instead. */
+  handlers?: boolean;
   /** Hidden from associates until they're blooded in. */
   archives?: boolean;
   /** Points at the signed-in member's own character page. */
   me?: boolean;
 }
 
+/** Associates see this on its own, above everything, until they're blooded in. */
+export const WELCOME_TOP: NavItem = { to: '/welcome', label: 'Welcome', icon: HandHeart };
+
+// Coming later, hidden until they're built: Gunrunning (Business) and Heists (Operations).
 export const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'HQ',
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/family', label: 'Family', icon: Network, page: 'family' },
-      { to: '/welcome', label: 'Welcome', icon: HandHeart, welcome: true },
-      { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
-      { to: '/archives', label: 'Archives', icon: Library, archives: true },
+      { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
+      { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
       { to: '/casino', label: 'Casino', icon: Dices },
     ],
   },
@@ -57,26 +58,36 @@ export const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/me', label: 'Me', icon: UserRound, me: true },
       { to: '/locker', label: 'My Locker', icon: Lock },
       { to: '/gear', label: 'Gear & Loadouts', icon: Swords, page: 'gear' },
+      { to: '/money', label: 'Money', icon: Banknote },
     ],
   },
   {
     group: 'Business',
     items: [
       { to: '/blackmarket', label: 'BlackMarket', icon: VenetianMask, page: 'blackmarket' },
-      { to: '/money', label: 'Money', icon: Banknote },
-      { to: '/stash', label: 'Stash', icon: Warehouse, page: 'stash' },
       { to: '/narcotics', label: 'Narcotics', icon: Cannabis, page: 'narcotics', href: NOELOPS_URL },
-      { to: '/petty-crime', label: 'Petty Crime', icon: HandCoins, page: 'pettycrime' },
     ],
   },
   {
     group: 'Operations',
     items: [
       { to: '/blacksites', label: 'Blacksites', icon: Crosshair, page: 'blacksites' },
+      { to: '/welcome', label: 'Welcome', icon: HandHeart, handlers: true },
+    ],
+  },
+  {
+    group: 'Lore',
+    items: [
+      { to: '/family', label: 'Family', icon: Network, page: 'family' },
       { to: '/rivals', label: 'Rivals', icon: FolderSearch },
+      { to: '/archives', label: 'Archives', icon: Library, archives: true },
+      { to: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ],
   },
 ];
+
+/** The phone bar's three picks (two left of the Dashboard, one right) until someone chooses their own. */
+export const DEFAULT_BAR = ['/me', '/family', '/casino'];
 
 /** Shown as buttons in the header rather than in the menu. */
 export const HEADER_NAV: NavItem[] = [
@@ -84,7 +95,6 @@ export const HEADER_NAV: NavItem[] = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, page: 'calendar' },
 ];
 
-export const ADMIN_NAV: NavItem = { to: '/admin', label: 'Admin', icon: ShieldCheck };
 
 /** The BlackMarket keeps NoelOps' layout (its stylesheet, scoped to .noel) in the HQ's gold. Everything else is gold. */
 export type PageTheme = 'gold' | 'blackmarket';
