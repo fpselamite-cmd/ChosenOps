@@ -92,11 +92,52 @@ const ref = (id: string) => doc(db, 'chips', id);
 /** Take the stake when a hand starts (so leaving mid-hand loses it, like a real table). */
 export const stake = (me: string, bet: number) => updateDoc(ref(me), { balance: increment(-bet) });
 
+// ---------- this sitting ----------
+// How this session is going (since the page was opened), shown in the bet bar.
+
+export interface Session {
+  hands: number;
+  wins: number;
+  losses: number;
+  net: number;
+  best: number;
+}
+let session: Session = { hands: 0, wins: 0, losses: 0, net: 0, best: 0 };
+const listeners = new Set<(s: Session) => void>();
+export const getSession = () => session;
+export const onSession = (f: (s: Session) => void) => (listeners.add(f), () => void listeners.delete(f));
+function recordSession(net: number) {
+  session = { hands: session.hands + 1, wins: session.wins + (net > 0 ? 1 : 0), losses: session.losses + (net < 0 ? 1 : 0), net: session.net + net, best: Math.max(session.best, net) };
+  listeners.forEach((f) => f(session));
+}
+
+export type CasinoGame = 'blackjack' | 'roulette' | 'slots' | 'poker';
+export const GAME_NAMES: Record<CasinoGame, string> = { blackjack: 'Blackjack', roulette: 'Roulette', slots: 'Golden Reels', poker: 'Video Poker' };
+/** A win this big goes on the floor's big-wins ticker. */
+export const BIG_WIN = 500;
+export interface BigWin {
+  id: string;
+  by: string;
+  name: string;
+  game: CasinoGame;
+  amount: number;
+  note: string;
+  at?: Timestamp;
+}
+
 /** Pay out a finished round and keep the stats. `paid` is what comes back (stake included); `bet` what went in. */
-export async function settle(me: string, bet: number, paid0: number, extra: { blackjack?: boolean; jackpot?: boolean; bonus?: number } = {}) {
+export async function settle(
+  me: string,
+  bet: number,
+  paid0: number,
+  extra: { blackjack?: boolean; jackpot?: boolean; bonus?: number; game?: CasinoGame; name?: string; note?: string } = {},
+) {
   // Event nights pay a bonus on winnings.
   const paid = paid0 > bet && extra.bonus ? paid0 + Math.floor(((paid0 - bet) * extra.bonus) / 100) : paid0;
   const net = paid - bet;
+  recordSession(net);
+  if (extra.game && extra.name && net >= BIG_WIN)
+    void addDoc(collection(db, 'casinoWins'), { by: me, name: extra.name.slice(0, 40), game: extra.game, amount: Math.round(net), note: (extra.note ?? '').slice(0, 60), at: serverTimestamp() }).catch(() => {});
   const snap = await getDoc(ref(me));
   const c = (snap.data() ?? {}) as Partial<Chips>;
   const wk = weekKey();

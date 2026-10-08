@@ -1189,6 +1189,16 @@ service cloud.firestore {
       allow read: if active();
       allow create, update: if active() && mid == myId() && request.resource.data.balance is number && request.resource.data.balance >= 0;
     }
+    // The floor's big-wins ticker: your own wins, written once.
+    match /casinoWins/{id} {
+      allow read: if active();
+      allow create: if active() && request.resource.data.by == myId() && request.resource.data.at == request.time
+        && request.resource.data.game in ['blackjack', 'roulette', 'slots', 'poker']
+        && request.resource.data.amount is int && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
+        && str(request.resource.data.name, 40) && str(request.resource.data.note, 60)
+        && request.resource.data.keys().hasOnly(['by', 'name', 'game', 'amount', 'note', 'at']);
+      allow delete: if active() && lead();
+    }
     match /chipGifts/{id} {
       allow read: if active() && (resource.data.to == myId() || resource.data.from == myId() || lead());
       // A gift comes out of the sender's stack in the same write; a grant is High Table's, from the house.

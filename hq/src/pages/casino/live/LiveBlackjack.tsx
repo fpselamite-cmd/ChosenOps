@@ -4,7 +4,7 @@ import { chipsFmt, deck, stake, type Card } from '../../../lib/casino';
 import { sfx } from '../../../lib/sound';
 import { act, placeBets, setRound, type LiveTable } from '../../../lib/tables';
 import { total } from '../Blackjack';
-import { BetPicker, Felt, PlayingCard, Result, useChips } from '../common';
+import { BetBar, BetSpot, Felt, HandTotal, payOut, PlayingCard, rake, Result, Stack, useChips } from '../common';
 import { now, useHostLoop, useSettle } from './useLive';
 
 interface Hand {
@@ -134,35 +134,60 @@ export default function LiveBlackjack({ t, isHost }: { t: LiveTable<BlackjackRou
   const myTurn = r.phase === 'play' && r.turn === me.id;
   const left = (until?: number) => Math.max(0, Math.ceil(((until ?? 0) - now()) / 1000));
   const move = (a: string) => act(t, me.id, { a, n: r.n });
+  // My chips go back to me, or to the dealer, when the round pays.
+  const paidRound = useRef(-1);
+  useEffect(() => {
+    if (r.phase !== 'paid' || !mine || paidRound.current === r.n) return;
+    paidRound.current = r.n;
+    const el = document.querySelector(`[data-bjseat="${me.id}"]`);
+    const p = r.paid?.[me.id] ?? 0;
+    if (p) void payOut(el, p, 300);
+    else void rake(el, mine.stake, 300);
+  }, [r.phase, r.n, r.paid, mine, me.id]);
+  const minBet = Math.max(min, t.minBet);
   return (
-    <Felt className="space-y-6">
-      <div className="text-center">
-        <p className="felt-label">Dealer {r.dealer && !r.hole ? `· ${total(r.dealer)}` : ''}</p>
-        <div className="flex min-h-36 justify-center gap-2">
-          {(r.dealer ?? []).map((c, i) => (
-            <PlayingCard key={`${r.n}-${i}`} c={c} i={i} />
-          ))}
-          {r.hole && <PlayingCard down />}
-        </div>
-      </div>
-      <p className="felt-rule">{r.phase === 'bets' ? `Bets close in ${left(r.closesAt)}s` : r.phase === 'play' ? `${t.seats[r.turn ?? '']?.name ?? ''} to act · ${left(r.turnEnds)}s` : 'Blackjack pays 3 to 2'}</p>
-      <div className="flex flex-wrap justify-center gap-6">
-        {Object.entries(r.hands ?? {}).map(([id, h]) => (
-          <div key={id} className={`live-seat ${r.turn === id ? 'turn' : ''} ${id === me.id ? 'me' : ''}`}>
-            <div className="flex justify-center gap-1">
-              {h.cards.map((c, i) => (
-                <PlayingCard key={`${r.n}-${i}`} c={c} i={i} />
-              ))}
-            </div>
-            <p className="felt-label">
-              {t.seats[id]?.name ?? '?'} · {total(h.cards)} {h.st === 'bust' ? '· bust' : h.st === 'bj' ? '· blackjack' : ''} · {chipsFmt(h.stake)}
-            </p>
-            {r.phase === 'paid' && <p className={`text-sm font-bold ${(r.paid?.[id] ?? 0) > h.stake ? 'text-yellow-200' : (r.paid?.[id] ?? 0) === h.stake ? 'text-gray-200' : 'text-red-300'}`}>{(r.paid?.[id] ?? 0) > h.stake ? `+${chipsFmt((r.paid?.[id] ?? 0) - h.stake)}` : (r.paid?.[id] ?? 0) === h.stake ? 'Push' : 'Lost'}</p>}
+    <div>
+      <Felt className="space-y-6">
+        <span className="bj-shoe" aria-hidden />
+        <div className="flex flex-col items-center gap-2" style={{ ['--shoe-x' as string]: '160px', ['--shoe-y' as string]: '-30px' }}>
+          <p className="felt-label flex items-center gap-2">
+            Dealer <HandTotal cards={r.dealer ?? []} hide={!!r.hole} />
+          </p>
+          <div className="bj-cards min-h-[90px]">
+            {(r.dealer ?? []).map((c, i) => (
+              <PlayingCard key={`${r.n}-${i}`} c={c} i={i} />
+            ))}
+            {r.hole && <PlayingCard down />}
           </div>
-        ))}
-      </div>
-      {r.phase === 'paid' && mine && <Result text={(r.paid?.[me.id] ?? 0) > mine.stake ? 'You win!' : (r.paid?.[me.id] ?? 0) === mine.stake ? 'Push.' : 'Dealer takes it.'} tone={(r.paid?.[me.id] ?? 0) > mine.stake ? 'win' : (r.paid?.[me.id] ?? 0) === mine.stake ? 'push' : 'lose'} />}
-      <div className="flex flex-wrap items-center justify-center gap-3">
+        </div>
+        <p className="felt-rule">{r.phase === 'bets' ? `Bets close in ${left(r.closesAt)}s` : r.phase === 'play' ? `${t.seats[r.turn ?? '']?.name ?? ''} to act · ${left(r.turnEnds)}s` : 'Blackjack pays 3 to 2'}</p>
+        <div className="flex flex-wrap items-end justify-center gap-4" style={{ ['--shoe-x' as string]: '200px', ['--shoe-y' as string]: '-220px' }}>
+          {Object.entries(r.hands ?? {}).map(([id, h]) => (
+            <div key={id} className={`live-seat ${r.turn === id ? 'turn' : ''} ${id === me.id ? 'me' : ''}`}>
+              <div className="bj-cards">
+                {h.cards.map((c, i) => (
+                  <PlayingCard key={`${r.n}-${i}`} c={c} i={i} />
+                ))}
+              </div>
+              <p className="felt-label flex items-center justify-center gap-2">
+                {t.seats[id]?.name ?? '?'} <HandTotal cards={h.cards} />
+              </p>
+              <span data-bjseat={id} className="inline-flex h-9 items-end">
+                <Stack amount={h.stake} size={24} />
+              </span>
+              {r.phase === 'paid' && <p className={`text-sm font-bold ${(r.paid?.[id] ?? 0) > h.stake ? 'text-yellow-200' : (r.paid?.[id] ?? 0) === h.stake ? 'text-gray-200' : 'text-red-300'}`}>{(r.paid?.[id] ?? 0) > h.stake ? `+${chipsFmt((r.paid?.[id] ?? 0) - h.stake)}` : (r.paid?.[id] ?? 0) === h.stake ? 'Push' : h.st === 'bust' ? 'Bust' : 'Lost'}</p>}
+            </div>
+          ))}
+          {r.phase === 'bets' && !r.hands?.[me.id] && (
+            <div className="flex flex-col items-center gap-1">
+              <BetSpot amount={myBet ? myBet.total : bet} />
+              {myBet && <span className="felt-label">You're in. Waiting for the deal…</span>}
+            </div>
+          )}
+        </div>
+        {r.phase === 'paid' && mine && <Result text={(r.paid?.[me.id] ?? 0) > mine.stake ? 'You win!' : (r.paid?.[me.id] ?? 0) === mine.stake ? 'Push.' : 'Dealer takes it.'} tone={(r.paid?.[me.id] ?? 0) > mine.stake ? 'win' : (r.paid?.[me.id] ?? 0) === mine.stake ? 'push' : 'lose'} />}
+      </Felt>
+      <BetBar bet={myBet ? myBet.total : bet} min={minBet} max={max} balance={balance} onAdd={(v) => setBet((b) => Math.min(Math.min(max, balance), b + v))} onClear={() => setBet(0)} locked={r.phase !== 'bets' || !!myBet}>
         {myTurn ? (
           <>
             <button className="btn-gold" onClick={() => (sfx.card(), move('hit'))}>
@@ -173,21 +198,20 @@ export default function LiveBlackjack({ t, isHost }: { t: LiveTable<BlackjackRou
             </button>
             {mine && mine.cards.length === 2 && (
               <button className="btn-ghost" disabled={balance < mine.stake} onClick={async () => (await stake(me.id, mine.stake), move('double'))}>
-                Double ({chipsFmt(mine.stake)})
+                Double
               </button>
             )}
           </>
         ) : r.phase === 'bets' && !myBet ? (
-          <>
-            <BetPicker bet={bet} setBet={setBet} min={Math.max(min, t.minBet)} max={max} balance={balance} />
-            <button className="btn-gold" disabled={bet < Math.max(min, t.minBet) || bet > balance} onClick={async () => (await stake(me.id, bet), placeBets(t, me.id, r.n, bet), sfx.chip())}>
-              Bet {chipsFmt(bet)}
-            </button>
-          </>
-        ) : r.phase === 'bets' ? (
-          <p className="felt-label">You're in for {chipsFmt(myBet!.total)}. Waiting for the deal…</p>
-        ) : null}
-      </div>
-    </Felt>
+          <button className="btn-gold" disabled={bet < minBet || bet > balance} onClick={async () => (await stake(me.id, bet), placeBets(t, me.id, r.n, bet), sfx.chip())}>
+            Bet
+          </button>
+        ) : (
+          <button className="btn-ghost" disabled>
+            {r.phase === 'play' ? 'Waiting…' : r.phase === 'bets' ? 'In' : 'Next hand soon'}
+          </button>
+        )}
+      </BetBar>
+    </div>
   );
 }
