@@ -1,7 +1,7 @@
 import { useHub } from '../../../hooks/useHub';
 import { chipsFmt } from '../../../lib/casino';
 import { postSpin, type LiveTable } from '../../../lib/tables';
-import Slots, { SYMBOLS } from '../Slots';
+import Slots, { SYMBOLS, Symbol3D } from '../Slots';
 
 /** The slot hall: everyone plays their own machine, and sees each other's spins and jackpots. */
 export default function LiveSlots({ t }: { t: LiveTable }) {
@@ -17,10 +17,11 @@ export default function LiveSlots({ t }: { t: LiveTable }) {
               <div key={id} className={`live-seat ${l && l.mult >= SYMBOLS[0]!.pays ? 'turn' : ''}`}>
                 <p className="felt-label">{s.name}</p>
                 <div className="flex justify-center gap-1">
-                  {(l?.line ?? [5, 5, 5]).map((x, i) => {
-                    const S = SYMBOLS[x]!;
-                    return <S.icon key={i} className={`size-8 ${l ? '' : 'opacity-20'}`} style={{ color: S.color }} />;
-                  })}
+                  {(l?.line ?? [5, 5, 5]).map((x, i) => (
+                    <span key={i} className={l ? '' : 'opacity-20'}>
+                      <Symbol3D i={x} className="size-10 object-contain" />
+                    </span>
+                  ))}
                 </div>
                 <p className="text-xs text-gold-100/80">{l ? (l.mult ? `${l.mult}× · +${chipsFmt(l.bet * l.mult - l.bet)}` : `lost ${chipsFmt(l.bet)}`) : 'No spins yet'}</p>
               </div>

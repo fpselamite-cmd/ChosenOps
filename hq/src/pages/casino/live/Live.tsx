@@ -136,7 +136,7 @@ export function TableView({ id, onBack }: { id: string; onBack: () => void }) {
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {Object.entries(t.seats).map(([sid, s]) => (
-          <span key={sid} className={`chip px-2.5 py-1 text-xs ${sid === me.id ? 'border-gold-400 text-gold-200' : 'text-ash'}`}>
+          <span key={sid} data-seat={sid} className={`chip px-2.5 py-1 text-xs ${sid === me.id ? 'border-gold-400 text-gold-200' : 'text-ash'}`}>
             {sid === t.host && <Crown className="mr-1 inline size-3 text-gold-300" />}
             {s.name}
           </span>

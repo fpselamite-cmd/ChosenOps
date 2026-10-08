@@ -694,6 +694,12 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await ch('Rocco Vale', { balance: 9100, hands: 120, chipsWon: 12000, biggestWin: 2400, blackjacks: 4, weekNet: 1800 });
   await ch('Kira Lane', { balance: 3400, hands: 60, chipsWon: 4100, biggestWin: 900, weekNet: -300 });
   await ch('Nico Bruno', { balance: 15200, hands: 210, chipsWon: 22000, biggestWin: 5000, blackjacks: 7, weekNet: 600 });
+  // The floor's big-wins ticker.
+  const bw = (id, who, game, amount, note, ago) => setDoc(doc(db, 'casinoWins', id), { by: ids[who], name: who, game, amount, note, at: Timestamp.fromMillis(now - ago) });
+  await bw('bw1', 'Don Vito', 'slots', 8000, 'Three crowns', 3 * H);
+  await bw('bw2', 'Nico Bruno', 'roulette', 3500, '17 black', 5 * H);
+  await bw('bw3', 'Rocco Vale', 'blackjack', 1200, 'Blackjack!', 9 * H);
+  await bw('bw4', 'Kira Lane', 'poker', 900, 'Full House', 26 * H);
   await setDoc(doc(db, 'chipGifts', 'cg1'), { to: ids['Kira Lane'], from: vito, fromName: 'Don Vito', amount: 1000, reason: 'For the plates at the docks', grant: true, claimed: false, at: Timestamp.fromMillis(now - H) });
 
   // Rivals: case files, members, incidents, notes, sightings, bounties and the red-string board.
