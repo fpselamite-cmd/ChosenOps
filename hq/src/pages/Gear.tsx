@@ -1,5 +1,5 @@
 import { collection, deleteDoc, doc, query, setDoc, where } from 'firebase/firestore';
-import { ArrowRightLeft, Bookmark, Check, Copy, Eye, EyeOff, HandHelping, Heart, ImagePlus, ShoppingCart, Lock, Pencil, Plus, Save, Search, Star, Swords, Trash2, Wrench, X } from 'lucide-react';
+import { ArrowRightLeft, Bookmark, Check, Copy, Eye, EyeOff, HandHelping, Heart, ImagePlus, ShoppingCart, Lock, Pencil, Plus, Redo2, Save, Search, Star, Swords, Trash2, Undo2, Wrench, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Empty, Field } from '../components/Field';
@@ -9,16 +9,18 @@ import { MemberName } from '../components/MemberName';
 import { Modal } from '../components/Modal';
 import { PageHeader, Tabs } from '../components/Page';
 import { WeaponArt, type GunArt } from '../components/WeaponArt';
+import { GunBench, GunStill, PartThumb, StatBars } from '../components/Gun3D';
+import type { GunSpec } from '../components/gun3d';
 import { useCollection, useDoc } from '../hooks/useCollection';
 import { useHub } from '../hooks/useHub';
-import { useCatalog, useOwned, type Catalog } from '../lib/catalog';
+import { gunClassOf, useCatalog, useOwned, type Catalog } from '../lib/catalog';
 import { db } from '../lib/firebase';
 import { ago } from '../lib/format';
 import { shrinkImage } from '../lib/image';
-import { attachmentsFor, GUN_CLASSES, itemTitle, kindOf, slotLabel, slotsFor, type ItemType } from '../lib/items';
+import { attachmentsFor, GUN_CLASSES, itemTitle, kindOf, SLOTS, slotLabel, slotsFor, type ItemType } from '../lib/items';
 import { BAG_SLOTS, blankKit, createKit, equipKit, fromLoadout, HOTBAR, kitNeeds, PLATE, removeKit, saveKit, useMyKits, type GearKit, type KitData, type KitSlot } from '../lib/kits';
-import { BUILD_TAGS, keepBuild, likeBuild, markBuildPublic, removeBuild, saveBuild, type Build, type CharLoadout } from '../lib/loadouts';
-import type { Wish } from '../lib/money';
+import { BUILD_ROLES, BUILD_STATS, BUILD_TAGS, featureBuild, keepBuild, likeBuild, markBuildPublic, removeBuild, saveBuild, type Build, type BuildStats, type CharLoadout, type StatKey } from '../lib/loadouts';
+import { money, type BmSettings, type Wish } from '../lib/money';
 import { WishlistButton } from '../components/WishlistButton';
 import { useLists } from '../lib/adminData';
 import { addToShopping, askGang, useShopping, type ShopItem } from '../lib/shopping';
@@ -59,23 +61,104 @@ const useGunArt = (weaponId: string) => useDoc<GunArt & { id: string }>(`gunArt/
 
 // ---------- gunsmith ----------
 
+/** What the 3D bench needs: the gun, its class and the names of the fitted parts. */
+export function specOf(cat: Catalog, weaponId: string, parts: Record<string, string>): GunSpec {
+  const w = cat.byId.get(weaponId);
+  const base = w?.baseId ? cat.byId.get(w.baseId) : w;
+  return {
+    weaponId: base?.id ?? weaponId,
+    name: base?.name ?? w?.name ?? '',
+    cls: gunClassOf(w, cat.byId),
+    parts: Object.fromEntries(Object.entries(parts).filter(([, v]) => v).map(([k, v]) => [k, cat.byId.get(v)?.name ?? v])),
+  };
+}
+
+function usePhone() {
+  const q = '(max-width: 767px)';
+  const [phone, setPhone] = useState(() => matchMedia(q).matches);
+  useEffect(() => {
+    const mq = matchMedia(q);
+    const f = () => setPhone(mq.matches);
+    mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, []);
+  return phone;
+}
+
+type Parts = Record<string, string>;
+
+/** Every gun, by class, with a tick on the ones I own. */
+function WeaponList({ cat, owned, value, onPick, className = '' }: { cat: Catalog; owned: Map<string, number>; value: string; onPick: (id: string) => void; className?: string }) {
+  const [q, setQ] = useState('');
+  const list = cat.weapons.filter((x) => !q || x.name.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className={`hud flex flex-col ${className}`}>
+      <div className="flex items-center gap-2 border-b border-line-soft px-3">
+        <Search className="size-4 text-smoke" />
+        <input className="w-full bg-transparent py-2 text-sm text-gold-50 outline-none placeholder:text-smoke" placeholder="Find a weapon" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="overflow-y-auto">
+        {GUN_CLASSES.map((c) => {
+          const ws = list.filter((x) => x.gunClass === c.id);
+          return ws.length ? (
+            <div key={c.id}>
+              <p className="label sticky top-0 bg-coal px-3 py-1">{c.label}</p>
+              {ws.map((x) => (
+                <button
+                  key={x.id}
+                  onClick={() => onPick(x.id)}
+                  className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm md:py-1.5 ${x.id === value ? 'bg-gold-400/15 text-gold-100' : 'text-ash hover:bg-raised'}`}
+                >
+                  <span>{x.name}</span>
+                  {owned.get(x.id) ? <Check className="size-3.5 text-ok" /> : <span className="text-[10px] text-smoke">{x.base ? 'BM' : ''}</span>}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; initial?: Build | null; asCopy?: boolean; onSaved: () => void; onEquip: (b: Pick<Build, 'weaponId' | 'parts' | 'name'>) => void }) {
   const { me, can } = useHub();
   const owned = useOwned();
+  const phone = usePhone();
+  const bm = useDoc<BmSettings & { id: string }>('settings/blackmarket');
+  const prices = bm?.prices ?? {};
   const [weaponId, setWeaponId] = useState(initial?.weaponId ?? cat.weapons[0]?.id ?? '');
-  const [parts, setParts] = useState<Record<string, string>>(initial?.parts ?? {});
-  const [q, setQ] = useState('');
+  // Undo / redo: every change to the parts is a step.
+  const [hist, setHist] = useState<{ past: Parts[]; now: Parts; next: Parts[] }>({ past: [], now: initial?.parts ?? {}, next: [] });
+  const parts = hist.now;
+  const setParts = (now: Parts) => setHist((h) => ({ past: [...h.past.slice(-49), h.now], now, next: [] }));
+  const undo = () => setHist((h) => (h.past.length ? { past: h.past.slice(0, -1), now: h.past[h.past.length - 1]!, next: [h.now, ...h.next] } : h));
+  const redo = () => setHist((h) => (h.next.length ? { past: [...h.past, h.now], now: h.next[0]!, next: h.next.slice(1) } : h));
   const [active, setActive] = useState<string | null>(null);
+  const [sheet, setSheet] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [pq, setPq] = useState('');
   const [saving, setSaving] = useState<null | 'save' | 'copy'>(null);
   const [artEdit, setArtEdit] = useState(false);
+  const [view, setView] = useState<'3d' | 'picture'>('3d');
   const art = useGunArt(weaponId);
   const mine = !!initial && initial.by === me.id && !asCopy;
   useEffect(() => {
     if (initial) {
       setWeaponId(initial.weaponId);
-      setParts(initial.parts);
+      setHist({ past: [], now: initial.parts, next: [] });
     }
   }, [initial]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, select, [contenteditable]') || !(e.ctrlKey || e.metaKey)) return;
+      if (e.key.toLowerCase() === 'z') (e.preventDefault(), e.shiftKey ? redo() : undo());
+      else if (e.key.toLowerCase() === 'y') (e.preventDefault(), redo());
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
 
   const w = cat.byId.get(weaponId);
   const slots = slotsFor(weaponId, cat.types);
@@ -85,105 +168,151 @@ function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; in
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const filled = new Set(Object.entries(parts).filter(([, v]) => v).map(([k]) => k));
   const have = Object.values(parts).filter((p) => p && owned.get(p)).length;
-  const list = cat.weapons.filter((x) => !q || x.name.toLowerCase().includes(q.toLowerCase()));
   const cur = active ?? slots[0]?.id ?? null;
   const labels = Object.fromEntries(slots.map((s) => [s.id, parts[s.id] ? `${s.label}: ${cat.byId.get(parts[s.id]!)?.name}` : s.label]));
+  const spec = specOf(cat, weaponId, parts);
+  // What I'd still need, and what the BlackMarket asks for the ones it prices.
+  const missing = [weaponId, ...Object.values(parts)].filter((id) => id && !owned.get(id));
+  const cost = missing.reduce((t, id) => t + (prices[id] ?? 0), 0);
+  const unpriced = missing.filter((id) => !prices[id]).length;
+  const pick = (slot: string) => {
+    if (!slots.some((s) => s.id === slot)) return;
+    setActive(slot);
+    setPq('');
+    if (phone) setSheet(true);
+  };
+  const pickWeapon = (id: string) => {
+    setWeaponId(id);
+    setHist({ past: [], now: {}, next: [] });
+    setActive(null);
+    setPicking(false);
+  };
+
+  const shown = cur ? opts(cur).filter((o) => !pq || o.name.toLowerCase().includes(pq.toLowerCase())) : [];
+  const partsPanel = cur && (
+    <div className="parts-panel">
+      <div className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
+        <p className="label min-w-0 flex-1 truncate">
+          {slotLabel(cur)} · {opts(cur).length} parts
+        </p>
+        {parts[cur] && (
+          <button className="text-[11px] text-smoke hover:text-gold-200" onClick={() => setParts({ ...parts, [cur]: '' })}>
+            Take it off
+          </button>
+        )}
+        {phone && (
+          <button className="btn-ghost btn-sm px-2" onClick={() => setSheet(false)} aria-label="Close">
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+      {opts(cur).length > 9 && (
+        <div className="flex items-center gap-2 border-b border-line-soft px-3">
+          <Search className="size-3.5 text-smoke" />
+          <input className="w-full bg-transparent py-1.5 text-sm text-gold-50 outline-none placeholder:text-smoke" placeholder={`Find a ${slotLabel(cur).toLowerCase()}`} value={pq} onChange={(e) => setPq(e.target.value)} />
+        </div>
+      )}
+      <div className="part-grid">
+        {shown.map((o) => {
+          const on = parts[cur] === o.id;
+          return (
+            <button key={o.id} type="button" className={`part-tile ${on ? 'on' : ''}`} onClick={() => setParts({ ...parts, [cur]: on ? '' : o.id })} title={o.name}>
+              <PartThumb spec={specOf(cat, weaponId, { [cur]: o.id })} slot={cur} />
+              <span className="part-name">{o.name.replace(new RegExp(`^${(w?.name ?? '').split(' ')[0]}\\s+`, 'i'), '')}</span>
+              <span className="part-meta">
+                {owned.get(o.id) ? <span className="text-ok">have {owned.get(o.id)}</span> : prices[o.id] ? <span className="text-gold-300">{money(prices[o.id]!)}</span> : <span className="text-smoke">—</span>}
+                {on && <Check className="size-3.5 text-gold-300" />}
+              </span>
+            </button>
+          );
+        })}
+        {!shown.length && <p className="col-span-full p-4 text-center text-xs text-smoke">No parts match.</p>}
+      </div>
+    </div>
+  );
 
   return (
     <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
-      <div className="hud flex max-h-[70dvh] flex-col">
-        <div className="flex items-center gap-2 border-b border-line-soft px-3">
-          <Search className="size-4 text-smoke" />
-          <input className="w-full bg-transparent py-2 text-sm text-gold-50 outline-none placeholder:text-smoke" placeholder="Find a weapon" value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
-        <div className="overflow-y-auto">
-          {GUN_CLASSES.map((c) => {
-            const ws = list.filter((x) => x.gunClass === c.id);
-            return ws.length ? (
-              <div key={c.id}>
-                <p className="label sticky top-0 bg-coal px-3 py-1">{c.label}</p>
-                {ws.map((x) => (
-                  <button
-                    key={x.id}
-                    onClick={() => (setWeaponId(x.id), setParts({}), setActive(null))}
-                    className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm ${x.id === weaponId ? 'bg-gold-400/15 text-gold-100' : 'text-ash hover:bg-raised'}`}
-                  >
-                    <span>{x.name}</span>
-                    {owned.get(x.id) ? <Check className="size-3.5 text-ok" /> : <span className="text-[10px] text-smoke">{x.base ? 'BM' : ''}</span>}
-                  </button>
-                ))}
-              </div>
-            ) : null;
-          })}
-        </div>
-      </div>
+      {!phone && <WeaponList cat={cat} owned={owned} value={weaponId} onPick={pickWeapon} className="max-h-[80dvh]" />}
 
-      <div className="space-y-4">
-        <section className="hud scanlines relative overflow-hidden p-5" style={{ background: 'radial-gradient(ellipse at 50% 60%, rgba(212,175,55,0.12), transparent 70%), #0e0e0f' }}>
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
+      <div className="min-w-0 space-y-4">
+        <section className="bench">
+          <div className="bench-head">
+            <div className="min-w-0">
               <p className="label text-gold-500">
                 {GUN_CLASSES.find((c) => c.id === w?.gunClass)?.label.replace(/s$/, '')} · {w?.base ? 'Base gun · Black Market parts' : 'Custom'}
                 {initial && <> · {asCopy ? `copy of “${initial.name}”` : `editing “${initial.name}”`}</>}
               </p>
-              <h2 className="foil font-display text-3xl font-bold">{w?.name ?? 'Pick a weapon'}</h2>
+              <h2 className="foil truncate font-display text-2xl font-bold sm:text-3xl">{w?.name ?? 'Pick a weapon'}</h2>
             </div>
-            <p className="font-mono text-sm text-gold-200">
-              {filled.size}/{slots.length} slots · you own {have}/{filled.size} parts{owned.get(weaponId) ? ' + the gun' : ''}
-            </p>
+            <div className="flex shrink-0 items-center gap-1">
+              {phone && (
+                <button className="btn-ghost btn-sm" onClick={() => setPicking(true)}>
+                  <Swords className="size-3.5" /> Gun
+                </button>
+              )}
+              <button className="btn-ghost btn-sm px-2" onClick={undo} disabled={!hist.past.length} aria-label="Undo" title="Undo (Ctrl+Z)">
+                <Undo2 className="size-4" />
+              </button>
+              <button className="btn-ghost btn-sm px-2" onClick={redo} disabled={!hist.next.length} aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
+                <Redo2 className="size-4" />
+              </button>
+            </div>
           </div>
-          <div className="mx-auto mt-4 max-w-2xl">
-            <WeaponArt cls={w?.gunClass} slots={slots.map((s) => s.id)} filled={filled} active={cur} art={art} onSlot={setActive} labels={labels} />
+          <div className="bench-stage">
+            {view === 'picture' && art ? (
+              <div className="flex h-full items-center px-4">
+                <WeaponArt cls={w?.gunClass} slots={slots.map((s) => s.id)} filled={filled} active={cur} art={art} onSlot={pick} labels={labels} />
+              </div>
+            ) : (
+              <GunBench spec={spec} active={cur} onSlot={pick} fallback={<div className="flex h-full items-center px-4"><WeaponArt cls={w?.gunClass} slots={slots.map((s) => s.id)} filled={filled} active={cur} art={art} onSlot={pick} labels={labels} /></div>} />
+            )}
+            <span className="bench-lamp" aria-hidden />
+            <p className="bench-hint">{view === 'picture' && art ? 'Tap a light to fit that slot' : 'Drag to turn it · tap a part to fit that slot'}</p>
+            <span className="absolute top-2 right-2 flex gap-1">
+              {art && (
+                <button className="btn-ghost btn-sm bg-void/60" onClick={() => setView(view === '3d' ? 'picture' : '3d')}>
+                  {view === '3d' ? 'Picture' : '3D'}
+                </button>
+              )}
+              {can('manageOps') && (
+                <button className="btn-ghost btn-sm bg-void/60" onClick={() => setArtEdit(true)} title="Gun picture">
+                  <ImagePlus className="size-3.5" />
+                </button>
+              )}
+            </span>
           </div>
-          <p className="mt-2 text-center text-[11px] text-smoke">Tap a light to fit that slot.</p>
-          {can('manageOps') && (
-            <button className="btn-ghost btn-sm absolute top-3 right-3" onClick={() => setArtEdit(true)}>
-              <ImagePlus className="size-3.5" /> Gun picture
-            </button>
-          )}
-        </section>
-
-        <div className="grid gap-4 md:grid-cols-[1fr_1.2fr]">
           {/* Every slot, at a glance */}
-          <div className="hud divide-y divide-line-soft">
+          <div className="bench-slots">
             {slots.map((s) => {
               const p = parts[s.id] ? cat.byId.get(parts[s.id]!) : undefined;
               return (
-                <button key={s.id} onClick={() => setActive(s.id)} className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${cur === s.id ? 'bg-gold-400/10' : 'hover:bg-raised'}`}>
-                  <span className={`size-2 rounded-full ${p ? 'bg-gold-300 shadow-[0_0_6px_#d4af37]' : 'border border-smoke'}`} />
-                  <span className="w-24 shrink-0 text-smoke">{s.label}</span>
-                  <span className={`min-w-0 flex-1 truncate ${p ? (owned.get(p.id) ? 'text-ok' : 'text-gold-100') : 'text-smoke'}`}>{p?.name ?? '—'}</span>
+                <button key={s.id} onClick={() => pick(s.id)} className={`slot-chip ${cur === s.id ? 'on' : ''} ${p ? 'filled' : ''}`}>
+                  <i />
+                  <span className="min-w-0">
+                    <b>{s.label}</b>
+                    <span className={`block truncate ${p ? (owned.get(p.id) ? 'text-ok' : 'text-gold-100') : 'text-smoke'}`}>{p?.name ?? 'Stock'}</span>
+                  </span>
                 </button>
               );
             })}
           </div>
-          {/* The parts for the lit slot */}
-          {cur && (
-            <div className="hud flex max-h-80 flex-col">
-              <p className="label flex items-center justify-between border-b border-line-soft px-3 py-2">
-                {slotLabel(cur)} · {opts(cur).length} parts
-                {parts[cur] && (
-                  <button className="text-[11px] text-smoke hover:text-gold-200" onClick={() => setParts({ ...parts, [cur]: '' })}>
-                    Take it off
-                  </button>
-                )}
-              </p>
-              <div className="overflow-y-auto">
-                {opts(cur).map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setParts({ ...parts, [cur]: parts[cur] === o.id ? '' : o.id })}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${parts[cur] === o.id ? 'bg-gold-400/15 text-gold-100' : 'text-ash hover:bg-raised'}`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{o.name}</span>
-                    {owned.get(o.id) ? <span className="text-[11px] text-ok">have {owned.get(o.id)}</span> : null}
-                    {parts[cur] === o.id && <Check className="size-4 text-gold-300" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          <div className="bench-foot">
+            <span>
+              {filled.size}/{slots.length} slots · you own {have}/{filled.size} parts{owned.get(weaponId) ? ' + the gun' : ''}
+            </span>
+            {missing.length > 0 ? (
+              <span className="text-gold-200">
+                Still to get: {missing.length} · {cost ? `${money(cost)} at the BlackMarket` : 'no BlackMarket prices yet'}
+                {cost && unpriced ? ` + ${unpriced} unpriced` : ''}
+              </span>
+            ) : (
+              <span className="text-ok">You own all of it</span>
+            )}
+          </div>
+        </section>
+
+        {!phone && partsPanel}
 
         <div className="flex flex-wrap gap-2">
           <button className="btn-gold" disabled={!w} onClick={() => setSaving('save')}>
@@ -197,20 +326,27 @@ function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; in
           <button className="btn-ghost" disabled={!w} onClick={() => onEquip({ weaponId, parts: Object.fromEntries(Object.entries(parts).filter(([, v]) => v)), name: w?.name ?? '' })}>
             <ArrowRightLeft className="size-4" /> Put in a kit
           </button>
-          <button className="btn-ghost" onClick={() => setParts({})}>
+          <button className="btn-ghost" onClick={() => setParts({})} disabled={!filled.size}>
             <X className="size-4" /> Strip it
           </button>
-          <WishlistButton
-            label="Wishlist what I'm missing"
-            className="btn-ghost"
-            items={[weaponId, ...Object.values(parts)].filter((id) => id && !owned.get(id)).map((id) => ({ item: id, qty: 1, from: w?.name }))}
-          />
+          <WishlistButton label="Wishlist what I'm missing" className="btn-ghost" items={missing.map((id) => ({ item: id, qty: 1, from: w?.name }))} />
         </div>
       </div>
 
+      {phone && sheet && partsPanel && (
+        <>
+          <div className="parts-sheet-backdrop" onClick={() => setSheet(false)} />
+          <div className="parts-sheet">{partsPanel}</div>
+        </>
+      )}
+      {picking && (
+        <Modal title="Pick a gun" onClose={() => setPicking(false)}>
+          <WeaponList cat={cat} owned={owned} value={weaponId} onPick={pickWeapon} className="max-h-[70dvh]" />
+        </Modal>
+      )}
       {saving && (
         <SaveBuild
-          initial={initial && !asCopy ? initial : null}
+          initial={initial ?? null}
           copy={saving === 'copy' || !!asCopy}
           defaultName={initial ? (saving === 'copy' || asCopy ? `${initial.name} (copy)` : initial.name) : ''}
           onClose={() => setSaving(null)}
@@ -227,18 +363,44 @@ function Gunsmith({ cat, initial, asCopy, onSaved, onEquip }: { cat: Catalog; in
   );
 }
 
-function SaveBuild({ initial, copy, defaultName, onSave, onClose }: { initial: Build | null; copy: boolean; defaultName: string; onSave: (b: Pick<Build, 'name' | 'notes' | 'tags' | 'public'>) => Promise<void>; onClose: () => void }) {
+type BuildInfo = Pick<Build, 'name' | 'notes' | 'tags' | 'public' | 'stats' | 'role' | 'ttk' | 'pros' | 'cons'>;
+const lines = (s: string) =>
+  s
+    .split('\n')
+    .map((x) => x.trim().slice(0, 60))
+    .filter(Boolean)
+    .slice(0, 5);
+
+/** Name it, tag it, and (if they like) say how it handles: stat bars, role, time to kill, pros and cons. */
+function SaveBuild({ initial, copy, defaultName, onSave, onClose }: { initial: Build | null; copy: boolean; defaultName: string; onSave: (b: BuildInfo) => Promise<void>; onClose: () => void }) {
   const [name, setName] = useState(defaultName);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [pub, setPub] = useState(initial?.public ?? true);
+  const [stats, setStats] = useState<BuildStats>(initial?.stats ?? {});
+  const [role, setRole] = useState(initial?.role ?? '');
+  const [ttk, setTtk] = useState(initial?.ttk ?? '');
+  const [pros, setPros] = useState((initial?.pros ?? []).join('\n'));
+  const [cons, setCons] = useState((initial?.cons ?? []).join('\n'));
+  const [more, setMore] = useState(!!(initial?.stats && Object.keys(initial.stats).length) || !!initial?.role);
   return (
     <Modal title={initial && !copy ? 'Save build' : 'New build'} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (name.trim()) await onSave({ name: name.trim().slice(0, 40), notes: notes.trim().slice(0, 500), tags, public: pub });
+          if (name.trim())
+            await onSave({
+              name: name.trim().slice(0, 40),
+              notes: notes.trim().slice(0, 500),
+              tags,
+              public: pub,
+              stats: Object.fromEntries(Object.entries(stats).filter(([, v]) => v)) as BuildStats,
+              role,
+              ttk: ttk.trim().slice(0, 80),
+              pros: lines(pros),
+              cons: lines(cons),
+            });
         }}
       >
         <Field label="Build name">
@@ -258,6 +420,56 @@ function SaveBuild({ initial, copy, defaultName, onSave, onClose }: { initial: B
             ))}
           </div>
         </Field>
+        <button type="button" className="flex w-full items-center justify-between rounded border border-line-soft px-3 py-2 text-left text-sm text-gold-100 hover:bg-raised" onClick={() => setMore(!more)}>
+          <span>
+            How it handles <span className="text-xs text-smoke">· optional: stats, role, time to kill, pros &amp; cons</span>
+          </span>
+          <span className="text-smoke">{more ? '−' : '+'}</span>
+        </button>
+        {more && (
+          <div className="space-y-4 rounded border border-line-soft bg-coal/60 p-3">
+            <div className="space-y-2">
+              {BUILD_STATS.map((s) => (
+                <div key={s.id} className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 text-xs text-ash">{s.label}</span>
+                  <div className="stat-picker" role="radiogroup" aria-label={s.label}>
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+                      <button
+                        type="button"
+                        key={v}
+                        aria-label={`${s.label} ${v}`}
+                        className={(stats[s.id] ?? 0) >= v ? 'on' : ''}
+                        onClick={() => setStats({ ...stats, [s.id]: stats[s.id] === v ? 0 : v })}
+                      />
+                    ))}
+                  </div>
+                  <b className="w-5 text-right font-mono text-xs text-gold-100">{stats[s.id] || '–'}</b>
+                </div>
+              ))}
+              <p className="text-[11px] text-smoke">Tap a bar to set it, tap the same one again to clear. Control means how easy the recoil is.</p>
+            </div>
+            <Field label="Role">
+              <div className="flex flex-wrap gap-1">
+                {BUILD_ROLES.map((r) => (
+                  <button type="button" key={r} onClick={() => setRole(role === r ? '' : r)} className={`chip px-2.5 py-1 text-xs ${role === r ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Time to kill" hint="e.g. 4 body shots, 2 to the head">
+              <input className="input" value={ttk} onChange={(e) => setTtk(e.target.value)} maxLength={80} />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Pros" hint="One per line, up to 5">
+                <textarea className="input min-h-20" value={pros} onChange={(e) => setPros(e.target.value)} />
+              </Field>
+              <Field label="Cons" hint="One per line, up to 5">
+                <textarea className="input min-h-20" value={cons} onChange={(e) => setCons(e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        )}
         <Field label="Notes" hint="What it's for, why these parts">
           <textarea className="input min-h-20" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} />
         </Field>
@@ -359,106 +571,276 @@ function GunArtEditor({ weapon, slots, art, onClose }: { weapon: ItemType; slots
 
 // ---------- builds ----------
 
-function BuildCard({ b, cat, owned, onOpen, onCopy, onEquip }: { b: Build; cat: Catalog; owned: Map<string, number>; onOpen: () => void; onCopy: () => void; onEquip: () => void }) {
+function BuildActions({ b, onOpen, onCopy, onEquip, owned }: { b: Build; owned: Map<string, number>; onOpen: () => void; onCopy: () => void; onEquip: () => void }) {
+  const { me, can } = useHub();
+  const parts = Object.values(b.parts);
+  return (
+    <div className="flex flex-wrap gap-1">
+      <button className="btn-ghost btn-sm" onClick={onEquip}>
+        <ArrowRightLeft className="size-3.5" /> Put in a kit
+      </button>
+      <button className="btn-ghost btn-sm" onClick={onCopy}>
+        <Copy className="size-3.5" /> Copy & tweak
+      </button>
+      <WishlistButton label="Wishlist" items={[b.weaponId, ...parts].filter((id) => id && !owned.get(id)).map((id) => ({ item: id, qty: 1, from: b.name }))} />
+      {can('manageOps') && b.public !== false && (
+        <button className={`btn-ghost btn-sm ${b.featured ? 'text-gold-200' : ''}`} onClick={() => featureBuild(b.id, !b.featured)} title={b.featured ? 'Take it off the Family issue shelf' : 'Make it a Family issue build'}>
+          <Star className={`size-3.5 ${b.featured ? 'fill-current' : ''}`} /> {b.featured ? 'Unfeature' : 'Feature'}
+        </button>
+      )}
+      {b.by === me.id && (
+        <>
+          <button className="btn-ghost btn-sm" onClick={onOpen}>
+            <Wrench className="size-3.5" /> Edit
+          </button>
+          <button className="btn-ghost btn-sm px-2" onClick={() => confirm(`Delete “${b.name}”?`) && removeBuild(b.id)} aria-label="Delete">
+            <Trash2 className="size-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LikeSave({ b }: { b: Build }) {
   const { me } = useHub();
-  const w = cat.byId.get(b.weaponId);
   const liked = !!b.likes?.[me.id];
   const kept = !!b.saves?.[me.id];
-  const parts = Object.entries(b.parts);
-  const have = parts.filter(([, v]) => owned.get(v)).length;
-  const art = useGunArt(b.weaponId);
   return (
-    <div className="hud flex flex-col p-4">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="label flex items-center gap-1">
-            {b.public === false && <Lock className="size-3" />}
-            {w?.name ?? 'Unknown weapon'}
-          </p>
-          <p className="font-hud text-lg leading-tight font-bold text-gold-100">{b.name}</p>
-          <p className="text-xs text-smoke">
-            by <MemberName id={b.by} className="text-xs" /> · {ago(b.at)}
-          </p>
-        </div>
-        <span className="flex items-center gap-2">
-          <button onClick={() => keepBuild(b.id, me.id, !kept)} className={kept ? 'text-gold-300' : 'text-smoke hover:text-gold-200'} aria-label={kept ? 'Saved' : 'Save'} title={kept ? 'In your saved builds' : 'Save to your list'}>
-            <Bookmark className={`size-4 ${kept ? 'fill-current' : ''}`} />
-          </button>
-          <button onClick={() => likeBuild(b.id, me.id, !liked)} className={`flex items-center gap-1 text-sm ${liked ? 'text-danger' : 'text-smoke hover:text-gold-200'}`} aria-label="Like">
-            <Heart className={`size-4 ${liked ? 'fill-current' : ''}`} /> {count(b.likes)}
-          </button>
-        </span>
-      </div>
-      {(b.tags ?? []).length > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {b.tags!.map((t) => (
-            <span key={t} className="chip bg-gold-400/10 px-2 py-0.5 text-[10px] text-gold-200">
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="my-3">
-        <WeaponArt cls={w?.gunClass} slots={slotsFor(b.weaponId, cat.types).map((s) => s.id)} filled={new Set(Object.keys(b.parts))} art={art} />
-      </div>
-      <ul className="flex-1 space-y-0.5 text-xs">
-        {parts.map(([slot, id]) => (
-          <li key={slot} className="flex gap-2">
-            <span className="w-20 shrink-0 text-smoke">{slotLabel(slot)}</span>
-            <span className={`truncate ${owned.get(id) ? 'text-ok' : 'text-gold-100'}`}>{cat.byId.get(id)?.name ?? '—'}</span>
+    <span className="flex items-center gap-2">
+      <button onClick={() => keepBuild(b.id, me.id, !kept)} className={kept ? 'text-gold-300' : 'text-smoke hover:text-gold-200'} aria-label={kept ? 'Saved' : 'Save'} title={kept ? 'In your saved builds' : 'Save to your list'}>
+        <Bookmark className={`size-4 ${kept ? 'fill-current' : ''}`} />
+      </button>
+      <button onClick={() => likeBuild(b.id, me.id, !liked)} className={`flex items-center gap-1 text-sm ${liked ? 'text-danger' : 'text-smoke hover:text-gold-200'}`} aria-label="Like">
+        <Heart className={`size-4 ${liked ? 'fill-current' : ''}`} /> {count(b.likes)}
+      </button>
+    </span>
+  );
+}
+
+function ProsCons({ b }: { b: Build }) {
+  if (!b.pros?.length && !b.cons?.length) return null;
+  return (
+    <div className="grid grid-cols-2 gap-2 text-xs">
+      <ul className="space-y-0.5">
+        {(b.pros ?? []).map((p) => (
+          <li key={p} className="text-ok">
+            + <span className="text-ash">{p}</span>
           </li>
         ))}
       </ul>
-      {b.notes && <p className="mt-2 text-xs text-ash italic">“{b.notes}”</p>}
-      <p className="mt-2 text-[11px] text-smoke">
-        You own {have}/{parts.length} parts{owned.get(b.weaponId) ? ' and the gun' : ''}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-1">
-        <button className="btn-ghost btn-sm" onClick={onEquip}>
-          <ArrowRightLeft className="size-3.5" /> Put in a kit
-        </button>
-        <button className="btn-ghost btn-sm" onClick={onCopy}>
-          <Copy className="size-3.5" /> Copy & tweak
-        </button>
-        <WishlistButton label="Wishlist" items={[b.weaponId, ...parts.map(([, v]) => v)].filter((id) => id && !owned.get(id)).map((id) => ({ item: id, qty: 1, from: b.name }))} />
-        {b.by === me.id && (
-          <>
-            <button className="btn-ghost btn-sm" onClick={onOpen}>
-              <Wrench className="size-3.5" /> Edit
-            </button>
-            <button className="btn-ghost btn-sm px-2" onClick={() => confirm(`Delete “${b.name}”?`) && removeBuild(b.id)} aria-label="Delete">
-              <Trash2 className="size-3.5" />
-            </button>
-          </>
+      <ul className="space-y-0.5">
+        {(b.cons ?? []).map((p) => (
+          <li key={p} className="text-red-300">
+            − <span className="text-ash">{p}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function BuildCard({ b, cat, owned, onOpen, onCopy, onEquip, picked, onPick }: { b: Build; cat: Catalog; owned: Map<string, number>; onOpen: () => void; onCopy: () => void; onEquip: () => void; picked: boolean; onPick: () => void }) {
+  const w = cat.byId.get(b.weaponId);
+  const parts = Object.entries(b.parts);
+  const have = parts.filter(([, v]) => owned.get(v)).length;
+  return (
+    <div className={`build-card ${b.featured ? 'featured' : ''} ${picked ? 'picked' : ''}`}>
+      <div className="build-shot">
+        <GunStill spec={specOf(cat, b.weaponId, b.parts)} />
+        {b.role && <span className="role-chip">{b.role}</span>}
+        {b.featured && (
+          <span className="issue-chip">
+            <Star className="size-3 fill-current" /> Family issue
+          </span>
         )}
+        <label className="compare-tick" title="Compare">
+          <input type="checkbox" checked={picked} onChange={onPick} /> Compare
+        </label>
+      </div>
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-hud text-lg leading-tight font-bold text-gold-100">{b.name}</p>
+            <p className="text-xs text-smoke">
+              {b.public === false && <Lock className="mr-1 inline size-3" />}
+              {w?.name ?? 'Unknown weapon'} · by <MemberName id={b.by} className="text-xs" /> · {ago(b.at)}
+            </p>
+          </div>
+          <LikeSave b={b} />
+        </div>
+        <StatBars stats={b.stats} compact />
+        {b.ttk && <p className="text-xs text-gold-200">⏱ {b.ttk}</p>}
+        <ProsCons b={b} />
+        {(b.tags ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {b.tags!.map((t) => (
+              <span key={t} className="chip bg-gold-400/10 px-2 py-0.5 text-[10px] text-gold-200">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <details className="text-xs">
+          <summary className="cursor-pointer text-smoke hover:text-gold-200">
+            {parts.length} parts · you own {have}/{parts.length}
+            {owned.get(b.weaponId) ? ' and the gun' : ''}
+          </summary>
+          <ul className="mt-1 space-y-0.5">
+            {parts.map(([slot, id]) => (
+              <li key={slot} className="flex gap-2">
+                <span className="w-20 shrink-0 text-smoke">{slotLabel(slot)}</span>
+                <span className={`truncate ${owned.get(id) ? 'text-ok' : 'text-gold-100'}`}>{cat.byId.get(id)?.name ?? '—'}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+        {b.notes && <p className="text-xs text-ash italic">“{b.notes}”</p>}
+        <div className="mt-auto">
+          <BuildActions b={b} owned={owned} onOpen={onOpen} onCopy={onCopy} onEquip={onEquip} />
+        </div>
       </div>
     </div>
   );
 }
 
-type BuildSort = 'likes' | 'new' | 'member';
+/** Leadership's pinned builds: a wide, gold-trimmed card with the gun turning on the bench. */
+function FamilyIssue({ list, cat, owned, onOpen, onCopy, onEquip }: { list: Build[]; cat: Catalog; owned: Map<string, number>; onOpen: (b: Build) => void; onCopy: (b: Build) => void; onEquip: (b: Build) => void }) {
+  const [i, setI] = useState(0);
+  const b = list[Math.min(i, list.length - 1)]!;
+  const w = cat.byId.get(b.weaponId);
+  return (
+    <section className="family-issue mb-5">
+      <div className="family-issue-stage">
+        <GunBench key={b.id} spec={specOf(cat, b.weaponId, b.parts)} active={null} onSlot={() => {}} fallback={<GunStill spec={specOf(cat, b.weaponId, b.parts)} />} />
+        <span className="issue-chip">
+          <Star className="size-3 fill-current" /> Family issue
+        </span>
+      </div>
+      <div className="flex flex-col gap-3 p-5">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="label text-gold-500">
+              {w?.name ?? 'Unknown weapon'}
+              {b.role ? ` · ${b.role}` : ''}
+            </p>
+            <h3 className="foil font-display text-2xl font-bold">{b.name}</h3>
+            <p className="text-xs text-smoke">
+              by <MemberName id={b.by} className="text-xs" /> · {ago(b.at)}
+            </p>
+          </div>
+          <LikeSave b={b} />
+        </div>
+        <StatBars stats={b.stats} />
+        {b.ttk && <p className="text-sm text-gold-200">⏱ {b.ttk}</p>}
+        <ProsCons b={b} />
+        {b.notes && <p className="text-sm text-ash italic">“{b.notes}”</p>}
+        <div className="mt-auto">
+          <BuildActions b={b} owned={owned} onOpen={() => onOpen(b)} onCopy={() => onCopy(b)} onEquip={() => onEquip(b)} />
+        </div>
+        {list.length > 1 && (
+          <div className="flex flex-wrap gap-1">
+            {list.map((x, n) => (
+              <button key={x.id} onClick={() => setI(n)} className={`chip px-2.5 py-1 text-[11px] ${n === i ? 'bg-gold-400 text-void' : 'bg-raised text-ash'}`}>
+                {x.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Two or three builds side by side: stats (best in gold), role, time to kill, and every part. */
+function Compare({ list, cat, owned, onClose }: { list: Build[]; cat: Catalog; owned: Map<string, number>; onClose: () => void }) {
+  const best = Object.fromEntries(BUILD_STATS.map((s) => [s.id, Math.max(0, ...list.map((b) => b.stats?.[s.id] ?? 0))]).filter(([, v]) => (v as number) > 0)) as BuildStats;
+  const slots = SLOTS.filter((s) => list.some((b) => b.parts[s.id]));
+  return (
+    <Modal title="Compare builds" onClose={onClose} wide>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${list.length}, minmax(0, 1fr))` }}>
+        {list.map((b) => (
+          <div key={b.id} className="min-w-0 space-y-2">
+            <GunStill spec={specOf(cat, b.weaponId, b.parts)} className="rounded" />
+            <p className="truncate font-hud font-bold text-gold-100">{b.name}</p>
+            <p className="truncate text-xs text-smoke">
+              {cat.byId.get(b.weaponId)?.name}
+              {b.role ? ` · ${b.role}` : ''}
+            </p>
+            {b.stats && Object.keys(b.stats).length ? <StatBars stats={b.stats} best={best} /> : <p className="text-xs text-smoke">No stats given.</p>}
+            {b.ttk && <p className="text-xs text-gold-200">⏱ {b.ttk}</p>}
+            <ProsCons b={b} />
+          </div>
+        ))}
+      </div>
+      <table className="mt-4 w-full table-fixed text-xs">
+        <tbody>
+          {slots.map((s) => (
+            <tr key={s.id} className="border-t border-line-soft">
+              <td className="w-24 py-1.5 pr-2 align-top text-smoke">{s.label}</td>
+              {list.map((b) => {
+                const id = b.parts[s.id];
+                return (
+                  <td key={b.id} className={`truncate py-1.5 pr-2 align-top ${id ? (owned.get(id) ? 'text-ok' : 'text-gold-100') : 'text-smoke'}`}>
+                    {id ? (cat.byId.get(id)?.name ?? '—') : 'Stock'}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Modal>
+  );
+}
+
+type BuildSort = 'likes' | 'new' | 'member' | `stat:${StatKey}`;
 
 function Builds({ cat, builds, onOpen, onCopy, onEquip }: { cat: Catalog; builds: Build[] | null; onOpen: (b: Build) => void; onCopy: (b: Build) => void; onEquip: (b: Build) => void }) {
   const { me } = useHub();
   const owned = useOwned();
+  const [q, setQ] = useState('');
   const [cls, setCls] = useState('');
   const [weapon, setWeapon] = useState('');
   const [tag, setTag] = useState('');
+  const [role, setRole] = useState('');
   const [show, setShow] = useState<'all' | 'saved' | 'mine'>('all');
   const [sort, setSort] = useState<BuildSort>('likes');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
   if (!builds) return null;
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack = (b: Build) => [b.name, b.byName, b.role, cat.byId.get(b.weaponId)?.name, ...Object.values(b.parts).map((id) => cat.byId.get(id)?.name), ...(b.tags ?? [])].join(' ').toLowerCase();
+  const statOf = (b: Build, k: StatKey) => b.stats?.[k] ?? 0;
   const list = builds
+    .filter((b) => !words.length || words.every((wd) => haystack(b).includes(wd)))
     .filter((b) => !cls || cat.byId.get(b.weaponId)?.gunClass === cls)
     .filter((b) => !weapon || b.weaponId === weapon)
     .filter((b) => !tag || b.tags?.includes(tag))
+    .filter((b) => !role || b.role === role)
     .filter((b) => show === 'all' || (show === 'saved' ? b.saves?.[me.id] : b.by === me.id))
+    .filter((b) => !sort.startsWith('stat:') || statOf(b, sort.slice(5) as StatKey) > 0)
     .sort((a, b) =>
-      sort === 'likes' ? count(b.likes) - count(a.likes) : sort === 'new' ? (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0) : a.byName.localeCompare(b.byName) || count(b.likes) - count(a.likes),
+      sort.startsWith('stat:')
+        ? statOf(b, sort.slice(5) as StatKey) - statOf(a, sort.slice(5) as StatKey) || count(b.likes) - count(a.likes)
+        : sort === 'likes'
+          ? count(b.likes) - count(a.likes)
+          : sort === 'new'
+            ? (b.at?.toMillis() ?? 0) - (a.at?.toMillis() ?? 0)
+            : a.byName.localeCompare(b.byName) || count(b.likes) - count(a.likes),
     );
+  const featured = builds.filter((b) => b.featured && b.public !== false).sort((a, b) => count(b.likes) - count(a.likes));
   const used = cat.weapons.filter((w) => builds.some((b) => b.weaponId === w.id) && (!cls || w.gunClass === cls));
+  const pick = (id: string) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : picked.length < 3 ? [...picked, id] : picked);
+  const filtering = !!(q || cls || weapon || tag || role || show !== 'all');
   return (
     <>
+      {featured.length > 0 && !filtering && <FamilyIssue list={featured} cat={cat} owned={owned} onOpen={onOpen} onCopy={onCopy} onEquip={onEquip} />}
       <div className="mb-3 flex flex-wrap gap-2">
+        <div className="flex min-w-48 flex-1 items-center gap-2 rounded border border-line-soft bg-coal px-3">
+          <Search className="size-4 text-smoke" />
+          <input className="w-full bg-transparent py-2 text-sm text-gold-50 outline-none placeholder:text-smoke" placeholder="Search builds, guns, parts, members" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
         <div className="flex gap-1">
           {(
             [
@@ -472,6 +854,8 @@ function Builds({ cat, builds, onOpen, onCopy, onEquip }: { cat: Catalog; builds
             </button>
           ))}
         </div>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-2">
         <select className="input w-auto" value={cls} onChange={(e) => (setCls(e.target.value), setWeapon(''))}>
           <option value="">Every class</option>
           {GUN_CLASSES.map((c) => (
@@ -488,10 +872,25 @@ function Builds({ cat, builds, onOpen, onCopy, onEquip }: { cat: Catalog; builds
             </option>
           ))}
         </select>
+        <select className="input w-auto" value={role} onChange={(e) => setRole(e.target.value)}>
+          <option value="">Every role</option>
+          {BUILD_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
         <select className="input w-auto" value={sort} onChange={(e) => setSort(e.target.value as BuildSort)}>
           <option value="likes">Most liked</option>
           <option value="new">Newest</option>
           <option value="member">By member</option>
+          <optgroup label="Highest stat">
+            {BUILD_STATS.map((s) => (
+              <option key={s.id} value={`stat:${s.id}`}>
+                Most {s.label.toLowerCase()}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
       <div className="mb-4 flex flex-wrap gap-1">
@@ -504,14 +903,28 @@ function Builds({ cat, builds, onOpen, onCopy, onEquip }: { cat: Catalog; builds
       {list.length ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((b) => (
-            <BuildCard key={b.id} b={b} cat={cat} owned={owned} onOpen={() => onOpen(b)} onCopy={() => onCopy(b)} onEquip={() => onEquip(b)} />
+            <BuildCard key={b.id} b={b} cat={cat} owned={owned} onOpen={() => onOpen(b)} onCopy={() => onCopy(b)} onEquip={() => onEquip(b)} picked={picked.includes(b.id)} onPick={() => pick(b.id)} />
           ))}
         </div>
       ) : (
         <Empty icon={<Wrench className="size-6" />} title={builds.length ? 'Nothing matches' : 'No builds yet'}>
-          {builds.length ? 'Try another filter.' : 'Make one in the Gunsmith and save it.'}
+          {builds.length ? 'Try another search or filter.' : 'Make one in the Gunsmith and save it.'}
         </Empty>
       )}
+      {picked.length > 0 && (
+        <div className="compare-bar">
+          <span className="text-sm text-ash">
+            {picked.length} picked <span className="text-smoke">(up to 3)</span>
+          </span>
+          <button className="btn-ghost btn-sm" onClick={() => setPicked([])}>
+            Clear
+          </button>
+          <button className="btn-gold btn-sm" disabled={picked.length < 2} onClick={() => setComparing(true)}>
+            Compare
+          </button>
+        </div>
+      )}
+      {comparing && <Compare list={picked.map((id) => builds.find((b) => b.id === id)).filter((b): b is Build => !!b)} cat={cat} owned={owned} onClose={() => setComparing(false)} />}
     </>
   );
 }

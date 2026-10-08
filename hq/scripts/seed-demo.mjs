@@ -434,8 +434,15 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   // Gear & Loadouts: shared builds and character loadouts
   const TAGS = { bd1: ['Blacksite', 'Defense'], bd2: ['Run', 'CQB'], bd3: ['Long range', 'Blacksite'], bd4: ['Stealth', 'Budget'], bd5: ['CQB'] };
   const build = (id, by, name, weaponId, parts, notes, likes, pub = true) =>
-    setDoc(doc(db, 'builds', id), { name, weaponId, parts, notes, by: ids[by], byName: by, tags: TAGS[id] ?? [], public: pub, likes: Object.fromEntries(likes.map((n) => [ids[n], true])), saves: id === 'bd1' || id === 'bd3' ? { [vito]: true } : {}, at: Timestamp.fromMillis(now - likes.length * 7 * H) });
+    setDoc(doc(db, 'builds', id), { name, weaponId, parts, notes, by: ids[by], byName: by, tags: TAGS[id] ?? [], public: pub, likes: Object.fromEntries(likes.map((n) => [ids[n], true])), saves: id === 'bd1' || id === 'bd3' ? { [vito]: true } : {}, at: Timestamp.fromMillis(now - likes.length * 7 * H), ...(HANDLES[id] ?? {}) });
   const A = (w, s) => `a_${w}__${s}`;
+  // How the builders say their builds handle (all optional), and leadership's pick.
+  const HANDLES = {
+    bd1: { stats: { damage: 7, accuracy: 8, range: 8, recoil: 7, rate: 6, mobility: 4 }, role: 'Mid-range', ttk: '4 body shots, 2 to the head', pros: ['Steady at range', 'ACOG for long lanes'], cons: ['Heavy', 'Slow to swap'], featured: true },
+    bd2: { stats: { damage: 5, accuracy: 6, range: 4, recoil: 8, rate: 9, mobility: 9 }, role: 'CQB', ttk: '6 body shots', pros: ['Fast handling', 'Cheap to run'], cons: ['Falls off past 30m'] },
+    bd3: { stats: { damage: 10, accuracy: 9, range: 10, recoil: 3, rate: 2, mobility: 2 }, role: 'Sniper', ttk: '1 to the head', pros: ['One-shot head'], cons: ['Bolt action', 'Useless up close'] },
+    bd4: { stats: { damage: 4, accuracy: 6, range: 3, recoil: 8, rate: 6, mobility: 10 }, role: 'Support', pros: ['Quiet'] },
+  };
   await build('bd1', 'Rocco Vale', 'Blacksite rifleman', 'w_mk18_rifle', { sight: A('mk18_rifle', 'mk18_ta02_acog'), magazine: A('mk18_rifle', 'mk18_30rd_std'), grip: A('mk18_rifle', 'mk18_m_lok_mvg_black'), light: A('mk18_rifle', 'mk18_dbal_a2'), stock: A('mk18_rifle', 'mk18_moe_magpul_black'), frame: A('mk18_rifle', 'mk18_black_frame') }, 'Holds the hill. ACOG for the long lanes at the docks.', ['Dani Cruz', 'Tommy Reyes', 'Kira Lane', 'Don Vito']);
   await build('bd2', 'Kira Lane', 'Runner SMG', 'w_ump45', { sight: A('ump45', 'ump45_aimdirect_micro_t_1'), magazine: A('ump45', '25rnd_magazine'), stock: A('ump45', 'ump45_folded_stock'), grip: A('ump45', 'magpul_afg_black') }, 'Light and quick for supply runs to the point.', ['Ghost', 'Jax Holt']);
   await build('bd3', 'Dani Cruz', 'Overwatch', 'w_m700_rifle', { sight: A('m700_rifle', 'm700_nightforce_atacr_1_8x24'), barrel: A('m700_rifle', 'm700_26in_barrel'), magazine: A('m700_rifle', 'm700_10rnd_aics'), stock: A('m700_rifle', 'm700_at_aics_sniper'), muzzle: A('m700_rifle', 'm700_muzzle_break_1') }, '', ['Rocco Vale', 'Don Vito', 'Marco Gallo']);
