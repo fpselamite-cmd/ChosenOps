@@ -15,12 +15,14 @@
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.4.0",
+    "@types/three": "^0.169.0",
     "firebase": "^12.19.0",
     "html-to-image": "^1.11.13",
     "lucide-react": "^1.52.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
