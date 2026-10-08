@@ -1432,13 +1432,25 @@ service cloud.firestore {
         return str(d.name, 40) && d.name.size() > 0 && str(d.weaponId, 80) && d.parts is map && d.parts.size() <= 16
           && (!('notes' in d) || str(d.notes, 500))
           && (!('tags' in d) || (d.tags is list && d.tags.size() <= 6))
-          && d.get('public', true) is bool;
+          && d.get('public', true) is bool
+          && (!('stats' in d) || validStats(d.stats))
+          && (!('role' in d) || str(d.role, 20))
+          && (!('ttk' in d) || str(d.ttk, 80))
+          && (!('pros' in d) || (d.pros is list && d.pros.size() <= 5))
+          && (!('cons' in d) || (d.cons is list && d.cons.size() <= 5));
+      }
+      function statOk(s, k) { return !(k in s) || (s[k] is int && s[k] >= 1 && s[k] <= 10); }
+      function validStats(s) {
+        return s is map && s.keys().hasOnly(['damage', 'accuracy', 'range', 'recoil', 'rate', 'mobility'])
+          && statOk(s, 'damage') && statOk(s, 'accuracy') && statOk(s, 'range') && statOk(s, 'recoil') && statOk(s, 'rate') && statOk(s, 'mobility');
       }
       allow create: if active() && validBuild() && request.resource.data.by == myId()
         && request.resource.data.likes is map && request.resource.data.likes.size() == 0
-        && request.resource.data.get('saves', {}).size() == 0;
+        && request.resource.data.get('saves', {}).size() == 0 && !('featured' in request.resource.data);
       allow update: if active() && (
-        (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes', 'tags', 'public']))
+        (resource.data.by == myId() && validBuild() && onlyChanges(['name', 'weaponId', 'parts', 'notes', 'tags', 'public', 'stats', 'role', 'ttk', 'pros', 'cons']))
+        // Leadership pins a family build as the family's issue.
+        || (can('manageOps') && resource.data.get('public', true) == true && onlyChanges(['featured']) && request.resource.data.featured is bool)
         || (onlyChanges(['likes']) && mapOnlyMine(request.resource.data.likes, resource.data.get('likes', {})))
         || (onlyChanges(['saves']) && mapOnlyMine(request.resource.data.saves, resource.data.get('saves', {})))
         || (!('public' in resource.data) && onlyChanges(['public']) && request.resource.data.public == true));

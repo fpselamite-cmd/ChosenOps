@@ -691,6 +691,17 @@ describe('gear & loadouts', () => {
     await assertFails(updateDoc(doc(as('sol2'), 'builds/b1'), { name: 'Mine' }));
     await assertSucceeds(updateDoc(doc(as('sol'), 'builds/b1'), { name: 'Docks rifleman' }));
   });
+  it('takes optional stats from the maker, and only leadership features a family build', async () => {
+    await assertSucceeds(setDoc(doc(as('sol'), 'builds/s1'), { ...build('sol'), public: true, stats: { damage: 7, range: 4 }, role: 'CQB', ttk: '4 body shots', pros: ['Fast'], cons: [] }));
+    await assertFails(setDoc(doc(as('sol'), 'builds/s2'), { ...build('sol'), stats: { damage: 11 } }));
+    await assertFails(setDoc(doc(as('sol'), 'builds/s3'), { ...build('sol'), stats: { luck: 3 } }));
+    await assertFails(setDoc(doc(as('sol'), 'builds/s4'), { ...build('sol'), featured: true }));
+    await assertSucceeds(updateDoc(doc(as('sol'), 'builds/s1'), { stats: { damage: 8, accuracy: 6 }, role: 'Mid-range' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'builds/s1'), { stats: { damage: 1 } }));
+    await assertFails(updateDoc(doc(as('sol'), 'builds/s1'), { featured: true }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'builds/s1'), { featured: true }));
+    await assertFails(updateDoc(doc(as('boss'), 'builds/s1'), { featured: false, name: 'Boss pick' }));
+  });
   it('keeps a private loadout to its member and admins; public ones to all', async () => {
     await assertSucceeds(setDoc(doc(as('sol'), 'loadouts/sol'), { public: false, vest: 'ar_class_iii_armor', plates: 3, utility: [] }));
     await assertFails(setDoc(doc(as('sol2'), 'loadouts/sol'), { public: true }));
