@@ -10,6 +10,7 @@ import { give, HIGH_TIER, HUE_SLOTS, KINDS, RARITIES, rarityOf, revoke, saveLoad
 import type { Member } from '../../lib/types';
 import { useArchiveAccess } from '../archives/useArchives';
 import { Forge } from './Forge';
+import { DisplayCase, Inspect } from './Collection';
 import { useHonors, useMyHonorStats } from './useHonors';
 
 const statLabel = (id?: string | null) => STATS.find((s) => s.id === id)?.label ?? id ?? '';
@@ -123,6 +124,8 @@ export function Vault({ m }: { m: Member }) {
   const [onlyOwned, setOnlyOwned] = useState(false);
   const [giving, setGiving] = useState<Honor | null>(null);
   const [forge, setForge] = useState(false);
+  const [look, setLook] = useState<Honor | null>(null);
+  const [mode, setMode] = useState<'case' | 'list'>('case');
   const mine = m.id === me.id;
   const owned = ownedBy(m.id);
   const ownedMap = new Map(owned.map((o) => [o.honorId, o]));
@@ -159,6 +162,16 @@ export function Vault({ m }: { m: Member }) {
 
       {mine && <Wardrobe m={m} />}
 
+      <div className="flex gap-1.5">
+        {(['case', 'list'] as const).map((v) => (
+          <button key={v} className={`chip px-3 py-1 text-xs ${mode === v ? 'border-gold-400 bg-gold-500/10 text-gold-200' : 'text-smoke'}`} onClick={() => setMode(v)}>
+            {v === 'case' ? 'Display case' : 'List'}
+          </button>
+        ))}
+      </div>
+      {mode === 'case' && <DisplayCase m={m} onOpen={setLook} />}
+
+      {mode === 'list' && <>
       <div className="flex flex-wrap items-center gap-2">
         {[{ id: 'all' as const, plural: 'Everything' }, ...KINDS].map((k) => (
           <button key={k.id} className={`chip px-3 py-1 text-xs ${kind === k.id ? 'border-gold-400 bg-gold-500/10 text-gold-200' : 'text-smoke'}`} onClick={() => setKind(k.id)}>
@@ -179,7 +192,7 @@ export function Vault({ m }: { m: Member }) {
           const howHidden = !viewerHas && (h.secret || HIGH_TIER.includes(h.rarity));
           const progress = mine && !o && h.source === 'milestone' && h.stat && stats && !howHidden ? Math.min(1, (stats[h.stat] ?? 0) / (h.goal || 1)) : null;
           return (
-            <div key={h.id} className={`honor-tile rar-${h.rarity} ${o ? 'owned' : 'locked'}`} style={{ ['--rar' as string]: rarityOf(h.rarity).color }}>
+            <div key={h.id} className={`honor-tile rar-${h.rarity} ${o ? 'owned' : 'locked'}`} style={{ ['--rar' as string]: rarityOf(h.rarity).color }} onClick={(e) => (e.target as HTMLElement).closest('button') || setLook(h)}>
               <div className="honor-tile-pic">
                 <HonorPic h={h} locked={!o && nameHidden} member={m} />
                 {!o && <Lock className="honor-lock" />}
@@ -221,6 +234,8 @@ export function Vault({ m }: { m: Member }) {
           </p>
         )}
       </div>
+      </>}
+      {look && <Inspect h={look} m={m} onClose={() => setLook(null)} onGive={() => (setGiving(look), setLook(null))} />}
       {giving && <GiveDialog m={m} h={giving} onClose={() => setGiving(null)} />}
       {forge && <Forge onClose={() => setForge(false)} />}
     </div>

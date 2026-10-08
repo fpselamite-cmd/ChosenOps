@@ -1,6 +1,6 @@
 import { collection, query, where } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { HonorPic, RarityChip } from '../../components/HonorArt';
+import { Badge, HonorPic, RarityChip } from '../../components/HonorArt';
 import { useCollection, useDoc } from '../../hooks/useCollection';
 import { useHub } from '../../hooks/useHub';
 import type { DinnerNote, Lore } from '../../lib/archives';
@@ -10,7 +10,7 @@ import { useMyAchievementStats } from '../../lib/cabinet';
 import { heistStatsOf, type Heist } from '../../lib/heists';
 import { runStatsOf, type NarcoRun } from '../../lib/runs';
 import { db } from '../../lib/firebase';
-import { CHIPS_FOR, NARCO_STATS, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
+import { CHIPS_FOR, NARCO_STATS, SETS, setMembers, claim, earnable, HONORS_VERSION, KINDS, markSeen, rarityOf, setUpHonors, type Honor, type HonorStats, type Loadout, type Owned } from '../../lib/honors';
 import type { Bounty, Sighting } from '../../lib/rivals';
 import { useArchiveAccess } from '../archives/useArchives';
 import { claimGift, dayKey, DEFAULT_CASINO, openChips, weekKey, type CasinoSettings, type ChipGift, type Chips } from '../../lib/casino';
@@ -26,6 +26,8 @@ interface HonorsCtx {
   /** The honors someone has on, only counting ones they really own. */
   equipped: (memberId: string) => { title?: Honor; frame?: Honor; effect?: Honor; nameHue?: string; backdropHue?: string; accentHue?: string; trimHue?: string; showcase: Honor[] };
   score: (memberId: string) => number;
+  /** Which number this copy is: No. n of everyone who holds it, by when they earned it. */
+  serialOf: (memberId: string, honorId: string) => { n: number; of: number } | null;
   setUp: boolean;
 }
 const Ctx = createContext<HonorsCtx | null>(null);
@@ -48,6 +50,8 @@ export function HonorsProvider({ children }: { children: ReactNode }) {
     const byMember = new Map<string, Owned[]>();
     owned.forEach((o) => byMember.set(o.memberId, [...(byMember.get(o.memberId) ?? []), o]));
     const ownedSet = new Set(owned.map((o) => `${o.memberId}_${o.honorId}`));
+    const byHonor = new Map<string, Owned[]>();
+    owned.forEach((o) => byHonor.set(o.honorId, [...(byHonor.get(o.honorId) ?? []), o]));
     const lo = new Map(loadouts.map((l) => [l.id, l]));
     const has = (m: string, h: string) => ownedSet.has(`${m}_${h}`);
     const pick = (m: string, id?: string | null) => (id && has(m, id) ? honorById.get(id) : undefined);
@@ -73,6 +77,11 @@ export function HonorsProvider({ children }: { children: ReactNode }) {
         };
       },
       score: (m) => (byMember.get(m) ?? []).reduce((t, o) => t + rarityOf(honorById.get(o.honorId)?.rarity).points, 0),
+      serialOf: (m, h) => {
+        const holders = (byHonor.get(h) ?? []).slice().sort((a, b) => (a.at?.toMillis() ?? Date.now()) - (b.at?.toMillis() ?? Date.now()));
+        const i = holders.findIndex((o) => o.memberId === m);
+        return i < 0 ? null : { n: i + 1, of: holders.length };
+      },
       setUp: !!settings?.setUp,
     };
   }, [honors, owned, loadouts, settings]);
@@ -104,7 +113,15 @@ export function useMyHonorStats(): HonorStats | null {
   const heists = useCollection<Heist>(useMemo(() => query(collection(db, 'heists'), where('crew', 'array-contains', me.id)), [me.id]), blooded) ?? [];
   const runs = useCollection<NarcoRun>(useMemo(() => query(collection(db, 'narcoRuns'), where('crew', 'array-contains', me.id)), [me.id]), narco) ?? [];
   const chips = useDoc<Chips>(`chips/${me.id}`);
+  const ctx = useContext(Ctx);
   if (!base || !sites || chips === undefined) return null;
+  // A set counts as collected once every piece in it is mine.
+  const setDone = (group: string) => {
+    if (!ctx) return 0;
+    const pieces = setMembers(ctx.honors, group);
+    return pieces.length > 0 && pieces.every((h) => ctx.has(me.id, h.id)) ? 1 : 0;
+  };
+  const sets: Record<string, number> = Object.fromEntries(SETS.map((st) => [st.id, setDone(st.group)]));
   const hz = heistStatsOf(heists, me.id);
   const nr = runStatsOf(runs, me.id);
   const r = records(sites).get(me.id);
@@ -140,7 +157,8 @@ export function useMyHonorStats(): HonorStats | null {
     asDriver: hz.asDriver,
     asHacker: hz.asHacker,
     asGunman: hz.asGunman,
-  };
+    ...sets,
+  } as HonorStats;
 }
 
 /** Quietly unlocks every milestone I've reached and don't have yet. */
@@ -231,50 +249,61 @@ function HueApplier() {
   return null;
 }
 
-/** A small card pops in the corner when something unlocks, colored and animated by rarity. */
+/**
+ * The unlock moment: a small case drops in, the lid swings open and the piece rises out of it with a
+ * burst in its tier's color. Mythic takes the whole screen. Several at once queue up (or skip them all).
+ */
 function UnlockToasts() {
   const { me, preview } = useHub();
-  const { ownedBy, honorById } = useHonors();
+  const { ownedBy, honorById, serialOf } = useHonors();
   const fresh = ownedBy(me.id).filter((o) => !o.seen && honorById.has(o.honorId));
   const [gone, setGone] = useState<Set<string>>(new Set());
-  const list = fresh.filter((o) => !gone.has(o.id)).slice(0, 3);
-  useEffect(() => {
-    if (preview || !list.length) return;
-    // The cards on screen go together after a few seconds; the next batch (if any) follows.
-    const t = setTimeout(() => {
-      setGone((g) => new Set([...g, ...list.map((o) => o.id)]));
-      list.forEach((o) => void markSeen(me.id, o.honorId).catch(() => {}));
-    }, 6000);
-    return () => clearTimeout(t);
-  }, [list, me.id, preview]);
-  if (preview || !list.length) return null;
+  const queue = fresh.filter((o) => !gone.has(o.id));
+  const o = queue[0];
+  if (preview || !o) return null;
+  const h = honorById.get(o.honorId)!;
+  const serial = serialOf(me.id, h.id);
+  const next = () => {
+    setGone((g) => new Set(g).add(o.id));
+    void markSeen(me.id, o.honorId).catch(() => {});
+  };
+  const skipAll = () => {
+    setGone((g) => new Set([...g, ...queue.map((x) => x.id)]));
+    queue.forEach((x) => void markSeen(me.id, x.honorId).catch(() => {}));
+  };
   return (
-    <div className="fixed right-4 bottom-20 z-[70] flex flex-col gap-3 lg:bottom-6">
-      {list.map((o) => {
-        const h = honorById.get(o.honorId)!;
-        return (
-          <button
-            key={o.id}
-            className={`honor-toast rar-${h.rarity}`}
-            style={{ ['--rar' as string]: rarityOf(h.rarity).color }}
-            onClick={() => {
-              setGone((g) => new Set(g).add(o.id));
-              void markSeen(me.id, o.honorId);
-            }}
-          >
-            <span className="honor-toast-pic">
-              <HonorPic h={h} member={me} />
-            </span>
-            <span className="min-w-0 text-left">
-              <span className="label block text-[9px]" style={{ color: rarityOf(h.rarity).color }}>
-                {o.by === 'milestone' ? 'Unlocked' : `From ${o.byName}`} · {KINDS.find((k) => k.id === h.kind)?.label}
-              </span>
-              <b className="block truncate font-display text-lg text-gold-100">{h.name}</b>
-              <RarityChip r={h.rarity} />
-            </span>
+    <div className={`honor-toast unlock rar-${h.rarity}`} style={{ ['--rar' as string]: rarityOf(h.rarity).color }} onClick={next} role="dialog" aria-label={`Unlocked ${h.name}`}>
+      <div className="unlock-stage" key={o.id}>
+        <span className="unlock-burst" aria-hidden />
+        <span className="unlock-rays" aria-hidden />
+        <div className="unlock-case" aria-hidden>
+          <span className="unlock-lid" />
+          <span className="unlock-box" />
+        </div>
+        <div className="unlock-piece">{h.kind === 'badge' ? <Badge h={h} size={130} ribbon /> : <HonorPic h={h} member={me} />}</div>
+        <div className="unlock-text">
+          <span className="label block text-[10px]" style={{ color: rarityOf(h.rarity).color }}>
+            {o.by === 'milestone' ? 'Unlocked' : o.by === 'shop' ? 'Bought' : `From ${o.byName}`} · {KINDS.find((k) => k.id === h.kind)?.label}
+          </span>
+          <b className="block font-display text-3xl text-gold-100">{h.name}</b>
+          <span className="mt-1 flex items-center justify-center gap-2">
+            <RarityChip r={h.rarity} />
+            {serial && <span className="text-xs text-smoke">No. {serial.n} of {serial.of}</span>}
+          </span>
+          {h.description && <span className="mt-2 block text-sm text-ash">{h.description}</span>}
+          {o.by !== 'shop' && <span className="mt-1 block text-xs text-gold-300">+{(h.chips ?? CHIPS_FOR[h.rarity]).toLocaleString()} chips</span>}
+        </div>
+        <div className="unlock-actions" onClick={(e) => e.stopPropagation()}>
+          <button className="btn-gold btn-sm" onClick={next}>
+            {queue.length > 1 ? `Next (${queue.length - 1} more)` : 'Into the case'}
           </button>
-        );
-      })}
+          {queue.length > 1 && (
+            <button className="btn-ghost btn-sm" onClick={skipAll}>
+              Skip all
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
