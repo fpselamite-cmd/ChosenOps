@@ -681,6 +681,16 @@ describe('blacksites', () => {
   });
 });
 
+describe('NoelOps names', () => {
+  it('lets leadership link a member to their NoelOps name, and nobody else', async () => {
+    await assertSucceeds(updateDoc(doc(as('boss'), 'members/sol'), { noelName: 'Sol' }));
+    await assertSucceeds(updateDoc(doc(as('boss'), 'members/sol'), { noelName: null }));
+    await assertFails(updateDoc(doc(as('sol'), 'members/sol'), { noelName: 'Boss' }));
+    await assertFails(updateDoc(doc(as('sol2'), 'members/sol'), { noelName: 'X' }));
+    await assertFails(updateDoc(doc(as('boss'), 'members/sol'), { noelName: 'x'.repeat(31) }));
+  });
+});
+
 describe('casino big wins', () => {
   const win = (by: string) => ({ by, name: 'Sol', game: 'slots', amount: 5000, note: 'Jackpot', at: serverTimestamp() });
   it('lets members post their own big wins and read the ticker', async () => {

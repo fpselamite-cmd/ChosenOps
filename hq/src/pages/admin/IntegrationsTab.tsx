@@ -1,8 +1,11 @@
 import { limitToLast, onValue, query, ref } from 'firebase/database';
-import { Cannabis, ExternalLink } from 'lucide-react';
+import { Cannabis, Check, ExternalLink, Link2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Panel } from '../../components/Page';
+import { useHub } from '../../hooks/useHub';
 import { ago } from '../../lib/format';
+import { accessFor, noelNameOf, setNoelName } from '../../lib/noelAccess';
+import type { Member } from '../../lib/types';
 import { NOELOPS_URL, noelDb, noelRef, useNoel } from '../../lib/noelops';
 
 /** Is the live NoelOps link up, can we read it, and when did anything last happen there? */
@@ -56,10 +59,80 @@ function NoelStatus() {
   );
 }
 
+function NameBox({ m, crewNames }: { m: Member; crewNames: string[] }) {
+  const [v, setV] = useState(m.noelName ?? '');
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setV(m.noelName ?? ''), [m.noelName]);
+  const save = async () => {
+    if (v.trim() === (m.noelName ?? '')) return;
+    await setNoelName(m.id, v);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+  return (
+    <span className="flex items-center gap-1.5">
+      <input className="input w-40 py-1 text-sm" value={v} placeholder={m.name} maxLength={30} list="noel-crew-names" onChange={(e) => setV(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()} aria-label={`NoelOps name for ${m.name}`} />
+      {saved ? <Check className="size-4 text-ok" /> : <span className="size-4" />}
+      <datalist id="noel-crew-names">
+        {crewNames.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+    </span>
+  );
+}
+
+/**
+ * Leadership links each member to the name they go by in NoelOps (often just a first name), so their NoelOps
+ * stats and history stay theirs. Access itself comes from the Narco role and leadership.
+ */
+function NoelNames() {
+  const { roster, rankById, holders } = useHub();
+  const crew = useNoel<Record<string, { name?: string }>>('crew');
+  const holderOf = new Map(holders.map((h) => [h.id, h]));
+  const rows = roster
+    .map((m) => ({ m, a: accessFor(m, rankById.get(m.rankId ?? ''), holderOf.get(m.id)) }))
+    .filter((r) => r.a)
+    .sort((x, y) => (x.a!.lvl === y.a!.lvl ? x.m.name.localeCompare(y.m.name) : x.a!.lvl === 'member' ? 1 : y.a!.lvl === 'member' ? -1 : 0));
+  const crewNames = [...new Set(Object.values(crew.data ?? {}).map((c) => c?.name?.trim()).filter((n): n is string => !!n))].sort();
+  const linked = new Set(rows.map((r) => noelNameOf(r.m).toLowerCase()));
+  const unlinked = crewNames.filter((n) => !linked.has(n.toLowerCase()));
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.filter((r) => r.a!.lvl !== 'member' || r.m.noelName);
+  return (
+    <Panel title="NoelOps names" right={<Link2 className="size-4 text-gold-500" />} className="mt-6">
+      <p className="mb-3 text-sm text-ash">
+        The name each person goes by in NoelOps. Leave it blank if it's the same as their HQ name. Getting in comes from the <b>Narco</b> role (or leadership); this just keeps their NoelOps stats and history theirs.
+      </p>
+      {unlinked.length > 0 && (
+        <p className="mb-3 rounded border border-yellow-400/40 bg-yellow-400/5 p-2 text-xs text-yellow-100">
+          NoelOps crew not linked to anyone yet: <b>{unlinked.join(', ')}</b>
+        </p>
+      )}
+      <ul className="divide-y divide-line-soft">
+        {shown.map(({ m, a }) => (
+          <li key={m.id} className="flex flex-wrap items-center gap-3 py-2">
+            <span className="min-w-0 flex-1">
+              <b className="text-gold-100">{m.name}</b>
+              <span className="ml-2 text-xs text-smoke">{rankById.get(m.rankId ?? '')?.name}</span>
+            </span>
+            <span className={`chip px-2 py-0.5 text-[10px] ${a!.lvl === 'manage' ? 'text-gold-200' : a!.lvl === 'edit' ? 'text-ok' : 'text-smoke'}`}>{a!.lvl === 'manage' ? 'Leadership' : a!.lvl === 'edit' ? 'Narco' : 'No access'}</span>
+            <NameBox m={m} crewNames={crewNames} />
+          </li>
+        ))}
+      </ul>
+      <button className="mt-2 text-xs text-smoke hover:text-gold-200" onClick={() => setAll(!all)}>
+        {all ? 'Only Narco and leadership' : `Show everyone (${rows.length})`}
+      </button>
+    </Panel>
+  );
+}
+
 export default function IntegrationsTab() {
   return (
     <div className="max-w-2xl">
       <NoelStatus />
+      <NoelNames />
     </div>
   );
 }

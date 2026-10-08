@@ -86,9 +86,12 @@ for (const d of members.docs) {
   else if ((h?.roles ?? []).includes('narco')) lvl = 'edit';
   else lvl = 'member';
   if (!lvl) continue;
-  const e = { m: m.id, n: m.name, lvl, ...(ops ? { ops: true } : {}) };
+  // Inside NoelOps they go by the name leadership linked (often a first name), so their stats carry on.
+  const noelName = (typeof m.noelName === 'string' && m.noelName.trim()) || m.name;
+  const e = { m: m.id, n: noelName, lvl, ...(ops ? { ops: true } : {}) };
   access[m.authUid || m.id] = e;
-  byName.set(String(m.name).trim().toLowerCase(), e);
+  byName.set(String(noelName).trim().toLowerCase(), e);
+  byName.set(String(m.name).trim().toLowerCase(), byName.get(String(m.name).trim().toLowerCase()) ?? e);
 }
 
 // 3. Who from NoelOps' crew won't get in
@@ -104,8 +107,8 @@ say(`- Access list: ${Object.values(access).filter((e) => e.lvl === 'manage').le
 if (left.length) {
   say('');
   say('### NoelOps crew who won\'t get in yet');
-  say('Give them an HQ account with the same name, and the Narco role, to let them in:');
-  for (const { name, e } of left) say(`- ${name}: ${e ? 'in HQ, but no Narco role' : 'no HQ member with this name'}`);
+  say('Link each one in HQ: Admin → Integrations → NoelOps names (type the name they use here), and give them the Narco role:');
+  for (const { name, e } of left) say(`- ${name}: ${e ? 'linked, but no Narco role' : 'not linked to anyone in HQ yet'}`);
 }
 
 if (dry) {

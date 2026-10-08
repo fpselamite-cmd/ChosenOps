@@ -68,6 +68,8 @@ export interface Member {
   avatar?: string | null;
   /** In-city details. */
   alias?: string;
+  /** The name they go by in NoelOps (often just a first name), set by leadership. */
+  noelName?: string | null;
   phone?: string;
   bio?: string;
   joinedAt?: Timestamp;
