@@ -29,6 +29,8 @@ interface HonorsCtx {
   /** Which number this copy is: No. n of everyone who holds it, by when they earned it. */
   serialOf: (memberId: string, honorId: string) => { n: number; of: number } | null;
   setUp: boolean;
+  /** Everyone's honors and who owns what have both loaded (until then, "doesn't own it" means "don't know yet"). */
+  ready: boolean;
 }
 const Ctx = createContext<HonorsCtx | null>(null);
 export const useHonors = () => useContext(Ctx)!;
@@ -83,8 +85,9 @@ export function HonorsProvider({ children }: { children: ReactNode }) {
         return i < 0 ? null : { n: i + 1, of: holders.length };
       },
       setUp: !!settings?.setUp,
+      ready: allHonors !== null && allOwned !== null,
     };
-  }, [honors, owned, loadouts, settings]);
+  }, [honors, owned, loadouts, settings, allHonors, allOwned]);
   return (
     <Ctx.Provider value={value}>
       {children}
@@ -169,11 +172,12 @@ export function useMyHonorStats(): HonorStats | null {
 /** Quietly unlocks every milestone I've reached and don't have yet. */
 function HonorWatcher() {
   const { me, preview } = useHub();
-  const { honors, has } = useHonors();
+  const { honors, has, ready } = useHonors();
   const stats = useMyHonorStats();
   const tried = useRef(new Set<string>());
   useEffect(() => {
-    if (!stats || preview) return;
+    // Wait for what I own to load: claiming one I already have gets refused, but it flashes up as new first.
+    if (!stats || preview || !ready) return;
     for (const h of honors) {
       if (h.source !== 'milestone' || !h.stat || !earnable(h) || has(me.id, h.id) || tried.current.has(h.id)) continue;
       if ((stats[h.stat] ?? 0) >= (h.goal ?? Infinity)) {
@@ -181,7 +185,7 @@ function HonorWatcher() {
         void claim(me, h.id).catch(() => {});
       }
     }
-  }, [stats, honors, has, me, preview]);
+  }, [stats, honors, has, me, preview, ready]);
 
   // The casino purse: weekly allowance, daily bonus, chips for new activity and for honors unlocked, gifts.
   const chips = useDoc<Chips>(`chips/${me.id}`);
@@ -261,7 +265,8 @@ function HueApplier() {
 function UnlockToasts() {
   const { me, preview } = useHub();
   const { ownedBy, honorById, serialOf } = useHonors();
-  const fresh = ownedBy(me.id).filter((o) => !o.seen && honorById.has(o.honorId));
+  // Only once the server has it (its time is filled in): a write that's about to be refused never flashes up.
+  const fresh = ownedBy(me.id).filter((o) => !o.seen && !!o.at && honorById.has(o.honorId));
   const [gone, setGone] = useState<Set<string>>(new Set());
   const queue = fresh.filter((o) => !gone.has(o.id));
   const o = queue[0];
